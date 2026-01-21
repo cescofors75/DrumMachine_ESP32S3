@@ -59,12 +59,113 @@ body {
 /* Header */
 .header {
     display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
     justify-content: space-between;
     align-items: center;
     padding: 20px 0;
     border-bottom: 2px solid var(--red-primary);
     margin-bottom: 30px;
     position: relative;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 220px;
+}
+
+.header-meters {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    min-width: 260px;
+}
+
+.meter {
+    flex: 1;
+    min-width: 140px;
+    padding: 12px 16px;
+    background: rgba(10, 10, 10, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 0 12px rgba(255, 0, 0, 0.25), inset 0 0 20px rgba(255, 0, 0, 0.08);
+    backdrop-filter: blur(4px);
+    position: relative;
+    overflow: hidden;
+}
+
+.meter::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 55%);
+}
+
+.meter-label {
+    font-size: 0.75em;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.meter-value {
+    font-family: var(--font-mono);
+    font-size: 1.4em;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 0, 0, 0.45);
+}
+
+.meter-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    margin-top: 10px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.meter-bar span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ff5f6d 0%, #ffc371 100%);
+    box-shadow: 0 0 10px rgba(255, 95, 109, 0.8);
+    transition: width 0.25s ease;
+}
+
+.meter-filter .meter-bar span {
+    background: linear-gradient(90deg, #ffe259 0%, #ffa751 50%, #ff006e 100%);
+}
+
+.meter-bar:not(.active) span {
+    opacity: 0.25;
+}
+
+.meter-bar.active span {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .header {
+        justify-content: center;
+    }
+    .header-meters {
+        order: 3;
+    }
+    .menu-toggle {
+        order: 2;
+    }
 }
 
 .logo {
@@ -460,6 +561,44 @@ h2 {
     overflow: hidden;
 }
 
+.pad-key-hint {
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    top: auto;
+    padding: 4px 10px 6px;
+    font-size: 0.7em;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.85);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04));
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: -3px -3px 6px rgba(255, 255, 255, 0.08), 3px 3px 9px rgba(0, 0, 0, 0.65), inset 0 1px 3px rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    transition: transform 0.2s, color 0.2s, box-shadow 0.2s;
+    z-index: 3;
+}
+
+.pad-key-hint::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.45);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.pad:active .pad-key-hint,
+.pad.active .pad-key-hint {
+    color: #fff;
+    box-shadow: -2px -2px 5px rgba(255, 255, 255, 0.12), 4px 4px 10px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.55);
+    transform: translate(-1px, -1px) scale(1.02);
+}
+
 /* Multi-color palette mapping */
 body:not(.mono-mode) .pad[data-pad="0"] { --pad-rgb: var(--pad-color-0); }
 body:not(.mono-mode) .pad[data-pad="1"] { --pad-rgb: var(--pad-color-1); }
@@ -487,12 +626,32 @@ body:not(.mono-mode) .pad[data-pad] {
     animation: padGlow 4s ease-in-out infinite alternate;
 }
 
+body:not(.mono-mode) .pad[data-pad]::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 12px;
+    border: 2px solid rgba(var(--pad-rgb), 0);
+    box-shadow: 0 0 0 rgba(var(--pad-rgb), 0);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    pointer-events: none;
+    z-index: 1;
+}
+
 body:not(.mono-mode) .pad[data-pad]:active,
 body:not(.mono-mode) .pad[data-pad].active {
     background: radial-gradient(circle, rgba(var(--pad-rgb), 0.95) 0%, rgba(var(--pad-rgb), 0.7) 55%, rgba(var(--pad-rgb), 0.4) 100%);
-    border-color: #fff;
-    box-shadow: 0 0 35px rgba(var(--pad-rgb), 0.9), 0 0 55px rgba(var(--pad-rgb), 0.7), inset 0 0 28px rgba(255, 255, 255, 0.55);
+    border-color: rgba(var(--pad-rgb), 0.95);
+    outline: 2px solid rgba(var(--pad-rgb), 0.6);
+    outline-offset: -4px;
+    box-shadow: 0 0 30px rgba(var(--pad-rgb), 0.95), 0 0 65px rgba(var(--pad-rgb), 0.55), inset 0 0 28px rgba(255, 255, 255, 0.55);
     transform: scale(0.96);
+}
+
+body:not(.mono-mode) .pad[data-pad]:active::before,
+body:not(.mono-mode) .pad[data-pad].active::before {
+    border-color: rgba(var(--pad-rgb), 0.9);
+    box-shadow: 0 0 25px rgba(var(--pad-rgb), 0.85), 0 0 45px rgba(var(--pad-rgb), 0.6);
 }
 
 body:not(.mono-mode) .pad[data-pad]::after {
@@ -517,6 +676,33 @@ body:not(.mono-mode) .pad[data-pad].active::after {
     100% { box-shadow: 0 0 35px rgba(var(--pad-rgb), 0.55), inset 0 0 30px rgba(var(--pad-rgb), 0.55); }
 }
 
+@keyframes padPulseColor {
+    0% {
+        box-shadow: 0 0 12px rgba(var(--pad-rgb), 0.25), 0 0 28px rgba(var(--pad-rgb), 0.18);
+        border-color: rgba(var(--pad-rgb), 0.4);
+    }
+    50% {
+        box-shadow: 0 0 45px rgba(var(--pad-rgb), 0.85), 0 0 80px rgba(var(--pad-rgb), 0.5);
+        border-color: rgba(var(--pad-rgb), 0.95);
+    }
+    100% {
+        box-shadow: 0 0 18px rgba(var(--pad-rgb), 0.3), 0 0 35px rgba(var(--pad-rgb), 0.2);
+        border-color: rgba(var(--pad-rgb), 0.5);
+    }
+}
+
+@keyframes padPulseMono {
+    0% {
+        box-shadow: 0 0 14px rgba(255, 0, 0, 0.35), 0 0 28px rgba(255, 0, 0, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 55px rgba(255, 0, 0, 0.85), 0 0 110px rgba(255, 0, 0, 0.45);
+    }
+    100% {
+        box-shadow: 0 0 18px rgba(255, 0, 0, 0.35), 0 0 35px rgba(255, 0, 0, 0.25);
+    }
+}
+
 body:not(.mono-mode) .pad .pad-number,
 body:not(.mono-mode) .pad .pad-name {
     text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
@@ -527,161 +713,166 @@ body:not(.mono-mode) .pad .pad-sample-info {
 }
 
 /* ============= MONO MODE PROFESIONAL ============= */
-/* Pads con degradados sofisticados y toque de rojo de fondo */
+/* Pads monocromos con rojo neón en relieve */
 body.mono-mode .pad {
-    background: linear-gradient(135deg, 
-        rgba(50, 20, 20, 0.95) 0%,
-        rgba(30, 10, 10, 0.98) 50%,
-        rgba(20, 5, 5, 1) 100%);
-    border: 3px solid #442222;
-    box-shadow: 
-        0 4px 8px rgba(0, 0, 0, 0.6),
-        0 2px 4px rgba(0, 0, 0, 0.4),
-        inset 0 -2px 4px rgba(0, 0, 0, 0.5),
-        inset 0 2px 4px rgba(255, 20, 20, 0.03),
-        0 0 15px rgba(80, 0, 0, 0.2);
+    background: radial-gradient(circle at 32% 28%, rgba(255, 76, 76, 0.98) 0%, rgba(210, 8, 8, 0.95) 45%, rgba(28, 0, 0, 1) 100%);
+    border: 3px solid rgba(255, 90, 90, 0.7);
+    box-shadow:
+        0 14px 28px rgba(0, 0, 0, 0.8),
+        0 0 28px rgba(255, 64, 64, 0.35),
+        inset 0 0 35px rgba(255, 58, 58, 0.28);
     position: relative;
+    animation: monoPadPulse 6s ease-in-out infinite alternate;
 }
 
-/* Efecto 3D con pseudo-elementos */
 body.mono-mode .pad::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 4px;
     border-radius: 12px;
-    background: linear-gradient(to bottom, 
-        rgba(255, 255, 255, 0.03) 0%,
-        rgba(255, 255, 255, 0) 50%,
-        rgba(0, 0, 0, 0.2) 100%);
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02));
+    opacity: 0.2;
     pointer-events: none;
 }
 
-/* Highlight superior para efecto metálico */
+body.mono-mode .pad:active::before,
+body.mono-mode .pad.active::before {
+    opacity: 0.4;
+    box-shadow: 0 0 35px rgba(255, 0, 0, 0.45);
+}
+
 body.mono-mode .pad::after {
     content: '';
     position: absolute;
-    top: 2px;
-    left: 15%;
-    right: 15%;
-    height: 25%;
+    top: 6px;
+    left: 18%;
+    right: 18%;
+    height: 24%;
     border-radius: 50%;
-    background: linear-gradient(to bottom,
-        rgba(255, 255, 255, 0.08),
-        rgba(255, 255, 255, 0));
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.35), transparent 70%);
     filter: blur(2px);
     pointer-events: none;
 }
 
-/* Estado activo con gradiente rojo profesional */
+body.mono-mode .pad:active::after,
+body.mono-mode .pad.active::after {
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.6), transparent 70%);
+}
+
 body.mono-mode .pad:active,
 body.mono-mode .pad.active {
-    background: radial-gradient(circle at center,
-        #FF0000 0%,
-        #CC0000 30%,
-        #990000 60%,
-        #660000 85%,
-        #330000 100%);
-    border-color: #FF3333;
-    box-shadow: 
-        0 0 40px rgba(255, 0, 0, 0.8),
-        0 0 80px rgba(255, 0, 0, 0.5),
-        0 0 120px rgba(255, 0, 0, 0.3),
-        inset 0 0 30px rgba(255, 100, 100, 0.4),
-        inset 0 -4px 8px rgba(0, 0, 0, 0.6),
-        0 6px 12px rgba(0, 0, 0, 0.7);
+    background: radial-gradient(circle at center, #ff5f6d 0%, #ff1e56 35%, #990011 70%, #320002 100%);
+    border-color: #ff9b9b;
+    box-shadow:
+        0 0 55px rgba(255, 95, 109, 0.85),
+        0 0 120px rgba(255, 30, 70, 0.45),
+        inset 0 0 40px rgba(255, 150, 150, 0.35),
+        inset 0 -4px 10px rgba(0, 0, 0, 0.6);
     transform: scale(0.97);
 }
 
-/* Efecto hover refinado */
 body.mono-mode .pad:hover {
-    background: linear-gradient(135deg, 
-        rgba(60, 25, 25, 0.95) 0%,
-        rgba(40, 15, 15, 0.98) 50%,
-        rgba(30, 10, 10, 1) 100%);
-    border-color: #553333;
-    box-shadow: 
-        0 6px 12px rgba(0, 0, 0, 0.7),
-        0 3px 6px rgba(0, 0, 0, 0.5),
-        inset 0 -2px 6px rgba(0, 0, 0, 0.6),
-        inset 0 2px 6px rgba(255, 30, 30, 0.04),
-        0 0 20px rgba(255, 0, 0, 0.15);
+    background: radial-gradient(circle at 25% 30%, rgba(255, 94, 94, 0.98), rgba(165, 0, 0, 0.95));
+    border-color: rgba(255, 130, 130, 0.8);
+    box-shadow:
+        0 16px 30px rgba(0, 0, 0, 0.85),
+        0 0 32px rgba(255, 80, 80, 0.4),
+        inset 0 0 30px rgba(255, 80, 80, 0.28);
 }
 
-/* Números y texto con mejor contraste */
 body.mono-mode .pad-number {
-    color: #888;
-    text-shadow: 
-        0 1px 2px rgba(0, 0, 0, 0.8),
-        0 0 10px rgba(255, 255, 255, 0.1);
+    color: rgba(255, 210, 210, 0.75);
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 0 12px rgba(255, 120, 120, 0.4);
     font-weight: 700;
     position: relative;
     z-index: 2;
 }
 
 body.mono-mode .pad-name {
-    color: #999;
-    text-shadow: 
-        0 1px 2px rgba(0, 0, 0, 0.8),
-        0 0 10px rgba(255, 255, 255, 0.05);
+    color: rgba(255, 220, 220, 0.85);
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 0 10px rgba(255, 255, 255, 0.2);
     font-weight: 600;
     position: relative;
     z-index: 2;
 }
 
-/* Estado activo: texto brillante */
 body.mono-mode .pad:active .pad-number,
-body.mono-mode .pad.active .pad-number {
-    color: #FFF;
-    text-shadow: 
-        0 0 10px rgba(255, 0, 0, 1),
-        0 0 20px rgba(255, 0, 0, 0.8),
-        0 0 30px rgba(255, 0, 0, 0.6),
-        0 2px 4px rgba(0, 0, 0, 0.9);
-}
-
+body.mono-mode .pad.active .pad-number,
 body.mono-mode .pad:active .pad-name,
 body.mono-mode .pad.active .pad-name {
-    color: #FFD;
-    text-shadow: 
-        0 0 8px rgba(255, 0, 0, 0.8),
-        0 0 16px rgba(255, 0, 0, 0.6),
-        0 2px 4px rgba(0, 0, 0, 0.9);
+    color: #fff;
+    text-shadow:
+        0 0 15px rgba(255, 255, 255, 0.8),
+        0 0 30px rgba(255, 80, 80, 0.75);
 }
 
-/* Tremolo activo en mono */
+body.mono-mode .pad-key-hint {
+    color: rgba(255, 200, 200, 0.9);
+    border-color: rgba(255, 110, 110, 0.5);
+    background: linear-gradient(145deg, rgba(120, 0, 0, 0.9), rgba(50, 0, 0, 0.75));
+    box-shadow: -3px -3px 6px rgba(255, 120, 120, 0.08), 3px 3px 10px rgba(0, 0, 0, 0.75), inset 0 1px 2px rgba(255, 255, 255, 0.15);
+}
+
+body.mono-mode .pad:active .pad-key-hint,
+body.mono-mode .pad.active .pad-key-hint {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-color: rgba(255, 180, 180, 0.8);
+}
+
 body.mono-mode .pad.tremolo-active {
-    background: radial-gradient(circle at center,
-        #DD0000 0%,
-        #AA0000 40%,
-        #770000 70%,
-        #440000 90%,
-        #220000 100%);
-    box-shadow: 
-        0 0 30px rgba(255, 0, 0, 0.7),
-        0 0 60px rgba(255, 0, 0, 0.4),
-        inset 0 0 25px rgba(255, 80, 80, 0.3),
-        0 4px 8px rgba(0, 0, 0, 0.6);
+    background: radial-gradient(circle at center, #ff3d67 0%, #c40030 55%, #400007 100%);
+    box-shadow:
+        0 0 40px rgba(255, 0, 80, 0.7),
+        0 0 80px rgba(255, 0, 40, 0.4),
+        inset 0 0 35px rgba(255, 80, 120, 0.35);
 }
 
-/* Loop states en mono */
 body.mono-mode .pad.looping {
-    border-color: #FF3333;
-    box-shadow: 
-        0 0 25px rgba(255, 0, 0, 0.6),
-        0 0 50px rgba(255, 0, 0, 0.3),
-        inset 0 0 15px rgba(255, 0, 0, 0.2);
+    border-color: #ff8da1;
+    box-shadow:
+        0 0 30px rgba(255, 102, 133, 0.7),
+        0 0 70px rgba(255, 82, 122, 0.35),
+        inset 0 0 18px rgba(255, 142, 167, 0.3);
 }
 
 body.mono-mode .pad.loop-paused {
-    opacity: 0.6;
-    border-color: #666;
+    opacity: 0.65;
+    border-color: rgba(140, 80, 80, 0.7);
+    box-shadow:
+        0 0 12px rgba(255, 80, 80, 0.15),
+        inset 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes monoPadPulse {
+    0% {
+        box-shadow:
+            0 12px 24px rgba(0, 0, 0, 0.75),
+            0 0 20px rgba(255, 60, 60, 0.22),
+            inset 0 0 28px rgba(255, 30, 30, 0.2);
+    }
+    100% {
+        box-shadow:
+            0 16px 32px rgba(0, 0, 0, 0.85),
+            0 0 38px rgba(255, 80, 80, 0.4),
+            inset 0 0 38px rgba(255, 70, 70, 0.32);
+    }
 }
 
 .pad.triggered {
     animation: padRipple 0.6s ease-out;
+}
+
+body:not(.mono-mode) .pad.triggered {
+    animation: padPulseColor 0.45s ease-out;
+}
+
+body.mono-mode .pad.triggered {
+    animation: padPulseMono 0.5s ease-out;
 }
 
 /* Loop button */
@@ -746,6 +937,11 @@ body.mono-mode .pad.loop-paused {
 .pad.tremolo-active {
     box-shadow: 0 0 25px var(--red-glow), 0 0 40px var(--red-primary), inset 0 0 15px rgba(255,0,0,0.6);
     border-color: var(--red-primary);
+}
+
+body:not(.mono-mode) .pad.tremolo-active {
+    box-shadow: 0 0 35px rgba(var(--pad-rgb), 0.85), 0 0 65px rgba(var(--pad-rgb), 0.5), inset 0 0 22px rgba(var(--pad-rgb), 0.55);
+    border-color: rgba(var(--pad-rgb), 0.95);
 }
 
 @keyframes loopPulse {
@@ -1902,18 +2098,20 @@ body.mono-mode .info-item {
 /* Pad Sample Info */
 .pad-sample-info {
     position: absolute;
-    bottom: 2px;
-    left: 0;
-    right: 0;
-    font-size: 8px;
-    color: #888;
-    text-align: center;
-    padding: 2px;
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: 0 0 7px 7px;
+    bottom: 10px;
+    left: 12px;
+    right: auto;
+    max-width: calc(100% - 85px);
+    font-size: 0.65em;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: left;
+    padding: 3px 6px 4px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    z-index: 2;
 }
 
 /* Pad Select Button */

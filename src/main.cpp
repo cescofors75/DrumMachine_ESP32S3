@@ -53,6 +53,12 @@ static bool isValidSampleFile(const String& filename) {
 // Variables para control del LED RGB fade
 volatile uint8_t ledBrightness = 0;
 volatile bool ledFading = false;
+volatile bool ledMonoMode = false;
+
+void setLedMonoMode(bool enabled) {
+    ledMonoMode = enabled;
+    Serial.printf("[LED] Mono mode %s\n", enabled ? "ENABLED" : "DISABLED");
+}
 
 // --- TASKS (CORE PINNING) ---
 // Tarea de Audio: Core 1 (Alta prioridad)
@@ -108,7 +114,7 @@ void triggerPadWithLED(int track, uint8_t velocity) {
     
     // Iluminar LED RGB con color del instrumento
     if (track >= 0 && track < 16) {
-        uint32_t color = instrumentColors[track];
+        uint32_t color = ledMonoMode ? 0xFF0000 : instrumentColors[track];
         ledBrightness = 255;
         ledFading = true;
         rgbLed.setBrightness(ledBrightness);

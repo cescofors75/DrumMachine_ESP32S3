@@ -10,10 +10,35 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1 class="logo">RED<span>808</span></h1>
-            <div class="status">
-                <span id="statusDot" class="status-dot"></span>
-                <span id="statusText">Conectando...</span>
+            <div class="header-left">
+                <h1 class="logo">RED<span>808</span></h1>
+                <div class="status">
+                    <span id="statusDot" class="status-dot"></span>
+                    <span id="statusText">Conectando...</span>
+                </div>
+            </div>
+            <div class="header-meters">
+                <div class="meter" id="meter-bpm">
+                    <span class="meter-label">BPM</span>
+                    <div class="meter-value" id="meterBpmValue">110</div>
+                    <div class="meter-bar">
+                        <span id="meterBpmBar"></span>
+                    </div>
+                </div>
+                <div class="meter" id="meter-volume">
+                    <span class="meter-label">VOLUMEN</span>
+                    <div class="meter-value" id="meterVolumeValue">80%</div>
+                    <div class="meter-bar">
+                        <span id="meterVolumeBar"></span>
+                    </div>
+                </div>
+                <div class="meter meter-filter" id="meter-filter">
+                    <span class="meter-label">FILTER</span>
+                    <div class="meter-value" id="meterFilterValue">OFF</div>
+                    <div class="meter-bar">
+                        <span id="meterFilterBar"></span>
+                    </div>
+                </div>
             </div>
             <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">
                 <span></span>

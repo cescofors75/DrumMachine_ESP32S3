@@ -27,6 +27,9 @@ let padHoldTimers = {};
 // 16 instrumentos RED808
 const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
 
+// Tecla asociada a cada pad (mostrar en UI y para accesos directos)
+const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y'];
+
 // Descripción completa de cada instrumento
 const padDescriptions = [
     'Bass Drum (Bombo)',
@@ -47,6 +50,14 @@ const padDescriptions = [
     'Low Conga'
 ];
 
+const filterTypeLabels = {
+    0: 'OFF',
+    1: 'LOW PASS',
+    2: 'HIGH PASS',
+    3: 'BAND PASS',
+    4: 'NOTCH'
+};
+
 const padSampleMetadata = new Array(16).fill(null);
 const DEFAULT_SAMPLE_QUALITY = '44.1kHz • 16-bit mono';
 
@@ -56,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     createPads();
     createSequencer();
     setupControls();
+    initHeaderMeters();
     initVisualizers();
     setupKeyboardControls();
     initSectionManager();
@@ -70,6 +82,7 @@ function initWebSocket() {
         console.log('WebSocket Connected');
         isConnected = true;
         updateStatus(true);
+        syncLedMonoMode();
     };
     
     ws.onclose = () => {
@@ -215,6 +228,14 @@ function createPads() {
             <div class="pad-name">${padNames[i]}</div>
             <div class="pad-sample-info" id="sampleInfo-${i}">...</div>
         `;
+        
+        const keyLabel = padKeyBindings[i];
+        if (keyLabel) {
+            const keyHint = document.createElement('div');
+            keyHint.className = 'pad-key-hint';
+            keyHint.textContent = keyLabel;
+            pad.appendChild(keyHint);
+        }
         
         // Touch y click con tremolo
         pad.addEventListener('touchstart', (e) => {
@@ -637,6 +658,7 @@ function setupControls() {
         const bpm = parseFloat(tempo);
         const beatDuration = 60 / bpm; // segundos por beat
         tempoValue.style.animationDuration = `${beatDuration}s`;
+        updateBpmMeter(bpm);
     });
     
     tempoSlider.addEventListener('change', (e) => {
@@ -653,6 +675,7 @@ function setupControls() {
     volumeSlider.addEventListener('input', (e) => {
         const volume = e.target.value;
         volumeValue.textContent = volume;
+        updateVolumeMeter(parseInt(volume, 10));
     });
     
     volumeSlider.addEventListener('change', (e) => {
@@ -698,6 +721,7 @@ function setupControls() {
         } else {
             colorToggle.textContent = '🎨 COLOR MODE';
         }
+        syncLedMonoMode();
     });
     
     // FX Controls
@@ -712,6 +736,7 @@ function setupFXControls() {
             cmd: 'setFilter',
             type: parseInt(e.target.value)
         });
+        updateFilterMeter();
     });
     
     // Filter Cutoff
@@ -723,6 +748,7 @@ function setupFXControls() {
             cmd: 'setFilterCutoff',
             value: parseFloat(e.target.value)
         });
+        updateFilterMeter();
     });
     
     // Filter Resonance
@@ -734,6 +760,7 @@ function setupFXControls() {
             cmd: 'setFilterResonance',
             value: parseFloat(e.target.value)
         });
+        updateFilterMeter();
     });
     
     // Bit Crush
@@ -770,19 +797,121 @@ function setupFXControls() {
     });
 }
 
+function initHeaderMeters() {
+    const tempoSlider = document.getElementById('tempoSlider');
+    if (tempoSlider) {
+        updateBpmMeter(parseFloat(tempoSlider.value));
+    }
+    const volumeSlider = document.getElementById('volumeSlider');
+    if (volumeSlider) {
+        updateVolumeMeter(parseInt(volumeSlider.value, 10));
+    }
+    updateFilterMeter();
+}
+
+function getNormalizedPercentage(value, min, max) {
+    if (typeof value !== 'number' || isNaN(value)) return 0;
+    if (typeof min !== 'number' || isNaN(min)) min = 0;
+    if (typeof max !== 'number' || isNaN(max) || max === min) return 0;
+    const clamped = Math.min(Math.max(value, min), max);
+    return ((clamped - min) / (max - min)) * 100;
+}
+
+function updateBpmMeter(value) {
+    if (typeof value !== 'number' || isNaN(value)) return;
+    const display = document.getElementById('meterBpmValue');
+    const bar = document.getElementById('meterBpmBar');
+    const slider = document.getElementById('tempoSlider');
+    if (!display || !bar || !slider) return;
+    display.textContent = Math.round(value);
+    const min = parseFloat(slider.min) || 40;
+    const max = parseFloat(slider.max) || 300;
+    bar.style.width = `${getNormalizedPercentage(value, min, max).toFixed(1)}%`;
+    if (bar.parentElement) {
+        bar.parentElement.classList.add('active');
+    }
+}
+
+function updateVolumeMeter(value) {
+    if (typeof value !== 'number' || isNaN(value)) return;
+    const display = document.getElementById('meterVolumeValue');
+    const bar = document.getElementById('meterVolumeBar');
+    const slider = document.getElementById('volumeSlider');
+    if (!display || !bar || !slider) return;
+    display.textContent = `${Math.round(value)}%`;
+    const min = parseInt(slider.min, 10) || 0;
+    const max = parseInt(slider.max, 10) || 100;
+    bar.style.width = `${getNormalizedPercentage(value, min, max).toFixed(1)}%`;
+    if (bar.parentElement) {
+        bar.parentElement.classList.add('active');
+    }
+}
+
+function updateFilterMeter() {
+    const meterValue = document.getElementById('meterFilterValue');
+    const meterBar = document.getElementById('meterFilterBar');
+    const filterType = document.getElementById('filterType');
+    const filterCutoff = document.getElementById('filterCutoff');
+    const filterResonance = document.getElementById('filterResonance');
+    if (!meterValue || !meterBar || !filterType || !filterCutoff) return;
+    const typeValue = parseInt(filterType.value, 10) || 0;
+    const barWrapper = meterBar.parentElement;
+    if (typeValue === 0) {
+        meterValue.textContent = 'OFF';
+        meterBar.style.width = '0%';
+        if (barWrapper) {
+            barWrapper.classList.remove('active');
+        }
+        return;
+    }
+    const cutoffVal = parseInt(filterCutoff.value, 10);
+    const resonanceVal = filterResonance ? parseFloat(filterResonance.value) : 1.0;
+    const min = parseInt(filterCutoff.min, 10) || 100;
+    const max = parseInt(filterCutoff.max, 10) || 16000;
+    meterValue.textContent = `${filterTypeLabels[typeValue] || 'FILTER'} • ${cutoffVal}Hz • Q${resonanceVal.toFixed(1)}`;
+    meterBar.style.width = `${getNormalizedPercentage(cutoffVal, min, max).toFixed(1)}%`;
+    if (barWrapper) {
+        barWrapper.classList.add('active');
+    }
+}
+
+function syncLedMonoMode() {
+    const isMono = document.body.classList.contains('mono-mode');
+    sendWebSocket({
+        cmd: 'setLedMonoMode',
+        value: isMono
+    });
+}
+
 
 
 function updateSequencerState(data) {
-    document.getElementById('tempoSlider').value = data.tempo;
-    document.getElementById('tempoValue').textContent = data.tempo;
+    const tempoSlider = document.getElementById('tempoSlider');
+    const tempoValue = document.getElementById('tempoValue');
+    if (data.tempo !== undefined && tempoSlider && tempoValue) {
+        tempoSlider.value = data.tempo;
+        tempoValue.textContent = data.tempo;
+        updateBpmMeter(parseFloat(data.tempo));
+    }
+    if (data.volume !== undefined) {
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        if (volumeSlider && volumeValue) {
+            volumeSlider.value = data.volume;
+            volumeValue.textContent = data.volume;
+            updateVolumeMeter(parseInt(data.volume, 10));
+        }
+    }
     
     // Update playing state
     isPlaying = data.playing || false;
     
     // Update pattern button
-    document.querySelectorAll('.btn-pattern').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.pattern) === data.pattern);
-    });
+    if (data.pattern !== undefined) {
+        document.querySelectorAll('.btn-pattern').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.pattern) === data.pattern);
+        });
+    }
     
     // Request current pattern data
     sendWebSocket({ cmd: 'getPattern' });
@@ -918,10 +1047,10 @@ let isPlaying = false;
 
 function setupKeyboardControls() {
     // Mapeo de teclas a pads (16 pads)
-    const keyToPad = {
-        '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
-        'Q': 10, 'W': 11, 'E': 12, 'R': 13, 'T': 14, 'Y': 15
-    };
+    const keyToPad = padKeyBindings.reduce((mapping, key, idx) => {
+        mapping[key.toUpperCase()] = idx;
+        return mapping;
+    }, {});
     
     document.addEventListener('keydown', (e) => {
         // Evitar repetición si ya está presionada
@@ -1025,6 +1154,7 @@ function adjustBPM(change) {
         
         tempoSlider.value = newTempo;
         tempoValue.textContent = newTempo;
+        updateBpmMeter(newTempo);
         
         // Enviar al ESP32
         sendWebSocket({
@@ -1053,6 +1183,7 @@ function adjustVolume(change) {
         
         volumeSlider.value = newVolume;
         volumeValue.textContent = newVolume;
+        updateVolumeMeter(newVolume);
         
         // Enviar al ESP32
         sendWebSocket({

@@ -14,6 +14,7 @@ extern Sequencer sequencer;
 extern KitManager kitManager;
 extern SampleManager sampleManager;
 extern void triggerPadWithLED(int track, uint8_t velocity);  // Función que enciende LED
+extern void setLedMonoMode(bool enabled);
 
 static bool isSupportedSampleFile(const String& filename) {
   return filename.endsWith(".raw") || filename.endsWith(".RAW") ||
@@ -408,6 +409,11 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             String output;
             serializeJson(responseDoc, output);
             ws->textAll(output);
+          }
+          else if (cmd == "setLedMonoMode") {
+            bool monoMode = doc["value"];
+            setLedMonoMode(monoMode);
+            Serial.printf("[LED] Web request mono=%s\n", monoMode ? "true" : "false");
           }
           // FX Controls
           else if (cmd == "setFilter") {
