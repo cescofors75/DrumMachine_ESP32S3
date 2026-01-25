@@ -5,7 +5,8 @@
 
 #include "AudioEngine.h"
 
-AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0), processCount(0), lastCpuCheck(0), cpuLoad(0.0f) {
+AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
+                             processCount(0), lastCpuCheck(0), cpuLoad(0.0f) {
   // Initialize voices
   for (int i = 0; i < MAX_VOICES; i++) {
     resetVoice(i);
@@ -45,7 +46,7 @@ AudioEngine::~AudioEngine() {
 }
 
 bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
-  // I2S configuration
+  // I2S configuration para DAC externo
   i2s_config_t i2s_config = {
     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate = SAMPLE_RATE,
@@ -55,7 +56,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = DMA_BUF_COUNT,
     .dma_buf_len = DMA_BUF_LEN,
-    .use_apll = false, // Desactivado para mayor estabilidad en S3
+    .use_apll = false,
     .tx_desc_auto_clear = true,
     .fixed_mclk = 0
   };
@@ -84,7 +85,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
   // Set I2S clock
   i2s_set_clk(i2sPort, SAMPLE_RATE, I2S_BITS_PER_SAMPLE_16BIT, I2S_CHANNEL_STEREO);
   
-  Serial.println("I2S initialized successfully");
+  Serial.println("I2S External DAC initialized successfully");
   return true;
 }
 
@@ -197,7 +198,7 @@ void AudioEngine::process() {
   // Fill mix buffer
   fillBuffer(mixBuffer, DMA_BUF_LEN);
   
-  // Write to I2S
+  // Write to I2S External DAC
   size_t bytes_written;
   i2s_write(i2sPort, mixBuffer, DMA_BUF_LEN * 4, &bytes_written, portMAX_DELAY);
   

@@ -8,9 +8,9 @@
 #include "WebInterface.h"
 
 // --- CONFIGURACIÓN DE HARDWARE ---
-#define I2S_BCK   42
-#define I2S_WS    41
-#define I2S_DOUT  2
+#define I2S_BCK   42    // BCLK - Bit Clock
+#define I2S_WS    41    // LRC/WS - Word Select (Left/Right Clock)
+#define I2S_DOUT  43    // DIN/DOUT - Data (TX pin)
 
 // LED RGB integrado ESP32-S3
 #define RGB_LED_PIN  48
@@ -79,7 +79,7 @@ void systemTask(void *pvParameters) {
     
     while (true) {
         sequencer.update();
-        webInterface.update();
+        webInterface.update(); // WiFi activado
         
         // Fade out del LED después de trigger
         if (ledFading && millis() - lastLedUpdate > 20) {  // Más lento (cada 20ms)
@@ -196,12 +196,14 @@ void setup() {
     Serial.println("---------------------------------------\n");
 
     Serial.println("[STEP 3] Starting Audio Engine...");
-    // 2. Audio Engine (I2S)
+    // 2. Audio Engine (I2S External DAC)
     if (!audioEngine.begin(I2S_BCK, I2S_WS, I2S_DOUT)) {
         Serial.println("❌ AUDIO ENGINE FAIL");
         while(1) { delay(1000); } // Detener aquí
     }
-    Serial.println("✓ Audio Engine OK");
+    Serial.println("✓ Audio Engine (External DAC) OK");
+    
+
 
     Serial.println("[STEP 4] Initializing Sample Manager...");
     Serial.flush();
@@ -269,7 +271,6 @@ void setup() {
     sequencer.setStepChangeCallback([](int newStep) {
         webInterface.broadcastStep(newStep);
     });
-    
     sequencer.setTempo(110); // BPM inicial
     
     // === PATRÓN 0: HIP HOP BOOM BAP (16 tracks) ===
@@ -474,6 +475,7 @@ void setup() {
     sequencer.setStep(11, 15, true);
     for(int i=0; i<16; i+=2) sequencer.setStep(12, i, true); // MC: Mid conga latin 8th
     sequencer.setStep(13, 6, true);  // MT: Mid tom
+    
     sequencer.setStep(13, 10, true);
     sequencer.setStep(13, 15, true);
     sequencer.setStep(14, 1, true);  // HC: Hi conga pattern
@@ -481,23 +483,30 @@ void setup() {
     sequencer.setStep(14, 9, true);
     sequencer.setStep(14, 13, true);
     for(int i=1; i<16; i+=4) sequencer.setStep(15, i, true); // LC: Low conga groove steady
-    
+
     sequencer.selectPattern(0); // Empezar con Hip Hop
     sequencer.start();
     Serial.println("✓ Sequencer: 5 patrones cargados (Hip Hop, Techno, DnB, Breakbeat, House)");
     Serial.println("   Los patrones cambiarán automáticamente cada 4 compases");
 
-    // 5. Web Interface (WiFi AP)
+    // 5. WiFi AP - Inicialización
+    Serial.println("\n[STEP 6] Preparando WiFi...");
+    delay(1000);
+    
+    Serial.println("[WiFi] Iniciando Access Point...");
     if (webInterface.begin("RED808", "red808esp32")) {
-        Serial.println("✓ RED808 WiFi AP activo");
-        Serial.print("   Conecta tu dispositivo a la red: RED808");
-        Serial.print("\n   Abre el navegador en: http://");
+        Serial.println("✓ WiFi AP iniciado");
+        Serial.print("   SSID: RED808\n   IP: ");
         Serial.println(webInterface.getIP());
+        delay(2000); // Espera para estabilización
+    } else {
+        Serial.println("❌ WiFi falló - continuando sin WiFi");
     }
 
     // --- LANZAMIENTO DE TAREAS ---
+    Serial.println("\n[STEP 7] Creating tasks...");
+    Serial.println("\n[STEP 7] Starting FreeRTOS tasks...");
     
-    // Audio en Core 1 - Prioridad máxima (24)
     xTaskCreatePinnedToCore(
         audioTask,
         "AudioTask",
@@ -507,8 +516,7 @@ void setup() {
         NULL,
         1
     );
-
-    // Sistema (Seq + UI) en Core 0 - Prioridad media (5)
+    
     xTaskCreatePinnedToCore(
         systemTask,
         "SystemTask",

@@ -17,8 +17,9 @@ extern void triggerPadWithLED(int track, uint8_t velocity);  // Función que enc
 extern void setLedMonoMode(bool enabled);
 
 static bool isSupportedSampleFile(const String& filename) {
-  return filename.endsWith(".raw") || filename.endsWith(".RAW") ||
-         filename.endsWith(".wav") || filename.endsWith(".WAV");
+  String lower = filename;
+  lower.toLowerCase();
+  return lower.endsWith(".raw") || lower.endsWith(".wav");
 }
 
 static const char* detectSampleFormat(const char* filename) {
@@ -97,6 +98,7 @@ static bool isClientReady(AsyncWebSocketClient* client) {
 WebInterface::WebInterface() {
   server = nullptr;
   ws = nullptr;
+  initialized = false;
 }
 
 WebInterface::~WebInterface() {
@@ -105,9 +107,23 @@ WebInterface::~WebInterface() {
 }
 
 bool WebInterface::begin(const char* ssid, const char* password) {
-  // Configurar como Access Point
+  // Inicio del WiFi
+  Serial.println("  Configurando WiFi...");
+  WiFi.mode(WIFI_OFF);
+  delay(200);
+  
+  // POTENCIA MÁXIMA para mejor velocidad y cobertura
+  Serial.println("  Configurando potencia TX máxima (19.5dBm)...");
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Potencia máxima
+  delay(100);
+  
+  Serial.println("  Activando modo AP...");
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid, password);
+  delay(200);
+  
+  Serial.println("  Iniciando SoftAP...");
+  WiFi.softAP(ssid, password, 1, 0, 4);  // Canal 1, no oculto, max 4 conexiones
+  delay(300);
   
   IPAddress IP = WiFi.softAPIP();
   Serial.print("RED808 AP IP: ");
@@ -183,6 +199,7 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   server->begin();
   Serial.println("✓ RED808 Web Server iniciado");
   
+  initialized = true;
   return true;
 }
 
@@ -218,32 +235,64 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
       sampleCountDoc["type"] = "sampleCounts";
       const char* families[] = {"BD", "SD", "CH", "OH", "CP", "CB", "RS", "CL", "MA", "CY", "HT", "LT", "MC", "MT", "HC", "LC"};
       
+      Serial.println("[SampleCount] === Counting samples in LittleFS ===");
+      int totalFiles = 0;
+      
       for (int i = 0; i < 16; i++) {
         String path = String("/") + String(families[i]);
-        File dir = LittleFS.open(path, "r");
         int count = 0;
         
-        if (dir && dir.isDirectory()) {
-          File file = dir.openNextFile();
-          while (file) {
-            if (!file.isDirectory()) {
-              String fileName = file.name();
-              if (isSupportedSampleFile(fileName)) {
-                count++;
-              }
-            }
-            file.close();
-            file = dir.openNextFile();
-          }
-          dir.close();
+        File dir = LittleFS.open(path);
+        if (!dir) {
+          Serial.printf("[SampleCount] ERROR: Cannot open %s\n", path.c_str());
+          sampleCountDoc[families[i]] = 0;
+          continue;
         }
+        
+        if (!dir.isDirectory()) {
+          Serial.printf("[SampleCount] ERROR: %s is not a directory\n", path.c_str());
+          dir.close();
+          sampleCountDoc[families[i]] = 0;
+          continue;
+        }
+        
+        // Iterar archivos en el directorio
+        File file = dir.openNextFile();
+        while (file) {
+          if (!file.isDirectory()) {
+            // Obtener nombre del archivo
+            String fullName = file.name();
+            String fileName = fullName;
+            
+            // Extraer solo el nombre del archivo si incluye ruta
+            int lastSlash = fullName.lastIndexOf('/');
+            if (lastSlash >= 0) {
+              fileName = fullName.substring(lastSlash + 1);
+            }
+            
+            // Verificar si es un archivo de audio soportado
+            if (isSupportedSampleFile(fileName)) {
+              count++;
+              Serial.printf("[SampleCount]   %s/%s\n", families[i], fileName.c_str());
+            }
+          }
+          file.close();
+          file = dir.openNextFile();
+        }
+        dir.close();
+        
         sampleCountDoc[families[i]] = count;
+        totalFiles += count;
+        Serial.printf("[SampleCount] %s: %d files\n", families[i], count);
       }
+      
+      Serial.printf("[SampleCount] === TOTAL: %d samples ===\n", totalFiles);
       
       String countOutput;
       serializeJson(sampleCountDoc, countOutput);
+      Serial.printf("[SampleCount] JSON: %s\n", countOutput.c_str());
       client->text(countOutput);
-      Serial.printf("[WebSocket] Sent sample counts to client %u\n", client->id());
+      Serial.printf("[SampleCount] Sent to client %u\n", client->id());
     }
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.printf("WebSocket client #%u disconnected\n", client->id());
@@ -518,6 +567,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
 }
 
 void WebInterface::broadcastSequencerState() {
+  if (!initialized || !ws) return;
   StaticJsonDocument<4096> doc;
   populateStateDocument(doc);
   String output;
@@ -526,7 +576,7 @@ void WebInterface::broadcastSequencerState() {
 }
 
 void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
-  if (!isClientReady(client)) {
+  if (!initialized || !ws || !isClientReady(client)) {
     return;
   }
   StaticJsonDocument<4096> doc;
@@ -537,6 +587,7 @@ void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
 }
 
 void WebInterface::broadcastPadTrigger(int pad) {
+  if (!initialized || !ws) return;
   StaticJsonDocument<128> doc;
   doc["type"] = "pad";
   doc["pad"] = pad;
@@ -547,6 +598,7 @@ void WebInterface::broadcastPadTrigger(int pad) {
 }
 
 void WebInterface::broadcastStep(int step) {
+  if (!initialized || !ws) return;
   // Mensaje ultra-compacto para mínima latencia
   StaticJsonDocument<64> doc;
   doc["type"] = "step";
@@ -559,6 +611,9 @@ void WebInterface::broadcastStep(int step) {
 }
 
 void WebInterface::update() {
+  // Proteger contra llamadas antes de inicialización
+  if (!initialized || !ws || !server) return;
+  
   // Solo cleanup, el broadcast de steps se hace via callback
   ws->cleanupClients();
   
@@ -575,6 +630,7 @@ String WebInterface::getIP() {
 }
 
 void WebInterface::broadcastVisualizationData() {
+  if (!initialized || !ws) return;
   // Capture audio data
   uint8_t spectrum[64];
   uint8_t waveform[128];

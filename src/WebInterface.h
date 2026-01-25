@@ -32,6 +32,7 @@ public:
 private:
   AsyncWebServer* server;
   AsyncWebSocket* ws;
+  bool initialized;
   
   void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
                        AwsEventType type, void *arg, uint8_t *data, size_t len);
