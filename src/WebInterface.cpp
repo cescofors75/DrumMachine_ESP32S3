@@ -143,7 +143,6 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
         // Verificar si es un archivo de audio soportado
         if (isSupportedSampleFile(fileName)) {
           count++;
-          Serial.printf("[SampleCount]   %s/%s\n", families[i], fileName.c_str());
         }
       }
       file.close();
@@ -154,13 +153,15 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
     sampleCountDoc[families[i]] = count;
     totalFiles += count;
     Serial.printf("[SampleCount] %s: %d files\n", families[i], count);
+    
+    // Yield para evitar watchdog
+    delay(1);
   }
   
   Serial.printf("[SampleCount] === TOTAL: %d samples ===\n", totalFiles);
   
   String countOutput;
   serializeJson(sampleCountDoc, countOutput);
-  Serial.printf("[SampleCount] JSON: %s\n", countOutput.c_str());
   client->text(countOutput);
   Serial.printf("[SampleCount] Sent to client %u\n", client->id());
 }
@@ -307,8 +308,8 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
       Serial.printf("[WebSocket] Sent pattern %d with 16 tracks to client %u\n", pattern, client->id());
     }
     
-    // Enviar conteo de samples disponibles por familia al nuevo cliente
-    sendSampleCounts(client);
+    // NO enviar automáticamente - el cliente lo pedirá con comando "getSampleCounts"
+    Serial.println("[WebSocket] Client connected, waiting for explicit requests");
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.printf("WebSocket client #%u disconnected\n", client->id());
   } else if (type == WS_EVT_DATA) {
