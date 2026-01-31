@@ -111,29 +111,35 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-        console.log('WebSocket Connected');
+        console.log('✅ WebSocket Connected');
         isConnected = true;
         updateStatus(true);
         syncLedMonoMode();
         
+        // Solicitar inicialización completa de forma controlada
+        console.log('[WS] Requesting initialization...');
+        setTimeout(() => {
+            sendWebSocket({ cmd: 'init' });
+        }, 300); // Esperar 300ms antes de solicitar datos
+        
         let retryAttempted = false;
         
+        // Solicitar samples después de que llegue el estado
         setTimeout(() => {
-            console.log('[WebSocket] Requesting sample counts...');
+            console.log('[WS] Requesting sample counts...');
             requestSampleCounts();
-            // NO solicitar todas las listas al inicio - se pedirán bajo demanda
             
             // Reintentar UNA SOLA VEZ si no hay respuesta en 8 segundos
             setTimeout(() => {
                 if (retryAttempted) return;
                 const totalCounts = Object.values(sampleCounts).reduce((sum, val) => sum + (val || 0), 0);
                 if (totalCounts === 0) {
-                    console.warn('[WebSocket] No sample count data, retrying once...');
+                    console.log('[WS] Retrying sample counts request...');
                     retryAttempted = true;
                     requestSampleCounts();
                 }
             }, 8000);
-        }, 800);
+        }, 1500); // Esperar 1.5s antes de pedir samples (dar tiempo a que llegue init)
     };
     
     ws.onclose = () => {
@@ -163,11 +169,11 @@ function handleWebSocketMessage(data) {
             updatePadLoopVisual(data.track);
             break;
         case 'audioData':
-            // Audio visualization data
-            if (data.spectrum) {
-                spectrumData = data.spectrum;
-                visualizerNeedsRedraw = true;
-            }
+            // Audio visualization disabled
+            // if (data.spectrum) {
+            //     spectrumData = data.spectrum;
+            //     visualizerNeedsRedraw = true;
+            // }
             break;
         case 'state':
             updateSequencerState(data);
@@ -206,6 +212,11 @@ function handleWebSocketMessage(data) {
         case 'sampleLoaded':
             updatePadInfo(data);
             break;
+    }
+    
+    // Call keyboard controls handler if function exists
+    if (typeof window.handleKeyboardWebSocketMessage === 'function') {
+        window.handleKeyboardWebSocketMessage(data);
     }
 }
 
@@ -584,6 +595,12 @@ function triggerPad(padIndex) {
         ws.send(data);
     }
     
+    // Show toast with pad name
+    const padName = padNames[padIndex] || `Pad ${padIndex + 1}`;
+    if (window.showToast && window.TOAST_TYPES) {
+        window.showToast(`🥁 ${padName}`, window.TOAST_TYPES.SUCCESS, 800);
+    }
+    
     // Grabar en loop si está activo
     if (isRecording) {
         const currentTime = Date.now() - recordStartTime;
@@ -647,6 +664,13 @@ function setTrackMuted(track, isMuted, sendCommand) {
             track: track,
             value: isMuted
         });
+        
+        // Show toast notification
+        const trackName = padNames[track] || `Track ${track + 1}`;
+        if (window.showToast && window.TOAST_TYPES) {
+            window.showToast(`${isMuted ? '🔇' : '🔊'} ${trackName} ${isMuted ? 'Muted' : 'Unmuted'}`, 
+                           window.TOAST_TYPES.WARNING, 1500);
+        }
     }
 }
 
@@ -1236,6 +1260,9 @@ function sendWebSocket(data) {
     }
 }
 
+// Export to window for keyboard-controls.js
+window.sendWebSocket = sendWebSocket;
+
 // ============= AUDIO VISUALIZERS =============
 
 function hexToRgb(hex) {
@@ -1251,125 +1278,14 @@ function hexToRgb(hex) {
 }
 
 function initVisualizers() {
-    const spectrumCanvas = document.getElementById('spectrumCanvas');
-    
-    if (!spectrumCanvas) {
-        console.error('Spectrum canvas not found!');
-        return;
-    }
-    
-    const spectrumCtx = spectrumCanvas.getContext('2d');
-    
-    // Set actual canvas size for crisp rendering
-    spectrumCanvas.width = 600;
-    spectrumCanvas.height = 200;
-    
-    console.log('Visualizers initialized successfully');
-    visualizerNeedsRedraw = true;
-    
-    function drawSpectrum() {
-        const width = spectrumCanvas.width;
-        const height = spectrumCanvas.height;
-        
-        // Clear canvas with slight fade
-        spectrumCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        spectrumCtx.fillRect(0, 0, width, height);
-        
-        // Draw grid
-        spectrumCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        spectrumCtx.lineWidth = 1;
-        for (let i = 0; i < 5; i++) {
-            const y = (height / 4) * i;
-            spectrumCtx.beginPath();
-            spectrumCtx.moveTo(0, y);
-            spectrumCtx.lineTo(width, y);
-            spectrumCtx.stroke();
-        }
-        
-        // Check if we have valid data
-        let hasData = false;
-        for (let i = 0; i < spectrumData.length; i++) {
-            if (spectrumData[i] > 0) {
-                hasData = true;
-                break;
-            }
-        }
-        
-        if (!hasData) {
-            // Draw "No Signal" message
-            spectrumCtx.fillStyle = '#666';
-            spectrumCtx.font = '14px Roboto Mono';
-            spectrumCtx.textAlign = 'center';
-            spectrumCtx.fillText('No Audio Signal', width / 2, height / 2);
-            spectrumCtx.textAlign = 'left';
-        }
-        
-        // Draw spectrum bars
-        const barWidth = width / spectrumData.length;
-        
-        for (let i = 0; i < spectrumData.length; i++) {
-            const value = spectrumData[i];
-            const barHeight = (value / 255) * height;
-            
-            const x = i * barWidth;
-            const y = height - barHeight;
-            
-            // Create gradient based on instrument palette
-            const gradient = spectrumCtx.createLinearGradient(x, y, x, height);
-            if (document.body.classList.contains('mono-mode')) {
-                gradient.addColorStop(0, 'rgba(255, 80, 80, 0.95)');
-                gradient.addColorStop(0.55, 'rgba(255, 0, 0, 0.75)');
-                gradient.addColorStop(1, 'rgba(120, 0, 0, 0.35)');
-            } else {
-                const paletteColor = instrumentPalette[i % instrumentPalette.length];
-                const { r, g, b } = hexToRgb(paletteColor);
-                gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.95)`);
-                gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.65)`);
-                gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.25)`);
-            }
-            
-            spectrumCtx.fillStyle = gradient;
-            spectrumCtx.fillRect(x, y, barWidth - 1, barHeight);
-            
-            // Glow effect on peaks
-            if (value > 200) {
-                spectrumCtx.shadowBlur = 10;
-                spectrumCtx.shadowColor = document.body.classList.contains('mono-mode')
-                    ? '#ff3b3b'
-                    : instrumentPalette[i % instrumentPalette.length];
-                spectrumCtx.fillRect(x, y, barWidth - 1, barHeight);
-                spectrumCtx.shadowBlur = 0;
-            }
-        }
-        
-        // Draw labels
-        spectrumCtx.fillStyle = '#666';
-        spectrumCtx.font = '10px Roboto Mono';
-        spectrumCtx.fillText('20Hz', 5, height - 5);
-        spectrumCtx.fillText('20kHz', width - 40, height - 5);
-    }
-    
-    // Animation loop
-    function animate(timestamp) {
-        const now = timestamp || performance.now();
-        const targetFps = visualizerNeedsRedraw ? VISUALIZER_MAX_FPS : VISUALIZER_IDLE_FPS;
-        const minFrameTime = 1000 / targetFps;
-
-        if (isVisualizerActive && (now - lastVisualizerFrameTime) >= minFrameTime) {
-            lastVisualizerFrameTime = now;
-            drawSpectrum();
-            visualizerNeedsRedraw = false;
-        }
-        requestAnimationFrame(animate);
-    }
-    
-    animate();
-    setInterval(() => {
-        if (isVisualizerActive) {
-            visualizerNeedsRedraw = true;
-        }
-    }, 1000);
-    console.log('✓ Audio visualizers initialized');
+    // Spectrum visualizer disabled - not used
+    // const spectrumCanvas = document.getElementById('spectrumCanvas');
+    // if (!spectrumCanvas) {
+    //     console.warn('Spectrum canvas not found (disabled)');
+    //     return;
+    // }
+    // Spectrum visualizer disabled - not used
+    return;
 }
 
 // ============= KEYBOARD CONTROLS =============
@@ -1400,6 +1316,9 @@ function setupKeyboardControls() {
         return null;
     };
     
+    // KEYBOARD SHORTCUTS MOVED TO keyboard-controls.js for unified management
+    // Keeping only keyup handler for pad release
+    /*
     document.addEventListener('keydown', (e) => {
         // Evitar repetición si ya está presionada
         if (e.repeat) return;
@@ -1493,6 +1412,7 @@ function setupKeyboardControls() {
             adjustVolume(5);
         }
     });
+    */
     
     document.addEventListener('keyup', (e) => {
         const key = e.key.toUpperCase();
@@ -1514,6 +1434,17 @@ function setupKeyboardControls() {
     
     console.log('✓ Keyboard controls initialized (16 pads)');
     console.log('  Keys: 1-9,0,Q-Y=Pads, SPACE=Play/Pause, [/]=BPM, -/+=Volume');
+    
+    // Export functions for keyboard-controls.js
+    window.togglePlayPause = togglePlayPause;
+    window.changePattern = changePattern;
+    window.adjustBPM = adjustBPM;
+    window.adjustVolume = adjustVolume;
+    window.adjustSequencerVolume = adjustSequencerVolume;
+    window.getPadIndexFromEvent = getPadIndexFromEvent;
+    window.keyboardPadsActive = keyboardPadsActive;
+    window.startKeyboardTremolo = startKeyboardTremolo;
+    window.stopKeyboardTremolo = stopKeyboardTremolo;
 }
 
 function changePattern(delta) {

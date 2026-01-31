@@ -486,9 +486,9 @@ void setup() {
     for(int i=1; i<16; i+=4) sequencer.setStep(15, i, true); // LC: Low conga groove steady
 
     sequencer.selectPattern(0); // Empezar con Hip Hop
-    sequencer.start();
+    // sequencer.start(); // DISABLED: No autostart - user must press PLAY
     Serial.println("✓ Sequencer: 5 patrones cargados (Hip Hop, Techno, DnB, Breakbeat, House)");
-    Serial.println("   Los patrones cambiarán automáticamente cada 4 compases");
+    Serial.println("   Sequencer en PAUSA - presiona PLAY para iniciar");
 
     // 5. WiFi AP - Inicialización
     Serial.println("\n[STEP 6] Preparando WiFi...");

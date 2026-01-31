@@ -37,6 +37,12 @@ public:
   void clearPattern(); // Clear current pattern
   void clearTrack(int track);
   
+  // Velocity editing per step
+  void setStepVelocity(int track, int step, uint8_t velocity);
+  void setStepVelocity(int pattern, int track, int step, uint8_t velocity);
+  uint8_t getStepVelocity(int track, int step);
+  uint8_t getStepVelocity(int pattern, int track, int step);
+  
   // Pattern management
   void selectPattern(int pattern);
   int getCurrentPattern();

@@ -16,15 +16,33 @@
 #define DMA_BUF_COUNT 4
 #define DMA_BUF_LEN 128
 
+// Constants for filter management
+static constexpr int MAX_AUDIO_TRACKS = 16;  // For per-track filters
+static constexpr int MAX_PADS = 16;           // For per-pad filters
 
 
-// Filter types
+
+// Filter types (10 classic types)
 enum FilterType {
   FILTER_NONE = 0,
-  FILTER_LOWPASS = 1,
-  FILTER_HIGHPASS = 2,
-  FILTER_BANDPASS = 3,
-  FILTER_NOTCH = 4
+  FILTER_LOWPASS = 1,      // Low Pass Filter
+  FILTER_HIGHPASS = 2,     // High Pass Filter
+  FILTER_BANDPASS = 3,     // Band Pass Filter
+  FILTER_NOTCH = 4,        // Notch/Band Reject
+  FILTER_ALLPASS = 5,      // All Pass (phase shift)
+  FILTER_PEAKING = 6,      // Peaking EQ
+  FILTER_LOWSHELF = 7,     // Low Shelf EQ
+  FILTER_HIGHSHELF = 8,    // High Shelf EQ
+  FILTER_RESONANT = 9      // Resonant Filter (high Q)
+};
+
+// Filter preset structure
+struct FilterPreset {
+  FilterType type;
+  float cutoff;       // Hz
+  float resonance;    // Q factor
+  float gain;         // dB (for EQ filters)
+  const char* name;
 };
 
 // Biquad filter coefficients
@@ -44,6 +62,7 @@ struct FXParams {
   FilterType filterType;
   float cutoff;          // Hz
   float resonance;       // Q factor
+  float gain;            // dB (for EQ filters)
   uint8_t bitDepth;      // 4-16 bits
   float distortion;      // 0-100
   uint32_t sampleRate;   // Hz (for decimation)
@@ -68,6 +87,8 @@ struct Voice {
   bool loop;              // Loop sample?
   uint32_t loopStart;     // Loop start point
   uint32_t loopEnd;       // Loop end point
+  int padIndex;           // Which pad is playing (-1 if none)
+  bool isLivePad;         // True if triggered from live pad, false if from sequencer
 };
 
 class AudioEngine {
@@ -92,13 +113,29 @@ public:
   void setPitch(int voiceIndex, float pitch);
   void setLoop(int voiceIndex, bool loop, uint32_t start = 0, uint32_t end = 0);
   
-  // FX Control
+  // FX Control (Global)
   void setFilterType(FilterType type);
   void setFilterCutoff(float cutoff);
   void setFilterResonance(float resonance);
   void setBitDepth(uint8_t bits);
   void setDistortion(float amount);
   void setSampleRateReduction(uint32_t rate);
+  
+  // Per-Track Filter Management
+  bool setTrackFilter(int track, FilterType type, float cutoff = 1000.0f, float resonance = 1.0f, float gain = 0.0f);
+  void clearTrackFilter(int track);
+  FilterType getTrackFilter(int track);
+  int getActiveTrackFiltersCount();
+  
+  // Per-Pad (Live) Filter Management
+  bool setPadFilter(int pad, FilterType type, float cutoff = 1000.0f, float resonance = 1.0f, float gain = 0.0f);
+  void clearPadFilter(int pad);
+  FilterType getPadFilter(int pad);
+  int getActivePadFiltersCount();
+  
+  // Filter Presets (10 classic types)
+  static const FilterPreset* getFilterPreset(FilterType type);
+  static const char* getFilterName(FilterType type);
   
   // Volume Control
   void setMasterVolume(uint8_t volume); // 0-150
@@ -135,6 +172,12 @@ private:
   uint8_t sequencerVolume; // 0-100
   uint8_t liveVolume; // 0-100
   
+  // Per-track and per-pad filters (max 8 active each)
+  FXParams trackFilters[MAX_AUDIO_TRACKS];  // Filters for sequencer tracks
+  bool trackFilterActive[MAX_AUDIO_TRACKS];
+  FXParams padFilters[MAX_PADS];            // Filters for live pads
+  bool padFilterActive[MAX_PADS];
+  
   // Visualization buffers
   int16_t captureBuffer[256];
   uint8_t captureIndex;
@@ -145,7 +188,9 @@ private:
   
   // FX processing functions (optimized)
   void calculateBiquadCoeffs();
+  void calculateBiquadCoeffs(FXParams& fx);  // Calculate for specific filter
   inline int16_t applyFilter(int16_t input);
+  inline int16_t applyFilter(int16_t input, FXParams& fx);  // Apply specific filter
   inline int16_t applyBitCrush(int16_t input);
   inline int16_t applyDistortion(int16_t input);
   inline int16_t processFX(int16_t input);

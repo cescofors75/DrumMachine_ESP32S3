@@ -6,6 +6,7 @@
     <title>RED808 Drum Machine</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="keyboard-styles.css">
 </head>
 <body>
     <div class="container">
@@ -546,10 +547,11 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>RED808 | 16-Track Drum Machine | ESP32-S3 Dual Core</p>
+            <p>RED808 | 16-Track Drum Machine | ESP32-S3 Dual Core | <button onclick="showKeyboardHelp()" style="background:none;border:1px solid #00ff88;color:#00ff88;padding:5px 10px;border-radius:3px;cursor:pointer;">⌨️ Keyboard Shortcuts</button></p>
         </footer>
     </div>
 
     <script src="app.js"></script>
+    <script src="keyboard-controls.js"></script>
 </body>
 </html>

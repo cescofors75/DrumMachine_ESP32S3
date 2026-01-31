@@ -22,6 +22,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
   fx.filterType = FILTER_NONE;
   fx.cutoff = 8000.0f;
   fx.resonance = 1.0f;
+  fx.gain = 0.0f;
   fx.bitDepth = 16;
   fx.distortion = 0.0f;
   fx.sampleRate = SAMPLE_RATE;
@@ -31,10 +32,31 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
   fx.srCounter = 0;
   calculateBiquadCoeffs();
   
+  // Initialize per-track and per-pad filters
+  for (int i = 0; i < MAX_AUDIO_TRACKS; i++) {
+    trackFilters[i].filterType = FILTER_NONE;
+    trackFilters[i].cutoff = 1000.0f;
+    trackFilters[i].resonance = 1.0f;
+    trackFilters[i].gain = 0.0f;
+    trackFilters[i].state.x1 = trackFilters[i].state.x2 = 0.0f;
+    trackFilters[i].state.y1 = trackFilters[i].state.y2 = 0.0f;
+    trackFilterActive[i] = false;
+  }
+  
+  for (int i = 0; i < 16; i++) {
+    padFilters[i].filterType = FILTER_NONE;
+    padFilters[i].cutoff = 1000.0f;
+    padFilters[i].resonance = 1.0f;
+    padFilters[i].gain = 0.0f;
+    padFilters[i].state.x1 = padFilters[i].state.x2 = 0.0f;
+    padFilters[i].state.y1 = padFilters[i].state.y2 = 0.0f;
+    padFilterActive[i] = false;
+  }
+  
   // Initialize volume
   masterVolume = 100; // Master stays at 100% by default
-  sequencerVolume = 100; // 100% default (can go up to 150)
-  liveVolume = 100; // 100% default (can go up to 150)
+  sequencerVolume = 10; // Start at 10% to avoid loud startup
+  liveVolume = 80; // Live pads at 80% for better balance
   
   // Initialize visualization
   captureIndex = 0;
@@ -127,6 +149,8 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
   voices[voiceIndex].volume = sequencerVolume;
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
+  voices[voiceIndex].padIndex = padIndex;
+  voices[voiceIndex].isLivePad = false;
   Serial.printf("[AudioEngine] *** SEQ PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
                 padIndex, voiceIndex, sampleLengths[padIndex], velocity);
 }
@@ -159,6 +183,8 @@ void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   voices[voiceIndex].volume = (liveVolume * 120) / 100;
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
+  voices[voiceIndex].padIndex = padIndex;
+  voices[voiceIndex].isLivePad = true;
   
   Serial.printf("[AudioEngine] *** LIVE PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
                 padIndex, voiceIndex, sampleLengths[padIndex], velocity);
@@ -257,9 +283,22 @@ void AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       int32_t scaled = ((int32_t)sample * voice.velocity) / 127;
       scaled = (scaled * voice.volume) / 100;
       
+      // Apply per-pad or per-track filter if active
+      int16_t filtered = (int16_t)constrain(scaled, -32768, 32767);
+      if (voice.padIndex >= 0 && voice.padIndex < MAX_PADS) {
+        // Check if pad has filter (for live pads)
+        if (voice.isLivePad && padFilterActive[voice.padIndex]) {
+          filtered = applyFilter(filtered, padFilters[voice.padIndex]);
+        }
+        // Check if track has filter (for sequencer tracks)
+        else if (!voice.isLivePad && voice.padIndex < MAX_AUDIO_TRACKS && trackFilterActive[voice.padIndex]) {
+          filtered = applyFilter(filtered, trackFilters[voice.padIndex]);
+        }
+      }
+      
       // Mix to accumulator
-      mixAcc[i * 2] += scaled;      // Left
-      mixAcc[i * 2 + 1] += scaled;  // Right
+      mixAcc[i * 2] += filtered;      // Left
+      mixAcc[i * 2 + 1] += filtered;  // Right
       
       voice.position++;
     }
@@ -304,6 +343,8 @@ void AudioEngine::resetVoice(int voiceIndex) {
   voices[voiceIndex].loop = false;
   voices[voiceIndex].loopStart = 0;
   voices[voiceIndex].loopEnd = 0;
+  voices[voiceIndex].padIndex = -1;
+  voices[voiceIndex].isLivePad = false;
 }
 
 // ============= FX IMPLEMENTATION =============
@@ -543,3 +584,254 @@ void AudioEngine::captureAudioData(uint8_t* spectrum, uint8_t* waveform) {
   }
 }
 
+// ============= PER-TRACK FILTER MANAGEMENT =============
+
+bool AudioEngine::setTrackFilter(int track, FilterType type, float cutoff, float resonance, float gain) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return false;
+  
+  // Check if enabling a new filter would exceed the limit of 8
+  if (type != FILTER_NONE && !trackFilterActive[track]) {
+    if (getActiveTrackFiltersCount() >= 8) {
+      Serial.println("[AudioEngine] ERROR: Max 8 track filters active");
+      return false;
+    }
+  }
+  
+  trackFilters[track].filterType = type;
+  trackFilters[track].cutoff = constrain(cutoff, 100.0f, 16000.0f);
+  trackFilters[track].resonance = constrain(resonance, 0.5f, 20.0f);
+  trackFilters[track].gain = constrain(gain, -12.0f, 12.0f);
+  trackFilterActive[track] = (type != FILTER_NONE);
+  
+  // Calculate coefficients for this filter
+  if (type != FILTER_NONE) {
+    calculateBiquadCoeffs(trackFilters[track]);
+  }
+  
+  Serial.printf("[AudioEngine] Track %d filter: %s (cutoff: %.1f Hz, Q: %.2f, gain: %.1f dB)\n",
+                track, getFilterName(type), cutoff, resonance, gain);
+  return true;
+}
+
+void AudioEngine::clearTrackFilter(int track) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return;
+  trackFilters[track].filterType = FILTER_NONE;
+  trackFilterActive[track] = false;
+  Serial.printf("[AudioEngine] Track %d filter cleared\n", track);
+}
+
+FilterType AudioEngine::getTrackFilter(int track) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return FILTER_NONE;
+  return trackFilters[track].filterType;
+}
+
+int AudioEngine::getActiveTrackFiltersCount() {
+  int count = 0;
+  for (int i = 0; i < MAX_AUDIO_TRACKS; i++) {
+    if (trackFilterActive[i]) count++;
+  }
+  return count;
+}
+
+// ============= PER-PAD FILTER MANAGEMENT =============
+
+bool AudioEngine::setPadFilter(int pad, FilterType type, float cutoff, float resonance, float gain) {
+  if (pad < 0 || pad >= 16) return false;
+  
+  // Check if enabling a new filter would exceed the limit of 8
+  if (type != FILTER_NONE && !padFilterActive[pad]) {
+    if (getActivePadFiltersCount() >= 8) {
+      Serial.println("[AudioEngine] ERROR: Max 8 pad filters active");
+      return false;
+    }
+  }
+  
+  padFilters[pad].filterType = type;
+  padFilters[pad].cutoff = constrain(cutoff, 100.0f, 16000.0f);
+  padFilters[pad].resonance = constrain(resonance, 0.5f, 20.0f);
+  padFilters[pad].gain = constrain(gain, -12.0f, 12.0f);
+  padFilterActive[pad] = (type != FILTER_NONE);
+  
+  // Calculate coefficients for this filter
+  if (type != FILTER_NONE) {
+    calculateBiquadCoeffs(padFilters[pad]);
+  }
+  
+  Serial.printf("[AudioEngine] Pad %d filter: %s (cutoff: %.1f Hz, Q: %.2f, gain: %.1f dB)\n",
+                pad, getFilterName(type), cutoff, resonance, gain);
+  return true;
+}
+
+void AudioEngine::clearPadFilter(int pad) {
+  if (pad < 0 || pad >= 16) return;
+  padFilters[pad].filterType = FILTER_NONE;
+  padFilterActive[pad] = false;
+  Serial.printf("[AudioEngine] Pad %d filter cleared\n", pad);
+}
+
+FilterType AudioEngine::getPadFilter(int pad) {
+  if (pad < 0 || pad >= 16) return FILTER_NONE;
+  return padFilters[pad].filterType;
+}
+
+int AudioEngine::getActivePadFiltersCount() {
+  int count = 0;
+  for (int i = 0; i < 16; i++) {
+    if (padFilterActive[i]) count++;
+  }
+  return count;
+}
+
+// ============= FILTER PRESETS =============
+
+const FilterPreset* AudioEngine::getFilterPreset(FilterType type) {
+  static const FilterPreset presets[] = {
+    {FILTER_NONE, 0.0f, 1.0f, 0.0f, "None"},
+    {FILTER_LOWPASS, 1000.0f, 1.0f, 0.0f, "Low Pass"},
+    {FILTER_HIGHPASS, 1000.0f, 1.0f, 0.0f, "High Pass"},
+    {FILTER_BANDPASS, 1000.0f, 2.0f, 0.0f, "Band Pass"},
+    {FILTER_NOTCH, 1000.0f, 2.0f, 0.0f, "Notch"},
+    {FILTER_ALLPASS, 1000.0f, 1.0f, 0.0f, "All Pass"},
+    {FILTER_PEAKING, 1000.0f, 2.0f, 6.0f, "Peaking EQ"},
+    {FILTER_LOWSHELF, 500.0f, 1.0f, 6.0f, "Low Shelf"},
+    {FILTER_HIGHSHELF, 4000.0f, 1.0f, 6.0f, "High Shelf"},
+    {FILTER_RESONANT, 1000.0f, 10.0f, 0.0f, "Resonant"}
+  };
+  
+  if (type >= FILTER_NONE && type <= FILTER_RESONANT) {
+    return &presets[type];
+  }
+  return &presets[0];
+}
+
+const char* AudioEngine::getFilterName(FilterType type) {
+  const FilterPreset* preset = getFilterPreset(type);
+  return preset ? preset->name : "Unknown";
+}
+
+// ============= EXTENDED BIQUAD COEFFICIENT CALCULATION =============
+
+void AudioEngine::calculateBiquadCoeffs(FXParams& fxParam) {
+  if (fxParam.filterType == FILTER_NONE) return;
+  
+  float omega = 2.0f * PI * fxParam.cutoff / SAMPLE_RATE;
+  float sn = sinf(omega);
+  float cs = cosf(omega);
+  float alpha = sn / (2.0f * fxParam.resonance);
+  float A = powf(10.0f, fxParam.gain / 40.0f); // For shelf/peaking filters
+  
+  switch (fxParam.filterType) {
+    case FILTER_LOWPASS:
+      fxParam.coeffs.b0 = (1.0f - cs) / 2.0f;
+      fxParam.coeffs.b1 = 1.0f - cs;
+      fxParam.coeffs.b2 = (1.0f - cs) / 2.0f;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    case FILTER_HIGHPASS:
+      fxParam.coeffs.b0 = (1.0f + cs) / 2.0f;
+      fxParam.coeffs.b1 = -(1.0f + cs);
+      fxParam.coeffs.b2 = (1.0f + cs) / 2.0f;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    case FILTER_BANDPASS:
+      fxParam.coeffs.b0 = alpha;
+      fxParam.coeffs.b1 = 0.0f;
+      fxParam.coeffs.b2 = -alpha;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    case FILTER_NOTCH:
+      fxParam.coeffs.b0 = 1.0f;
+      fxParam.coeffs.b1 = -2.0f * cs;
+      fxParam.coeffs.b2 = 1.0f;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    case FILTER_ALLPASS:
+      fxParam.coeffs.b0 = 1.0f - alpha;
+      fxParam.coeffs.b1 = -2.0f * cs;
+      fxParam.coeffs.b2 = 1.0f + alpha;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    case FILTER_PEAKING: {
+      float beta = sqrtf(A) / fxParam.resonance;
+      fxParam.coeffs.b0 = 1.0f + alpha * A;
+      fxParam.coeffs.b1 = -2.0f * cs;
+      fxParam.coeffs.b2 = 1.0f - alpha * A;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha / A;
+      break;
+    }
+      
+    case FILTER_LOWSHELF: {
+      float sqrtA = sqrtf(A);
+      fxParam.coeffs.b0 = A * ((A + 1.0f) - (A - 1.0f) * cs + 2.0f * sqrtA * alpha);
+      fxParam.coeffs.b1 = 2.0f * A * ((A - 1.0f) - (A + 1.0f) * cs);
+      fxParam.coeffs.b2 = A * ((A + 1.0f) - (A - 1.0f) * cs - 2.0f * sqrtA * alpha);
+      fxParam.coeffs.a1 = -2.0f * ((A - 1.0f) + (A + 1.0f) * cs);
+      fxParam.coeffs.a2 = (A + 1.0f) + (A - 1.0f) * cs - 2.0f * sqrtA * alpha;
+      break;
+    }
+      
+    case FILTER_HIGHSHELF: {
+      float sqrtA = sqrtf(A);
+      fxParam.coeffs.b0 = A * ((A + 1.0f) + (A - 1.0f) * cs + 2.0f * sqrtA * alpha);
+      fxParam.coeffs.b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cs);
+      fxParam.coeffs.b2 = A * ((A + 1.0f) + (A - 1.0f) * cs - 2.0f * sqrtA * alpha);
+      fxParam.coeffs.a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * cs);
+      fxParam.coeffs.a2 = (A + 1.0f) - (A - 1.0f) * cs - 2.0f * sqrtA * alpha;
+      break;
+    }
+      
+    case FILTER_RESONANT:
+      // High resonance lowpass
+      fxParam.coeffs.b0 = (1.0f - cs) / 2.0f;
+      fxParam.coeffs.b1 = 1.0f - cs;
+      fxParam.coeffs.b2 = (1.0f - cs) / 2.0f;
+      fxParam.coeffs.a1 = -2.0f * cs;
+      fxParam.coeffs.a2 = 1.0f - alpha;
+      break;
+      
+    default:
+      break;
+  }
+  
+  // Normalize by a0
+  float a0 = (fxParam.filterType == FILTER_LOWSHELF || fxParam.filterType == FILTER_HIGHSHELF) 
+             ? ((fxParam.filterType == FILTER_LOWSHELF) 
+                ? ((powf(10.0f, fxParam.gain / 40.0f) + 1.0f) + (powf(10.0f, fxParam.gain / 40.0f) - 1.0f) * cs + 2.0f * sqrtf(powf(10.0f, fxParam.gain / 40.0f)) * alpha)
+                : ((powf(10.0f, fxParam.gain / 40.0f) + 1.0f) - (powf(10.0f, fxParam.gain / 40.0f) - 1.0f) * cs + 2.0f * sqrtf(powf(10.0f, fxParam.gain / 40.0f)) * alpha))
+             : (1.0f + alpha);
+             
+  fxParam.coeffs.b0 /= a0;
+  fxParam.coeffs.b1 /= a0;
+  fxParam.coeffs.b2 /= a0;
+  fxParam.coeffs.a1 /= a0;
+  fxParam.coeffs.a2 /= a0;
+}
+
+// ============= EXTENDED FILTER PROCESSING =============
+
+inline int16_t AudioEngine::applyFilter(int16_t input, FXParams& fxParam) {
+  if (fxParam.filterType == FILTER_NONE) return input;
+  
+  float x = (float)input;
+  float y = fxParam.coeffs.b0 * x + fxParam.state.x1;
+  
+  fxParam.state.x1 = fxParam.coeffs.b1 * x - fxParam.coeffs.a1 * y + fxParam.state.x2;
+  fxParam.state.x2 = fxParam.coeffs.b2 * x - fxParam.coeffs.a2 * y;
+  
+  // Clamp to prevent overflow
+  if (y > 32767.0f) y = 32767.0f;
+  else if (y < -32768.0f) y = -32768.0f;
+  
+  return (int16_t)y;
+}

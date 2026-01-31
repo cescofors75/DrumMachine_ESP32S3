@@ -388,27 +388,21 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
                                      AwsEventType type, void *arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_CONNECT) {
     Serial.printf("WebSocket client #%u connected\n", client->id());
-    sendSequencerStateToClient(client);
     
-    // Enviar patrón actual con los 16 tracks solo al nuevo cliente
-    if (isClientReady(client)) {
-      int pattern = sequencer.getCurrentPattern();
-      StaticJsonDocument<6144> responseDoc;
-      responseDoc["type"] = "pattern";
-      responseDoc["index"] = pattern;
-      
-      for (int track = 0; track < 16; track++) {
-        JsonArray trackSteps = responseDoc.createNestedArray(String(track));
-        for (int step = 0; step < 16; step++) {
-          trackSteps.add(sequencer.getStep(track, step));
-        }
-      }
-      
-      String output;
-      serializeJson(responseDoc, output);
-      client->text(output);
-      Serial.printf("[WebSocket] Sent pattern %d with 16 tracks to client %u\n", pattern, client->id());
-    }
+    // OPTIMIZED: Send only basic state on connect (512 bytes)
+    // Full data will be sent via 'init' command from client
+    StaticJsonDocument<512> basicState;
+    basicState["type"] = "connected";
+    basicState["playing"] = sequencer.isPlaying();
+    basicState["tempo"] = sequencer.getTempo();
+    basicState["pattern"] = sequencer.getCurrentPattern();
+    basicState["clientId"] = client->id();
+    basicState["message"] = "Connected. Send 'init' command to load full state.";
+    
+    String output;
+    serializeJson(basicState, output);
+    client->text(output);
+    Serial.printf("[WebSocket] Client #%u connected - basic state sent (wait for init)\n", client->id());
     
     // NO enviar automáticamente - el cliente lo pedirá con comando "getSampleCounts"
     Serial.println("[WebSocket] Client connected, waiting for explicit requests");
@@ -449,10 +443,20 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
+            // Send steps (active/inactive)
             for (int track = 0; track < 16; track++) {
               JsonArray trackSteps = responseDoc.createNestedArray(String(track));
               for (int step = 0; step < 16; step++) {
                 trackSteps.add(sequencer.getStep(track, step));
+              }
+            }
+            
+            // Send velocities (NEW)
+            JsonObject velocitiesObj = responseDoc.createNestedObject("velocities");
+            for (int track = 0; track < 16; track++) {
+              JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
+              for (int step = 0; step < 16; step++) {
+                trackVels.add(sequencer.getStepVelocity(track, step));
               }
             }
             
@@ -463,6 +467,50 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             } else {
               ws->textAll(output);
             }
+          }
+          else if (cmd == "init") {
+            // Cliente solicita inicialización completa (se llama después de conectar)
+            Serial.printf("[init] Client %u requesting full initialization\n", client->id());
+            
+            // 1. Enviar estado del sequencer
+            yield(); // Give time to other tasks
+            sendSequencerStateToClient(client);
+            delay(10); // Small delay to avoid overload
+            
+            // 2. Enviar patrón actual con velocities
+            yield();
+            if (isClientReady(client)) {
+              int pattern = sequencer.getCurrentPattern();
+              StaticJsonDocument<6144> responseDoc;
+              responseDoc["type"] = "pattern";
+              responseDoc["index"] = pattern;
+              
+              // Send steps
+              for (int track = 0; track < 16; track++) {
+                JsonArray trackSteps = responseDoc.createNestedArray(String(track));
+                for (int step = 0; step < 16; step++) {
+                  trackSteps.add(sequencer.getStep(track, step));
+                }
+              }
+              
+              // Send velocities
+              JsonObject velocitiesObj = responseDoc.createNestedObject("velocities");
+              for (int track = 0; track < 16; track++) {
+                JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
+                for (int step = 0; step < 16; step++) {
+                  trackVels.add(sequencer.getStepVelocity(track, step));
+                }
+              }
+              
+              String output;
+              serializeJson(responseDoc, output);
+              client->text(output);
+              Serial.printf("[init] Pattern sent to client %u\n", client->id());
+            }
+            delay(10);
+            
+            // 3. Cliente solicitará samples con getSampleCounts cuando esté listo
+            Serial.println("[init] Complete. Client should request samples next.");
           }
           else if (cmd == "getSampleCounts") {
             // Nuevo comando para obtener conteos de samples
@@ -789,6 +837,132 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setVolume") {
     int volume = doc["value"];
     audioEngine.setMasterVolume(volume);
+  }
+  // ============= NEW: Per-Track Filter Commands =============
+  else if (cmd == "setTrackFilter") {
+    int track = doc["track"];
+    int filterType = doc["filterType"];
+    float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
+    float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
+    float gain = doc.containsKey("gain") ? doc["gain"].as<float>() : 0.0f;
+    
+    bool success = audioEngine.setTrackFilter(track, (FilterType)filterType, cutoff, resonance, gain);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "trackFilterSet";
+    responseDoc["track"] = track;
+    responseDoc["success"] = success;
+    responseDoc["activeFilters"] = audioEngine.getActiveTrackFiltersCount();
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "clearTrackFilter") {
+    int track = doc["track"];
+    audioEngine.clearTrackFilter(track);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "trackFilterCleared";
+    responseDoc["track"] = track;
+    responseDoc["activeFilters"] = audioEngine.getActiveTrackFiltersCount();
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  // ============= NEW: Per-Pad Filter Commands =============
+  else if (cmd == "setPadFilter") {
+    int pad = doc["pad"];
+    int filterType = doc["filterType"];
+    float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
+    float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
+    float gain = doc.containsKey("gain") ? doc["gain"].as<float>() : 0.0f;
+    
+    bool success = audioEngine.setPadFilter(pad, (FilterType)filterType, cutoff, resonance, gain);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "padFilterSet";
+    responseDoc["pad"] = pad;
+    responseDoc["success"] = success;
+    responseDoc["activeFilters"] = audioEngine.getActivePadFiltersCount();
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "clearPadFilter") {
+    int pad = doc["pad"];
+    audioEngine.clearPadFilter(pad);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "padFilterCleared";
+    responseDoc["pad"] = pad;
+    responseDoc["activeFilters"] = audioEngine.getActivePadFiltersCount();
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "getFilterPresets") {
+    // Return list of available filter presets
+    StaticJsonDocument<512> responseDoc;
+    responseDoc["type"] = "filterPresets";
+    
+    JsonArray presets = responseDoc.createNestedArray("presets");
+    for (int i = 0; i <= 9; i++) {
+      JsonObject preset = presets.createNestedObject();
+      const FilterPreset* fp = AudioEngine::getFilterPreset((FilterType)i);
+      preset["id"] = i;
+      preset["name"] = fp->name;
+      preset["cutoff"] = fp->cutoff;
+      preset["resonance"] = fp->resonance;
+      preset["gain"] = fp->gain;
+    }
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  // ============= NEW: Step Velocity Commands =============
+  else if (cmd == "setStepVelocity") {
+    int track = doc["track"];
+    int step = doc["step"];
+    int velocity = doc["velocity"];
+    
+    sequencer.setStepVelocity(track, step, velocity);
+    
+    // Broadcast to all clients
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "stepVelocitySet";
+    responseDoc["track"] = track;
+    responseDoc["step"] = step;
+    responseDoc["velocity"] = velocity;
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "getStepVelocity") {
+    int track = doc["track"];
+    int step = doc["step"];
+    
+    uint8_t velocity = sequencer.getStepVelocity(track, step);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "stepVelocity";
+    responseDoc["track"] = track;
+    responseDoc["step"] = step;
+    responseDoc["velocity"] = velocity;
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
   }
   else if (cmd == "get_pattern") {
     int patternNum = doc.containsKey("pattern") ? doc["pattern"].as<int>() : sequencer.getCurrentPattern();

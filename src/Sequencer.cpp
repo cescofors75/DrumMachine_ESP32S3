@@ -262,6 +262,42 @@ void Sequencer::clearTrack(int track) {
   Serial.printf("Track %d cleared\n", track);
 }
 
+// ============= VELOCITY EDITING =============
+
+void Sequencer::setStepVelocity(int track, int step, uint8_t velocity) {
+  if (track < 0 || track >= MAX_TRACKS) return;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return;
+  
+  velocities[currentPattern][track][step] = constrain(velocity, 1, 127);
+  Serial.printf("Pattern %d, Track %d, Step %d velocity set to %d\n", 
+                currentPattern, track, step, velocity);
+}
+
+void Sequencer::setStepVelocity(int pattern, int track, int step, uint8_t velocity) {
+  if (pattern < 0 || pattern >= MAX_PATTERNS) return;
+  if (track < 0 || track >= MAX_TRACKS) return;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return;
+  
+  velocities[pattern][track][step] = constrain(velocity, 1, 127);
+  Serial.printf("Pattern %d, Track %d, Step %d velocity set to %d\n", 
+                pattern, track, step, velocity);
+}
+
+uint8_t Sequencer::getStepVelocity(int track, int step) {
+  if (track < 0 || track >= MAX_TRACKS) return 127;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return 127;
+  
+  return velocities[currentPattern][track][step];
+}
+
+uint8_t Sequencer::getStepVelocity(int pattern, int track, int step) {
+  if (pattern < 0 || pattern >= MAX_PATTERNS) return 127;
+  if (track < 0 || track >= MAX_TRACKS) return 127;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return 127;
+  
+  return velocities[pattern][track][step];
+}
+
 void Sequencer::selectPattern(int pattern) {
   if (pattern < 0 || pattern >= MAX_PATTERNS) return;
   
