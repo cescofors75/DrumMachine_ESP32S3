@@ -8,6 +8,10 @@
 #include "Sequencer.h"
 #include "KitManager.h"
 #include "SampleManager.h"
+#include <map>
+
+// Timeout para clientes UDP (30 segundos sin actividad)
+#define UDP_CLIENT_TIMEOUT 30000
 
 extern AudioEngine audioEngine;
 extern Sequencer sequencer;
@@ -52,7 +56,7 @@ static bool readWavInfo(File& file, uint32_t& rate, uint16_t& channels, uint16_t
   return true;
 }
 
-static void populateStateDocument(StaticJsonDocument<4096>& doc) {
+static void populateStateDocument(StaticJsonDocument<6144>& doc) {
   doc["type"] = "state";
   doc["playing"] = sequencer.isPlaying();
   doc["tempo"] = sequencer.getTempo();
@@ -101,6 +105,12 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
     return;
   }
   
+  // Verificar que LittleFS está montado
+  if (!LittleFS.begin(false)) {
+    Serial.println("[sendSampleCounts] ERROR: LittleFS not mounted!");
+    return;
+  }
+  
   StaticJsonDocument<512> sampleCountDoc;
   sampleCountDoc["type"] = "sampleCounts";
   const char* families[] = {"BD", "SD", "CH", "OH", "CP", "CB", "RS", "CL", "MA", "CY", "HT", "LT", "MC", "MT", "HC", "LC"};
@@ -114,21 +124,25 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
     
     File dir = LittleFS.open(path);
     if (!dir) {
-      Serial.printf("[SampleCount] ERROR: Cannot open %s\n", path.c_str());
+      Serial.printf("[SampleCount] WARN: Cannot open %s\n", path.c_str());
       sampleCountDoc[families[i]] = 0;
+      yield(); // Yield inmediato si hay error
       continue;
     }
     
     if (!dir.isDirectory()) {
-      Serial.printf("[SampleCount] ERROR: %s is not a directory\n", path.c_str());
+      Serial.printf("[SampleCount] WARN: %s is not a directory\n", path.c_str());
       dir.close();
       sampleCountDoc[families[i]] = 0;
+      yield();
       continue;
     }
     
     // Iterar archivos en el directorio
     File file = dir.openNextFile();
+    int fileCount = 0;
     while (file) {
+      fileCount++;
       if (!file.isDirectory()) {
         // Obtener nombre del archivo
         String fullName = file.name();
@@ -146,6 +160,12 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
         }
       }
       file.close();
+      
+      // Yield cada 5 archivos para evitar watchdog
+      if (fileCount % 5 == 0) {
+        yield();
+      }
+      
       file = dir.openNextFile();
     }
     dir.close();
@@ -154,16 +174,21 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
     totalFiles += count;
     Serial.printf("[SampleCount] %s: %d files\n", families[i], count);
     
-    // Yield para evitar watchdog
-    delay(1);
+    // Yield después de cada familia
+    yield();
   }
   
   Serial.printf("[SampleCount] === TOTAL: %d samples ===\n", totalFiles);
   
   String countOutput;
   serializeJson(sampleCountDoc, countOutput);
-  client->text(countOutput);
-  Serial.printf("[SampleCount] Sent to client %u\n", client->id());
+  
+  if (isClientReady(client)) {
+    client->text(countOutput);
+    Serial.printf("[SampleCount] Sent to client %u\n", client->id());
+  } else {
+    Serial.println("[sendSampleCounts] Client disconnected before sending data");
+  }
 }
 
 WebInterface::WebInterface() {
@@ -178,23 +203,34 @@ WebInterface::~WebInterface() {
 }
 
 bool WebInterface::begin(const char* ssid, const char* password) {
-  // Inicio del WiFi
+  // Inicio del WiFi con configuración estable
   Serial.println("  Configurando WiFi...");
+  
+  // Desactivar ahorro de energía WiFi
+  WiFi.setSleep(false);
+  
   WiFi.mode(WIFI_OFF);
-  delay(100);
+  delay(200);
   
   Serial.println("  Activando modo AP...");
   WiFi.mode(WIFI_AP);
+  delay(200);
+  
+  // Potencia reducida (11dBm) para mayor estabilidad
+  Serial.println("  Configurando potencia TX reducida (11dBm)...");
+  WiFi.setTxPower(WIFI_POWER_11dBm);
   delay(100);
   
-  // Potencia media (15dBm) - más estable que máxima
-  Serial.println("  Configurando potencia TX media (15dBm)...");
-  WiFi.setTxPower(WIFI_POWER_15dBm);
-  delay(50);
+  // IP fija para evitar conflictos
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
   
   Serial.println("  Iniciando SoftAP...");
-  WiFi.softAP(ssid, password, 1, 0, 4);  // Canal 1, no oculto, max 4 conexiones
-  delay(200);
+  // Canal 6, no oculto, max 4 conexiones (3 WebSockets + 1 reserva)
+  WiFi.softAP(ssid, password, 6, 0, 4);
+  delay(500);
   
   IPAddress IP = WiFi.softAPIP();
   Serial.print("RED808 AP IP: ");
@@ -211,6 +247,11 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   });
   
   server->addHandler(ws);
+  
+  // Servir página de administración
+  server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(LittleFS, "/web/admin.html", "text/html");
+  });
   
   // Servir archivos estáticos desde LittleFS
   server->serveStatic("/", LittleFS, "/web/").setDefaultFile("index.html");
@@ -267,6 +308,67 @@ bool WebInterface::begin(const char* ssid, const char* password) {
     request->send(200, "application/json", output);
   });
   
+  // Endpoint para info del sistema (para dashboard /adm)
+  server->on("/api/sysinfo", HTTP_GET, [this](AsyncWebServerRequest *request){
+    StaticJsonDocument<3072> doc;
+    
+    // Info de memoria
+    doc["heapFree"] = ESP.getFreeHeap();
+    doc["heapSize"] = ESP.getHeapSize();
+    doc["psramFree"] = ESP.getFreePsram();
+    doc["psramSize"] = ESP.getPsramSize();
+    doc["flashSize"] = ESP.getFlashChipSize();
+    
+    // Info de WiFi
+    doc["wifiMode"] = "AP";
+    doc["ssid"] = WiFi.softAPSSID();
+    doc["ip"] = WiFi.softAPIP().toString();
+    doc["channel"] = WiFi.channel();
+    doc["txPower"] = "11dBm";
+    doc["connectedStations"] = WiFi.softAPgetStationNum();
+    
+    // Info de WebSocket
+    if (ws) {
+      doc["wsClients"] = ws->count();
+      JsonArray clients = doc.createNestedArray("wsClientList");
+      for (auto client : ws->getClients()) {
+        JsonObject c = clients.createNestedObject();
+        c["id"] = client->id();
+        c["ip"] = client->remoteIP().toString();
+        c["status"] = client->status();
+      }
+    }
+    
+    // Info de clientes UDP
+    Serial.printf("[sysinfo] UDP clients count: %d\n", udpClients.size());
+    doc["udpClients"] = udpClients.size();
+    JsonArray udpClientsList = doc.createNestedArray("udpClientList");
+    unsigned long now = millis();
+    for (const auto& pair : udpClients) {
+      JsonObject c = udpClientsList.createNestedObject();
+      c["ip"] = pair.second.ip.toString();
+      c["port"] = pair.second.port;
+      c["lastSeen"] = (now - pair.second.lastSeen) / 1000; // segundos desde última actividad
+      c["packets"] = pair.second.packetCount;
+      Serial.printf("[sysinfo] Adding UDP client: %s:%d (packets: %d)\n", 
+                    pair.second.ip.toString().c_str(), pair.second.port, pair.second.packetCount);
+    }
+    
+    // Info del secuenciador
+    doc["tempo"] = sequencer.getTempo();
+    doc["playing"] = sequencer.isPlaying();
+    doc["pattern"] = sequencer.getCurrentPattern();
+    doc["samplesLoaded"] = sampleManager.getLoadedSamplesCount();
+    doc["memoryUsed"] = sampleManager.getTotalMemoryUsed();
+    
+    // Uptime
+    doc["uptime"] = millis();
+    
+    String output;
+    serializeJson(doc, output);
+    request->send(200, "application/json", output);
+  });
+  
   server->begin();
   Serial.println("✓ RED808 Web Server iniciado");
   
@@ -291,7 +393,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
     // Enviar patrón actual con los 16 tracks solo al nuevo cliente
     if (isClientReady(client)) {
       int pattern = sequencer.getCurrentPattern();
-      StaticJsonDocument<4096> responseDoc;
+      StaticJsonDocument<6144> responseDoc;
       responseDoc["type"] = "pattern";
       responseDoc["index"] = pattern;
       
@@ -343,7 +445,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           
           if (cmd == "getPattern") {
             int pattern = sequencer.getCurrentPattern();
-            StaticJsonDocument<4096> responseDoc;
+            StaticJsonDocument<6144> responseDoc;
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
@@ -373,6 +475,12 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             int padIndex = doc["pad"];
             
             Serial.printf("[getSamples] Family: %s, Pad: %d\n", family, padIndex);
+            
+            // Verificar que LittleFS está montado
+            if (!LittleFS.begin(false)) {
+              Serial.println("[getSamples] ERROR: LittleFS not mounted!");
+              return;
+            }
             
             StaticJsonDocument<2048> responseDoc;
             responseDoc["type"] = "sampleList";
@@ -424,6 +532,11 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
                     }
                     count++;
                     Serial.printf("  [%d] %s (%d KB)\n", count, filename.c_str(), file.size() / 1024);
+                    
+                    // Yield cada 3 samples para evitar watchdog
+                    if (count % 3 == 0) {
+                      yield();
+                    }
                   }
                 }
                 file.close();
@@ -453,7 +566,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
 
 void WebInterface::broadcastSequencerState() {
   if (!initialized || !ws) return;
-  StaticJsonDocument<4096> doc;
+  StaticJsonDocument<6144> doc;
   populateStateDocument(doc);
   String output;
   serializeJson(doc, output);
@@ -464,7 +577,7 @@ void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
   if (!initialized || !ws || !isClientReady(client)) {
     return;
   }
-  StaticJsonDocument<4096> doc;
+  StaticJsonDocument<6144> doc;
   populateStateDocument(doc);
   String output;
   serializeJson(doc, output);
@@ -502,12 +615,20 @@ void WebInterface::update() {
   // Solo cleanup, el broadcast de steps se hace via callback
   ws->cleanupClients();
   
-  // Broadcast audio visualization data every 200ms (~5fps)
-  static uint32_t lastVisUpdate = 0;
-  if (millis() - lastVisUpdate > 200) {
-    broadcastVisualizationData();
-    lastVisUpdate = millis();
+  // Limpiar clientes UDP inactivos cada 10 segundos
+  static unsigned long lastCleanup = 0;
+  if (millis() - lastCleanup > 10000) {
+    cleanupStaleUdpClients();
+    lastCleanup = millis();
   }
+  
+  // DESACTIVADO: Visualización ralentiza el sistema
+  // // Broadcast audio visualization data every 200ms (~5fps)
+  // static uint32_t lastVisUpdate = 0;
+  // if (millis() - lastVisUpdate > 200) {
+  //   broadcastVisualizationData();
+  //   lastVisUpdate = millis();
+  // }
 }
 
 String WebInterface::getIP() {
@@ -515,27 +636,30 @@ String WebInterface::getIP() {
 }
 
 void WebInterface::broadcastVisualizationData() {
-  if (!initialized || !ws) return;
-  // Capture audio data
-  uint8_t spectrum[64];
-  uint8_t waveform[128];
-  audioEngine.captureAudioData(spectrum, waveform);
+  // DESACTIVADO: No enviar datos de visualización para evitar saturación
+  return;
   
-  // Build JSON message - reducido a 512 bytes y eliminado waveform
-  StaticJsonDocument<512> doc;
-  doc["type"] = "audioData";
-  
-  // Solo spectrum, reducido a 32 bandas para evitar heap corruption
-  JsonArray spectrumArray = doc.createNestedArray("spectrum");
-  for (int i = 0; i < 32; i++) {
-    // Promediar cada 2 bandas para reducir de 64 a 32
-    int avg = (spectrum[i*2] + spectrum[i*2+1]) / 2;
-    spectrumArray.add(avg);
-  }
-  
-  String output;
-  serializeJson(doc, output);
-  ws->textAll(output);
+  // if (!initialized || !ws) return;
+  // // Capture audio data
+  // uint8_t spectrum[64];
+  // uint8_t waveform[128];
+  // audioEngine.captureAudioData(spectrum, waveform);
+  // 
+  // // Build JSON message - reducido a 512 bytes y eliminado waveform
+  // StaticJsonDocument<512> doc;
+  // doc["type"] = "audioData";
+  // 
+  // // Solo spectrum, reducido a 32 bandas para evitar heap corruption
+  // JsonArray spectrumArray = doc.createNestedArray("spectrum");
+  // for (int i = 0; i < 32; i++) {
+  //   // Promediar cada 2 bandas para reducir de 64 a 32
+  //   int avg = (spectrum[i*2] + spectrum[i*2+1]) / 2;
+  //   spectrumArray.add(avg);
+  // }
+  // 
+  // String output;
+  // serializeJson(doc, output);
+  // ws->textAll(output);
 }
 
 // Procesar comandos JSON (compartido entre WebSocket y UDP)
@@ -695,6 +819,44 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
 }
 
+// Actualizar o registrar cliente UDP
+void WebInterface::updateUdpClient(IPAddress ip, uint16_t port) {
+  String key = ip.toString();
+  
+  if (udpClients.find(key) != udpClients.end()) {
+    // Cliente existente, actualizar
+    udpClients[key].lastSeen = millis();
+    udpClients[key].packetCount++;
+    Serial.printf("[UDP] Client updated: %s:%d (packets: %d)\n", 
+                  ip.toString().c_str(), port, udpClients[key].packetCount);
+  } else {
+    // Nuevo cliente
+    UdpClient client;
+    client.ip = ip;
+    client.port = port;
+    client.lastSeen = millis();
+    client.packetCount = 1;
+    udpClients[key] = client;
+    Serial.printf("[UDP] New client registered: %s:%d (total clients: %d)\n", 
+                  ip.toString().c_str(), port, udpClients.size());
+  }
+}
+
+// Limpiar clientes UDP inactivos
+void WebInterface::cleanupStaleUdpClients() {
+  unsigned long now = millis();
+  auto it = udpClients.begin();
+  
+  while (it != udpClients.end()) {
+    if (now - it->second.lastSeen > UDP_CLIENT_TIMEOUT) {
+      Serial.printf("[UDP] Client timeout: %s\n", it->first.c_str());
+      it = udpClients.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 // Manejar paquetes UDP entrantes
 void WebInterface::handleUdp() {
   int packetSize = udp.parsePacket();
@@ -707,6 +869,9 @@ void WebInterface::handleUdp() {
       Serial.printf("[UDP] Received %d bytes from %s:%d\n", 
                     len, udp.remoteIP().toString().c_str(), udp.remotePort());
       Serial.printf("[UDP] Data: %s\n", incomingPacket);
+      
+      // Registrar cliente UDP
+      updateUdpClient(udp.remoteIP(), udp.remotePort());
       
       // Parsear JSON
       StaticJsonDocument<512> doc;

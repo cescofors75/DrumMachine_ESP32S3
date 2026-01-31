@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RED808 Admin Dashboard</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>🎛️ RED808 ADMIN DASHBOARD</h1>
+      <div class="status-badge" id="connectionStatus">CONNECTING...</div>
+    </header>
+
+    <div class="dashboard-grid">
+      <!-- System Info Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>💻 System Info</h2>
+          <button class="refresh-btn" onclick="refreshData()">🔄</button>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Uptime:</span>
+            <span class="value" id="uptime">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">IP Address:</span>
+            <span class="value" id="ipAddress">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">WiFi Channel:</span>
+            <span class="value" id="wifiChannel">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">TX Power:</span>
+            <span class="value" id="txPower">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">WiFi Stations:</span>
+            <span class="value" id="connectedStations">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🧠 Memory Status</h2>
+        </div>
+        <div class="card-body">
+          <div class="memory-section">
+            <h3>Heap Memory</h3>
+            <div class="progress-bar">
+              <div class="progress-fill" id="heapProgress"></div>
+            </div>
+            <div class="memory-stats">
+              <span id="heapUsed">-</span> / <span id="heapTotal">-</span>
+              <span class="percent" id="heapPercent">0%</span>
+            </div>
+          </div>
+          
+          <div class="memory-section">
+            <h3>PSRAM</h3>
+            <div class="progress-bar">
+              <div class="progress-fill psram" id="psramProgress"></div>
+            </div>
+            <div class="memory-stats">
+              <span id="psramUsed">-</span> / <span id="psramTotal">-</span>
+              <span class="percent" id="psramPercent">0%</span>
+            </div>
+          </div>
+
+          <div class="memory-section">
+            <h3>Audio Samples</h3>
+            <div class="progress-bar">
+              <div class="progress-fill samples" id="samplesProgress"></div>
+            </div>
+            <div class="memory-stats">
+              <span id="samplesLoaded">-</span> samples
+              <span id="samplesMemory">- MB</span>
+            </div>
+          </div>
+
+          <div class="info-row">
+            <span class="label">Flash Size:</span>
+            <span class="value" id="flashSize">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- WebSocket Clients Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🔌 WebSocket Clients (<span id="wsClientCount">0</span>/3)</h2>
+        </div>
+        <div class="card-body">
+          <div class="clients-container" id="wsClientsContainer">
+            <div class="empty-state">No clients connected</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- UDP Clients Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📡 UDP Clients (<span id="udpClientCount">0</span>)</h2>
+        </div>
+        <div class="card-body">
+          <div class="clients-container" id="udpClientsContainer">
+            <div class="empty-state">No UDP clients detected</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sequencer Status Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🎵 Sequencer Status</h2>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span class="value status-indicator" id="seqStatus">
+              <span class="dot stopped"></span> STOPPED
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="label">Tempo:</span>
+            <span class="value" id="seqTempo">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Pattern:</span>
+            <span class="value" id="seqPattern">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>⚡ Quick Actions</h2>
+        </div>
+        <div class="card-body actions">
+          <button class="action-btn" onclick="location.href='/'">🎛️ Main Interface</button>
+          <button class="action-btn" onclick="rebootESP()">🔄 Reboot ESP32</button>
+          <button class="action-btn" onclick="clearSamples()">🗑️ Clear Samples</button>
+        </div>
+      </div>
+
+      <!-- Real-time Monitor Card -->
+      <div class="card full-width">
+        <div class="card-header">
+          <h2>📊 Real-time Monitor</h2>
+        </div>
+        <div class="card-body">
+          <canvas id="memoryChart" width="800" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

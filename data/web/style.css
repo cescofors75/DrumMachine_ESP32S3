@@ -1,6 +1,7 @@
 /* RED808 Drum Machine - Estilos */
 
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
+/* Google Fonts desactivado para modo AP sin internet */
+/* @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap'); */
 
 * {
     margin: 0;
@@ -16,8 +17,8 @@
     --black-light: #1a1a1a;
     --gray: #333;
     --gray-light: #555;
-    --font-primary: 'Rajdhani', sans-serif;
-    --font-mono: 'Roboto Mono', monospace;
+    --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
     --pad-color-0: 255, 107, 107;
     --pad-color-1: 247, 183, 49;
     --pad-color-2: 38, 222, 129;

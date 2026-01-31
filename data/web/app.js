@@ -86,6 +86,11 @@ let sampleBrowserRenderTimer = null;
 let sampleRequestTimers = [];
 let sampleRetryTimer = null;
 
+// Simple notification function
+function showNotification(message) {
+    console.log('[Notification]', message);
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initWebSocket();
@@ -110,10 +115,25 @@ function initWebSocket() {
         isConnected = true;
         updateStatus(true);
         syncLedMonoMode();
+        
+        let retryAttempted = false;
+        
         setTimeout(() => {
+            console.log('[WebSocket] Requesting sample counts...');
             requestSampleCounts();
-            requestAllSamples();
-        }, 300);
+            // NO solicitar todas las listas al inicio - se pedirán bajo demanda
+            
+            // Reintentar UNA SOLA VEZ si no hay respuesta en 8 segundos
+            setTimeout(() => {
+                if (retryAttempted) return;
+                const totalCounts = Object.values(sampleCounts).reduce((sum, val) => sum + (val || 0), 0);
+                if (totalCounts === 0) {
+                    console.warn('[WebSocket] No sample count data, retrying once...');
+                    retryAttempted = true;
+                    requestSampleCounts();
+                }
+            }, 8000);
+        }, 800);
     };
     
     ws.onclose = () => {
@@ -425,19 +445,13 @@ function handleSampleCountsMessage(payload) {
     sampleCounts = sanitizedCounts;
     updateSampleButtons();
     updateInstrumentCounts(totalFiles);
-    console.log('Sample counts received:', sanitizedCounts);
+    console.log('Sample counts received:', sanitizedCounts, `Total: ${totalFiles}`);
     scheduleSampleBrowserRender();
 
+    // Limpiar timer de reintento
     if (sampleRetryTimer) {
         clearTimeout(sampleRetryTimer);
-    }
-    if (totalFiles > 0) {
-        sampleRetryTimer = setTimeout(() => {
-            const hasCatalog = padNames.some((family) => (sampleCatalog[family] || []).length > 0);
-            if (!hasCatalog) {
-                requestAllSamples();
-            }
-        }, 1500);
+        sampleRetryTimer = null;
     }
 }
 
@@ -897,6 +911,49 @@ function setupControls() {
         visualizerNeedsRedraw = true;
         syncLedMonoMode();
     });
+    
+    // Botón para cargar listas de samplers
+    const loadSampleListsBtn = document.getElementById('loadSampleListsBtn');
+    if (loadSampleListsBtn) {
+        loadSampleListsBtn.addEventListener('click', () => {
+            console.log('=== CARGANDO LISTAS DE SAMPLERS ===');
+            const statusEl = document.getElementById('sampleLoadStatus');
+            if (statusEl) statusEl.textContent = 'Cargando...';
+            
+            requestAllSamples();
+            
+            setTimeout(() => {
+                const totalLoaded = Object.keys(sampleCatalog).length;
+                console.log(`Total familias cargadas: ${totalLoaded}`);
+                if (statusEl) statusEl.textContent = `${totalLoaded}/16 familias cargadas`;
+            }, 5000);
+        });
+    }
+    
+    // Botón de debug info
+    const debugInfoBtn = document.getElementById('debugInfoBtn');
+    if (debugInfoBtn) {
+        debugInfoBtn.addEventListener('click', () => {
+            console.log('=== DEBUG INFO ===');
+            console.log('WebSocket state:', ws ? ws.readyState : 'null');
+            console.log('Connected:', isConnected);
+            console.log('Sample Counts:', sampleCounts);
+            console.log('Sample Catalog families:', Object.keys(sampleCatalog));
+            console.log('Catalog details:');
+            Object.keys(sampleCatalog).forEach(family => {
+                console.log(`  ${family}: ${sampleCatalog[family].length} samples`);
+            });
+        });
+    }
+    
+    // Botón para recargar conteos
+    const reloadCountsBtn = document.getElementById('reloadCountsBtn');
+    if (reloadCountsBtn) {
+        reloadCountsBtn.addEventListener('click', () => {
+            console.log('[reloadCountsBtn] Recargando conteos...');
+            requestSampleCounts();
+        });
+    }
     
     // FX Controls
     setupFXControls();
@@ -1919,7 +1976,8 @@ function getDragAfterElement(container, y) {
 // Sample Selector Functions
 function showSampleSelector(padIndex, family) {
     sampleSelectorContext = { padIndex, family };
-    // Solicitar lista de samples
+    console.log(`[showSampleSelector] Requesting samples for ${family}...`);
+    // Solicitar lista de samples bajo demanda
     sendWebSocket({
         cmd: 'getSamples',
         family: family,
@@ -2172,7 +2230,13 @@ function renderSampleBrowserList(family) {
         return;
     }
 
-    rows.sort((a, b) => a.family.localeCompare(b.family) || a.name.localeCompare(b.name));
+    rows.sort((a, b) => {
+        const familyA = a.family || '';
+        const familyB = b.family || '';
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        return familyA.localeCompare(familyB) || nameA.localeCompare(nameB);
+    });
 
     const filteredRows = rows.filter(sample => {
         if (familyFilter !== 'ALL' && sample.family !== familyFilter) return false;

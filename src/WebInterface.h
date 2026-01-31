@@ -13,8 +13,17 @@
 #include <AsyncWebSocket.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <map>
 
 #define UDP_PORT 8888  // Puerto para recibir comandos UDP
+
+// Estructura para trackear clientes UDP
+struct UdpClient {
+  IPAddress ip;
+  uint16_t port;
+  unsigned long lastSeen;
+  uint32_t packetCount;
+};
 
 class WebInterface {
 public:
@@ -38,6 +47,11 @@ private:
   AsyncWebSocket* ws;
   WiFiUDP udp;  // Servidor UDP
   bool initialized;
+  
+  // Tracking de clientes UDP
+  std::map<String, UdpClient> udpClients;
+  void updateUdpClient(IPAddress ip, uint16_t port);
+  void cleanupStaleUdpClients();
   
   void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
                        AwsEventType type, void *arg, uint8_t *data, size_t len);

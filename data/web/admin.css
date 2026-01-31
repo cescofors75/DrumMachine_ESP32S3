@@ -1,0 +1,370 @@
+/* RED808 Admin Dashboard CSS */
+:root {
+  --bg-dark: #0a0a0a;
+  --bg-card: #1a1a1a;
+  --bg-hover: #252525;
+  --border: #333;
+  --text-primary: #ffffff;
+  --text-secondary: #999;
+  --accent: #00ff88;
+  --accent-dark: #00cc6a;
+  --danger: #ff4444;
+  --warning: #ffaa00;
+  --info: #00aaff;
+  --success: #00ff88;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.admin-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Header */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 30px;
+}
+
+.admin-header h1 {
+  font-size: 2em;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, var(--accent), var(--info));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.status-badge {
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9em;
+  letter-spacing: 1px;
+  animation: pulse 2s infinite;
+}
+
+.status-badge.connected {
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
+  animation: none;
+}
+
+.status-badge.disconnected {
+  background: rgba(255, 68, 68, 0.2);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 255, 136, 0.1);
+}
+
+.card.full-width {
+  grid-column: 1 / -1;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: rgba(0, 255, 136, 0.05);
+  border-bottom: 1px solid var(--border);
+}
+
+.card-header h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.refresh-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 5px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.2em;
+  transition: all 0.2s;
+}
+
+.refresh-btn:hover {
+  background: var(--accent);
+  color: var(--bg-dark);
+}
+
+.card-body {
+  padding: 20px;
+}
+
+/* Info Rows */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* Memory Progress Bars */
+.memory-section {
+  margin-bottom: 25px;
+}
+
+.memory-section h3 {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--info));
+  border-radius: 15px;
+  transition: width 0.5s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill.psram {
+  background: linear-gradient(90deg, #ff00ff, #00ffff);
+}
+
+.progress-fill.samples {
+  background: linear-gradient(90deg, #ffaa00, #ff4444);
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.3), 
+    transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.memory-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.memory-stats .percent {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
+
+.dot.playing {
+  background: var(--success);
+  box-shadow: 0 0 10px var(--success);
+}
+
+.dot.stopped {
+  background: var(--text-secondary);
+  animation: none;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* WebSocket Clients */
+.clients-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.client-card {
+  background: rgba(0, 255, 136, 0.05);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 15px;
+  transition: all 0.2s;
+}
+
+.client-card.udp {
+  background: rgba(0, 170, 255, 0.05);
+  border: 1px solid var(--info);
+}
+
+.client-card:hover {
+  background: rgba(0, 255, 136, 0.1);
+  transform: scale(1.02);
+}
+
+.client-card.udp:hover {
+  background: rgba(0, 170, 255, 0.1);
+}
+
+.client-id {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.client-info {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Action Buttons */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 600;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.action-btn:hover {
+  background: var(--accent);
+  color: var(--bg-dark);
+  border-color: var(--accent);
+  transform: translateX(5px);
+}
+
+/* Chart */
+#memoryChart {
+  width: 100%;
+  height: 200px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .admin-header h1 {
+    font-size: 1.5em;
+  }
+}

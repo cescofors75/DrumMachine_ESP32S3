@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RED808 Drum Machine</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -85,20 +86,25 @@
             <!-- Live Pads Section -->
             <section id="section-pads" class="pads-section" data-section="pads" data-title="Live Pads">
                 <h2>LIVE PADS</h2>
+                <div class="pads-controls" style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="loadSampleListsBtn" class="btn" style="background: #ff6600; padding: 8px 16px;">📂 CARGAR SAMPLERS</button>
+                    <button id="debugInfoBtn" class="btn" style="background: #0088ff; padding: 8px 16px;">🔍 DEBUG INFO</button>
+                    <span id="sampleLoadStatus" style="color: #aaa; padding: 8px;">Esperando...</span>
+                </div>
                 <div class="pads-grid" id="padsGrid">
                     <!-- Los pads se generarán dinámicamente -->
                 </div>
             </section>
 
-            <!-- Audio Visualizer Section -->
-            <section id="section-visualizer" class="visualizer-section" data-section="visualizer" data-title="Audio Visualizer">
+            <!-- Audio Visualizer Section - DESACTIVADO -->
+            <!-- <section id="section-visualizer" class="visualizer-section" data-section="visualizer" data-title="Audio Visualizer">
                 <div class="visualizer-grid">
                     <div class="visualizer-panel visualizer-full">
                         <h3>SPECTRUM ANALYZER</h3>
                         <canvas id="spectrumCanvas" width="600" height="200"></canvas>
                     </div>
                 </div>
-            </section>
+            </section> -->
         </div>
 
         <!-- TAB: Sequencer -->
@@ -255,6 +261,9 @@
             <!-- Device Info Section -->
             <section id="section-device" class="device-info" data-section="device" data-title="Device Info">
                 <div class="info-title">🎛️ DEVICE + LIBRARY</div>
+                <div style="margin-bottom: 10px;">
+                    <button id="reloadCountsBtn" class="btn" style="background: #00aa00; padding: 6px 12px; font-size: 0.9em;">🔄 RECARGAR CONTEOS</button>
+                </div>
                 <div class="device-cards">
                     <div class="info-card emphasis">
                         <span class="info-label">Samples Loaded</span>
