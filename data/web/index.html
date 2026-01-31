@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RED808 Drum Machine</title>
     <link rel="icon" href="data:,">
+    <link rel="preload" href="style.css" as="style">
+    <link rel="preload" href="keyboard-styles.css" as="style">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="keyboard-styles.css">
 </head>
@@ -89,8 +91,7 @@
                 <h2>LIVE PADS</h2>
                 <div class="pads-controls" style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <button id="loadSampleListsBtn" class="btn" style="background: #ff6600; padding: 8px 16px;">📂 CARGAR SAMPLERS</button>
-                    <button id="debugInfoBtn" class="btn" style="background: #0088ff; padding: 8px 16px;">🔍 DEBUG INFO</button>
-                    <span id="sampleLoadStatus" style="color: #aaa; padding: 8px;">Esperando...</span>
+                    <span id="sampleLoadStatus" style="color: #aaa; padding: 8px; display: none;">Cargando...</span>
                 </div>
                 <div class="pads-grid" id="padsGrid">
                     <!-- Los pads se generarán dinámicamente -->
@@ -709,7 +710,7 @@
         </footer>
     </div>
 
-    <script src="app.js"></script>
-    <script src="keyboard-controls.js"></script>
+    <script src="app.js" defer></script>
+    <script src="keyboard-controls.js" defer></script>
 </body>
 </html>

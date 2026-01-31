@@ -488,26 +488,19 @@ function applyPadFilter(pad, filter) {
     window.sendWebSocket(cmd);
   }
   
-  // Update visual badge
+  // Update visual indicator (purple corona)
   const padElement = document.querySelector(`[data-pad="${pad}"]`);
   if (padElement) {
-    let badge = padElement.querySelector('.pad-filter-badge');
-    
     // Show toast notification
     const filterName = filter.name || (filter.type === 0 ? 'Filter cleared' : 'Filter applied');
     showToast(`Pad ${pad + 1}: ${filterName}`, filter.type === 0 ? TOAST_TYPES.INFO : TOAST_TYPES.SUCCESS, 2500);
     
     if (filter.type === 0) {
-      // Remove badge when clearing filter
-      if (badge) badge.remove();
+      // Remove filter class
+      padElement.classList.remove('has-filter');
     } else {
-      // Add or update badge
-      if (!badge) {
-        badge = document.createElement('div');
-        badge.className = 'pad-filter-badge';
-        padElement.appendChild(badge);
-      }
-      badge.innerHTML = `<span class="pad-num">${pad + 1}</span><span>F</span>`;
+      // Add filter class (shows purple glow)
+      padElement.classList.add('has-filter');
     }
   }
   
@@ -639,12 +632,33 @@ function createTrackFilterPanel() {
 
 function applyTrackFilterFromPanel(filterType) {
   if (selectedTrack !== null) {
-    const filter = FILTER_TYPES[filterType];
-    applyTrackFilter(selectedTrack, filter);
-    hideTrackFilterPanel();
+    // Map filter type index to actual filter shortcuts
+    const filterShortcuts = {
+      0: { type: 0, name: 'Clear Filter' },
+      1: { type: 1, cutoff: 1000, resonance: 1, name: 'Low Pass 1kHz' },
+      2: { type: 2, cutoff: 1000, resonance: 1, name: 'High Pass 1kHz' },
+      3: { type: 3, cutoff: 1000, resonance: 2, name: 'Band Pass 1kHz' },
+      4: { type: 4, cutoff: 1000, resonance: 2, name: 'Notch 1kHz' },
+      5: { type: 7, cutoff: 500, resonance: 1, gain: 6, name: 'Low Shelf +6dB' },
+      6: { type: 8, cutoff: 4000, resonance: 1, gain: 6, name: 'High Shelf +6dB' },
+      7: { type: 6, cutoff: 1000, resonance: 2, gain: 6, name: 'Peak 1kHz' },
+      8: { type: 5, cutoff: 1000, resonance: 1, name: 'All Pass 1kHz' },
+      9: { type: 9, cutoff: 1000, resonance: 10, name: 'Resonant 1kHz' }
+    };
+    
+    const filter = filterShortcuts[filterType];
+    if (filter) {
+      applyTrackFilter(selectedTrack, filter);
+    }
+    // Force close panel with slight delay to ensure it closes
+    setTimeout(() => {
+      hideTrackFilterPanel();
+      selectedTrack = null;
+    }, 100);
   }
 }
 
+window.showTrackFilterPanel = showTrackFilterPanel;
 window.hideTrackFilterPanel = hideTrackFilterPanel;
 window.applyTrackFilterFromPanel = applyTrackFilterFromPanel;
 window.initKeyboardControls = initKeyboardControls;

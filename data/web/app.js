@@ -69,6 +69,21 @@ const filterTypeLabels = {
     4: 'NOTCH'
 };
 
+// Filter types for track filter panel
+const FILTER_TYPES = [
+    { icon: '⭕', name: 'NONE' },
+    { icon: '🔽', name: 'LOW PASS' },
+    { icon: '🔼', name: 'HIGH PASS' },
+    { icon: '🎯', name: 'BAND PASS' },
+    { icon: '🚫', name: 'NOTCH' },
+    { icon: '📊', name: 'LOW SHELF' },
+    { icon: '📈', name: 'HIGH SHELF' },
+    { icon: '⛰️', name: 'PEAK' },
+    { icon: '🌀', name: 'ALL PASS' },
+    { icon: '💫', name: 'RESONANT' }
+];
+window.FILTER_TYPES = FILTER_TYPES;
+
 const instrumentPalette = [
     '#ff6b6b', '#f7b731', '#26de81', '#45aaf2',
     '#a55eea', '#fd9644', '#2bcbba', '#778ca3',
@@ -289,9 +304,13 @@ function createPads() {
         pad.dataset.pad = i;
         
         pad.innerHTML = `
-            <div class="pad-number">${(i + 1).toString().padStart(2, '0')}</div>
-            <div class="pad-name">${padNames[i]}</div>
-            <div class="pad-sample-info" id="sampleInfo-${i}">...</div>
+            <div class="pad-header">
+                <span class="pad-number">${(i + 1).toString().padStart(2, '0')}</span>
+            </div>
+            <div class="pad-content">
+                <div class="pad-name">${padNames[i]}</div>
+                <div class="pad-sample-info" id="sampleInfo-${i}"><span class="sample-file">...</span><span class="sample-quality">44.1k•16b•M</span></div>
+            </div>
             <div class="pad-corona" aria-hidden="true"></div>
         `;
         
@@ -333,6 +352,7 @@ function createPads() {
         selectBtn.dataset.padIndex = i;
         selectBtn.dataset.family = families[i];
         selectBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             e.stopPropagation();
             showSampleSelector(i, families[i]);
         });
@@ -491,11 +511,29 @@ function refreshPadSampleInfo(padIndex) {
     const infoEl = document.getElementById(`sampleInfo-${padIndex}`);
     const meta = padSampleMetadata[padIndex];
     if (!infoEl) return;
+    
+    const fileSpan = infoEl.querySelector('.sample-file');
+    const qualitySpan = infoEl.querySelector('.sample-quality');
+    
     if (!meta) {
-        infoEl.textContent = '—';
+        if (fileSpan) fileSpan.textContent = '—';
+        if (qualitySpan) qualitySpan.textContent = '';
         infoEl.title = 'No sample loaded';
     } else {
-        infoEl.textContent = `${meta.filename} • ${meta.sizeKB}KB`;
+        // Extract filename without extension for cleaner display
+        const cleanName = meta.filename.replace(/\.(wav|raw)$/i, '');
+        if (fileSpan) fileSpan.textContent = cleanName;
+        
+        // Format: "44.1k•16b•M" or "22k•8b•S"
+        const quality = meta.quality || '44.1kHz•16-bit mono';
+        const shortQuality = quality
+            .replace(/kHz/g, 'k')
+            .replace(/-bit/g, 'b')
+            .replace(/mono/g, 'M')
+            .replace(/stereo/g, 'S')
+            .replace(/ /g, '•');
+        
+        if (qualitySpan) qualitySpan.textContent = shortQuality;
         infoEl.title = `${meta.filename} - ${meta.sizeKB} KB - ${meta.format}`;
     }
     updateInstrumentMetadata(padIndex);
@@ -730,6 +768,19 @@ function createSequencer() {
             setTrackMuted(track, !trackMutedState[track], true);
         });
         
+        const filterBtn = document.createElement('button');
+        filterBtn.className = 'track-filter-btn';
+        filterBtn.setAttribute('aria-label', 'Filter');
+        filterBtn.title = 'Aplicar filtro (F1-F10)';
+        filterBtn.textContent = 'F';
+        filterBtn.dataset.track = track;
+        filterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.showTrackFilterPanel) {
+                window.showTrackFilterPanel(track);
+            }
+        });
+        
         const name = document.createElement('span');
         name.textContent = trackNames[track];
         name.style.color = trackColors[track];
@@ -739,6 +790,7 @@ function createSequencer() {
         loopIndicator.textContent = 'LOOP';
         
         label.appendChild(muteBtn);
+        label.appendChild(filterBtn);
         label.appendChild(name);
         label.appendChild(loopIndicator);
         label.style.borderColor = trackColors[track];
@@ -1896,14 +1948,20 @@ function displaySampleList(data) {
         `;
         sampleItem.addEventListener('click', () => {
             loadSampleToPad(padIndex, family, sample.name);
-            document.body.removeChild(modal);
+            const modalToRemove = modal;
+            if (modalToRemove && modalToRemove.parentNode) {
+                modalToRemove.parentNode.removeChild(modalToRemove);
+            }
             sampleSelectorContext = null;
         });
         sampleList.appendChild(sampleItem);
     });
     
     modal.querySelector('.btn-close-modal').addEventListener('click', () => {
-        document.body.removeChild(modal);
+        const modalToRemove = modal;
+        if (modalToRemove && modalToRemove.parentNode) {
+            modalToRemove.parentNode.removeChild(modalToRemove);
+        }
         sampleSelectorContext = null;
     });
     
