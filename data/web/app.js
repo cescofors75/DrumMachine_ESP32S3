@@ -99,10 +99,16 @@ document.addEventListener('DOMContentLoaded', () => {
     setupControls();
     initHeaderMeters();
     initVisualizers();
-    setupKeyboardControls();
+    
+    // Initialize keyboard system from keyboard-controls.js first
+    if (window.initKeyboardControls) {
+        window.initKeyboardControls();
+    }
+    
+    setupKeyboardControls(); // Then setup pad handlers in app.js
     initSampleBrowser();
     initInstrumentTabs();
-    initTabSystem(); // Nuevo sistema de tabs
+    initTabSystem(); // Tab navigation system
 });
 
 // WebSocket Connection
@@ -736,6 +742,14 @@ function createSequencer() {
         label.appendChild(name);
         label.appendChild(loopIndicator);
         label.style.borderColor = trackColors[track];
+        
+        // Hacer click en label selecciona el track para filtros
+        label.addEventListener('click', (e) => {
+            if (e.target !== muteBtn && window.selectTrack) {
+                window.selectTrack(track);
+            }
+        });
+        
         grid.appendChild(label);
         
         // 16 steps
@@ -747,6 +761,10 @@ function createSequencer() {
             
             stepEl.addEventListener('click', () => {
                 toggleStep(track, step, stepEl);
+                // Seleccionar celda para velocity editor
+                if (window.selectCell) {
+                    window.selectCell(track, step);
+                }
             });
 
             stepColumns[step].push(stepEl);
@@ -979,8 +997,8 @@ function setupControls() {
         });
     }
     
-    // FX Controls
-    setupFXControls();
+    // FX Controls - deprecated, now using preset system
+    // setupFXControls();
 }
 
 function setupFXControls() {
@@ -1316,104 +1334,15 @@ function setupKeyboardControls() {
         return null;
     };
     
-    // KEYBOARD SHORTCUTS MOVED TO keyboard-controls.js for unified management
-    // Keeping only keyup handler for pad release
-    /*
-    document.addEventListener('keydown', (e) => {
-        // Evitar repetición si ya está presionada
-        if (e.repeat) return;
-        
-        const key = e.key.toUpperCase();
-
-        // Shift + tecla de pad: Mute/unmute track
-        if (e.shiftKey) {
-            const padIndex = getPadIndexFromEvent(e);
-            if (padIndex !== null) {
-                e.preventDefault();
-                setTrackMuted(padIndex, !trackMutedState[padIndex], true);
-                return;
-            }
-        }
-        
-        // Pads 1-9, 0, Q-Y con tremolo
-        const padIndex = getPadIndexFromEvent(e);
-        if (padIndex !== null) {
-            e.preventDefault();
-            
-            if (!keyboardPadsActive[padIndex]) {
-                keyboardPadsActive[padIndex] = true;
-                const padElement = document.querySelector(`.pad[data-pad="${padIndex}"]`);
-                if (padElement) {
-                    startKeyboardTremolo(padIndex, padElement);
-                }
-            }
-        }
-        
-        // SPACE: Toggle Play/Pause
-        else if (key === ' ') {
-            e.preventDefault();
-            togglePlayPause();
-        }
-        
-        // [: Bajar BPM
-        else if (key === '[') {
-            e.preventDefault();
-            adjustBPM(-5);
-        }
-        
-        // ]: Subir BPM
-        else if (key === ']') {
-            e.preventDefault();
-            adjustBPM(5);
-        }
-
-        // N: Pattern siguiente
-        else if (key === 'N') {
-            e.preventDefault();
-            changePattern(1);
-        }
-
-        // B: Pattern anterior
-        else if (key === 'B') {
-            e.preventDefault();
-            changePattern(-1);
-        }
-
-        // C: Cambiar modo de color (mono/multicolor)
-        else if (key === 'C') {
-            e.preventDefault();
-            const colorToggle = document.getElementById('colorToggle');
-            if (colorToggle) {
-                colorToggle.click();
-            }
-        }
-        
-        // A: Bajar volumen del sequencer
-        else if (key === 'A') {
-            e.preventDefault();
-            adjustSequencerVolume(-5);
-        }
-        
-        // S: Subir volumen del sequencer
-        else if (key === 'S') {
-            e.preventDefault();
-            adjustSequencerVolume(5);
-        }
-        
-        // -: Bajar Volumen
-        else if (key === '-' || key === '_') {
-            e.preventDefault();
-            adjustVolume(-5);
-        }
-        
-        // +: Subir Volumen
-        else if (key === '+' || key === '=') {
-            e.preventDefault();
-            adjustVolume(5);
-        }
-    });
-    */
+    // Export immediately for keyboard-controls.js
+    window.getPadIndexFromEvent = getPadIndexFromEvent;
+    window.keyboardPadsActive = keyboardPadsActive;
+    window.setTrackMuted = setTrackMuted;
+    window.trackMutedState = trackMutedState;
+    window.startKeyboardTremolo = startKeyboardTremolo;
+    window.stopKeyboardTremolo = stopKeyboardTremolo;
     
+    // Keyboard handler for pad RELEASE (keyup) - keydown handled in keyboard-controls.js// Keyboard handler for pad RELEASE (keyup) - keydown handled in keyboard-controls.js
     document.addEventListener('keyup', (e) => {
         const key = e.key.toUpperCase();
         
@@ -2272,4 +2201,93 @@ function updatePadInfo(data) {
     }
 }
 
+// ============= FILTER PRESET SYSTEM =============
 
+// Apply filter preset from FX library
+function applyFilterPreset(filterType, cutoffFreq) {
+    // Default resonance for presets
+    const resonance = filterType === 9 ? 10.0 : 1.5; // Resonant filter gets high Q
+    
+    const filterNames = ['NONE', 'LOW PASS', 'HIGH PASS', 'BAND PASS', 'NOTCH', 
+                        'LOW SHELF', 'HIGH SHELF', 'PEAK', 'ALL PASS', 'RESONANT'];
+    
+    console.log(`Applying filter preset: ${filterNames[filterType]} @ ${cutoffFreq}Hz`);
+    
+    // Check if track is selected
+    if (window.selectedTrack !== null && window.selectedTrack !== undefined) {
+        const track = window.selectedTrack;
+        const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+        
+        sendWebSocket({
+            cmd: 'setTrackFilter',
+            track: track,
+            type: filterType,
+            cutoff: cutoffFreq,
+            resonance: resonance
+        });
+        
+        if (window.showToast) {
+            window.showToast(
+                `Track ${track + 1} (${trackNames[track]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
+                window.TOAST_TYPES?.SUCCESS || 'success',
+                2500
+            );
+        }
+        
+        return;
+    }
+    
+    // Check if pad is selected
+    if (window.selectedPad !== null && window.selectedPad !== undefined) {
+        const pad = window.selectedPad;
+        const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+        
+        sendWebSocket({
+            cmd: 'setPadFilter',
+            pad: pad,
+            type: filterType,
+            cutoff: cutoffFreq,
+            resonance: resonance
+        });
+        
+        if (window.showToast) {
+            window.showToast(
+                `Pad ${pad + 1} (${padNames[pad]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
+                window.TOAST_TYPES?.SUCCESS || 'success',
+                2500
+            );
+        }
+        
+        // Create or update badge on pad
+        const padElement = document.querySelector(`.pad[data-pad="${pad}"]`);
+        if (padElement) {
+            let badge = padElement.querySelector('.pad-filter-badge');
+            if (filterType === 0) {
+                // Remove badge if NONE
+                if (badge) badge.remove();
+            } else {
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'pad-filter-badge';
+                    padElement.appendChild(badge);
+                }
+                const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
+                badge.innerHTML = `${filterIcons[filterType]} <span class="pad-num">${cutoffFreq}Hz</span>`;
+            }
+        }
+        
+        return;
+    }
+    
+    // No selection - show info toast
+    if (window.showToast) {
+        window.showToast(
+            'Selecciona un track (click en nombre) o pad (click en pad LIVE) primero',
+            window.TOAST_TYPES?.WARNING || 'warning',
+            3000
+        );
+    }
+}
+
+// Export to window
+window.applyFilterPreset = applyFilterPreset;

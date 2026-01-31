@@ -2987,3 +2987,212 @@ body.mono-mode .info-item {
     background: #c0392b;
     transform: scale(1.05);
 }
+
+/* ============= FILTER LIBRARY STYLES ============= */
+
+.filter-library {
+    background: rgba(20, 20, 30, 0.8);
+    border: 2px solid #8a2be2;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.filter-library h3 {
+    color: #8a2be2;
+    font-size: 1.4em;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
+}
+
+.filter-description {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9em;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.filter-card {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.15), rgba(75, 0, 130, 0.1));
+    border: 2px solid rgba(138, 43, 226, 0.4);
+    border-radius: 10px;
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.filter-card:hover {
+    border-color: #8a2be2;
+    box-shadow: 0 5px 20px rgba(138, 43, 226, 0.3);
+    transform: translateY(-3px);
+}
+
+.filter-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.filter-icon {
+    font-size: 24px;
+    width: 32px;
+    text-align: center;
+}
+
+.filter-title {
+    flex: 1;
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #8a2be2;
+}
+
+.filter-key {
+    background: rgba(138, 43, 226, 0.3);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.85em;
+    font-family: 'Courier New', monospace;
+    color: white;
+}
+
+.filter-desc {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9em;
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.filter-presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    background: rgba(138, 43, 226, 0.25);
+    border: 1px solid rgba(138, 43, 226, 0.5);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preset-btn:hover {
+    background: rgba(138, 43, 226, 0.5);
+    border-color: #8a2be2;
+    transform: scale(1.05);
+}
+
+.preset-btn:active {
+    transform: scale(0.95);
+}
+
+.active-filters-section {
+    background: rgba(30, 30, 40, 0.8);
+    border: 2px solid #00d4ff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.active-filters-section h3 {
+    color: #00d4ff;
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+.active-filters-display {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.active-filter-group h4 {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1em;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.active-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+}
+
+.no-filters {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+.active-filter-badge {
+    background: linear-gradient(135deg, #8a2be2, #4b0082);
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.active-filter-badge .filter-target {
+    font-weight: bold;
+    color: #fff;
+}
+
+.active-filter-badge .filter-type {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.filter-reference {
+    background: rgba(40, 40, 50, 0.8);
+    border: 2px solid #00ff88;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.filter-reference h4 {
+    color: #00ff88;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.reference-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.reference-item {
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.reference-item strong {
+    color: #00ff88;
+    font-size: 0.95em;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.reference-item p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.85em;
+    line-height: 1.6;
+}

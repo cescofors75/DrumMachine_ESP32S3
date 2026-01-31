@@ -7,23 +7,44 @@ let selectedCell = null; // {track: number, step: number}
 let selectedPad = null;  // number (0-15)
 let selectedTrack = null; // number (0-15)
 
-// Track selection state
-document.addEventListener('keydown', function(e) {
-  const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+// Initialize keyboard system - call from app.js after DOM ready
+function initKeyboardControls() {
+  console.log('🎹 Initializing keyboard controls...');
   
-  // Skip if typing in input field
-  if (isInput) return;
+  // Single keyboard listener (no capture phase to avoid blocking)
+  document.addEventListener('keydown', function(e) {
+    const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+    
+    // Skip if typing in input field
+    if (isInput) return;
+    
+    // Handle shortcuts - only prevent default if truly handled
+    const handled = handleKeyboardShortcut(e);
+    if (handled) {
+      e.preventDefault();
+      // NO stopPropagation - let other handlers see it
+    }
+  });
   
-  // Handle shortcuts and prevent propagation to app.js
-  const handled = handleKeyboardShortcut(e);
-  if (handled) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}, true); // Use capture phase to intercept before app.js
+  console.log('✅ Keyboard controls ready');
+}
 
 function handleKeyboardShortcut(e) {
   const key = e.key.toUpperCase();
+  
+  // ESC: Close velocity editor or track filter panel
+  if (e.key === 'Escape') {
+    if (selectedCell) {
+      hideVelocityEditor();
+      showToast('Editor cerrado', TOAST_TYPES.INFO, 1000);
+      return true;
+    }
+    if (selectedTrack !== null) {
+      hideTrackFilterPanel();
+      showToast('Panel de filtro cerrado', TOAST_TYPES.INFO, 1000);
+      return true;
+    }
+  }
   
   // ============= VELOCITY EDITING (only when cell selected) =============
   if (selectedCell) {
@@ -238,13 +259,30 @@ function handleKeyboardShortcut(e) {
     }
   }
   
-  // ============= PAD TRIGGERS (Q,W,E,R,T,Y,U,I,O,P,A,S,D,F,G,H + 1-0) =============
-  // Only trigger pads if NO cell is selected
+  // ============= PAD TRIGGERS (1-0, Q-Y) =============
+  // Trigger pads directly here instead of passing to app.js
   if (!selectedCell) {
     const padIndex = window.getPadIndexFromEvent ? window.getPadIndexFromEvent(e) : null;
     if (padIndex !== null) {
-      // Let app.js handle pad triggers
-      return false;
+      e.preventDefault();
+      
+      // Handle Shift + pad = mute/unmute
+      if (e.shiftKey) {
+        if (window.setTrackMuted && window.trackMutedState) {
+          window.setTrackMuted(padIndex, !window.trackMutedState[padIndex], true);
+        }
+        return true;
+      }
+      
+      // Trigger pad with tremolo
+      if (window.keyboardPadsActive && !window.keyboardPadsActive[padIndex]) {
+        window.keyboardPadsActive[padIndex] = true;
+        const padElement = document.querySelector(`.pad[data-pad="${padIndex}"]`);
+        if (padElement && window.startKeyboardTremolo) {
+          window.startKeyboardTremolo(padIndex, padElement);
+        }
+      }
+      return true;
     }
     
     // Check for unassigned keys (when no cell selected and not a pad)
@@ -256,7 +294,7 @@ function handleKeyboardShortcut(e) {
     }
   }
   
-  return false; // Not handled, let app.js process it
+  return false; // Not handled
 }
 
 // ============= VELOCITY FUNCTIONS =============
@@ -425,7 +463,6 @@ function applyTrackFilter(track, filter) {
   if (window.sendWebSocket) {
     window.sendWebSocket(cmd);
   }
-  showNotification(`Track ${track}: ${filter.name}`);
   
   // Show toast notification
   const filterName = filter.name || (filter.type === 0 ? 'Filter cleared' : 'Filter applied');
@@ -474,7 +511,7 @@ function applyPadFilter(pad, filter) {
     }
   }
   
-  showNotification(`Pad ${pad + 1}: ${filter.name}`);
+  // Toast notification already shown above (line ~457)
 }
 
 // ============= UI SELECTION =============
@@ -508,6 +545,9 @@ function selectTrack(track) {
   if (trackElement) {
     trackElement.classList.add('selected-track');
   }
+  
+  // Show track filter panel
+  showTrackFilterPanel(track);
 }
 
 function selectPad(pad) {
@@ -519,10 +559,95 @@ function selectPad(pad) {
   });
   
   const padElement = document.querySelector(`[data-pad="${pad}"]`);
+
+// Export para app.js
+window.selectCell = selectCell;
+window.selectTrack = selectTrack;
+window.selectPad = selectPad;
   if (padElement) {
     padElement.classList.add('selected-pad');
   }
 }
+
+// ============= TRACK FILTER UI =============
+
+function showTrackFilterPanel(track) {
+  let panel = document.getElementById('track-filter-panel');
+  if (!panel) {
+    panel = createTrackFilterPanel();
+  }
+  
+  const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+  panel.querySelector('#track-filter-title').textContent = `Filtro Track ${track + 1} (${trackNames[track]})`;
+  panel.style.display = 'block';
+  
+  // Position near track label
+  const trackLabel = document.querySelector(`.track-label[data-track="${track}"]`);
+  if (trackLabel) {
+    const rect = trackLabel.getBoundingClientRect();
+    panel.style.left = `${rect.right + 10}px`;
+    panel.style.top = `${rect.top}px`;
+  }
+}
+
+function hideTrackFilterPanel() {
+  const panel = document.getElementById('track-filter-panel');
+  if (panel) {
+    panel.style.display = 'none';
+  }
+  selectedTrack = null;
+}
+
+function createTrackFilterPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'track-filter-panel';
+  panel.className = 'track-filter-panel';
+  panel.innerHTML = `
+    <div class="track-filter-header">
+      <span id="track-filter-title">Filtro Track</span>
+      <button class="filter-close-btn" onclick="window.hideTrackFilterPanel()">×</button>
+    </div>
+    <div class="track-filter-content">
+      <div class="filter-grid">
+        ${FILTER_TYPES.map((filter, idx) => `
+          <button class="filter-btn" data-filter="${idx}" onclick="applyTrackFilterFromPanel(${idx})" title="F${idx + 1}">
+            <span class="filter-icon">${filter.icon}</span>
+            <span class="filter-name">${filter.name}</span>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    <div class="track-filter-footer">
+      <small>F1-F10: Aplicar filtro | ESC: Cerrar</small>
+    </div>
+  `;
+  
+  document.body.appendChild(panel);
+  
+  // Close on click outside
+  document.addEventListener('click', function(e) {
+    const panel = document.getElementById('track-filter-panel');
+    if (panel && panel.style.display === 'block') {
+      if (!panel.contains(e.target) && !e.target.closest('.track-label')) {
+        hideTrackFilterPanel();
+      }
+    }
+  });
+  
+  return panel;
+}
+
+function applyTrackFilterFromPanel(filterType) {
+  if (selectedTrack !== null) {
+    const filter = FILTER_TYPES[filterType];
+    applyTrackFilter(selectedTrack, filter);
+    hideTrackFilterPanel();
+  }
+}
+
+window.hideTrackFilterPanel = hideTrackFilterPanel;
+window.applyTrackFilterFromPanel = applyTrackFilterFromPanel;
+window.initKeyboardControls = initKeyboardControls;
 
 // ============= VELOCITY EDITOR UI =============
 
@@ -547,6 +672,18 @@ function showVelocityEditor(track, step) {
   }
 }
 
+function hideVelocityEditor() {
+  const editor = document.getElementById('velocity-editor');
+  if (editor) {
+    editor.style.display = 'none';
+  }
+  // Clear selected cell
+  document.querySelectorAll('[data-track][data-step]').forEach(el => {
+    el.classList.remove('selected');
+  });
+  selectedCell = null;
+}
+
 function createVelocityEditor() {
   const editor = document.createElement('div');
   editor.id = 'velocity-editor';
@@ -569,6 +706,16 @@ function createVelocityEditor() {
   
   document.body.appendChild(editor);
   
+  // Close on click outside
+  document.addEventListener('click', function closeOnClickOutside(e) {
+    const editor = document.getElementById('velocity-editor');
+    if (editor && editor.style.display === 'block') {
+      if (!editor.contains(e.target) && !e.target.closest('[data-track][data-step]')) {
+        hideVelocityEditor();
+      }
+    }
+  });
+  
   // Slider event
   editor.querySelector('#vel-slider').addEventListener('input', function(e) {
     const velocity = parseInt(e.target.value);
@@ -590,38 +737,6 @@ function applyVelocityPreset(velocity) {
 }
 
 // ============= NOTIFICATION SYSTEM =============
-
-function showNotification(message, duration = 2000) {
-  let notification = document.getElementById('notification');
-  if (!notification) {
-    notification = document.createElement('div');
-    notification.id = 'notification';
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: rgba(0, 255, 136, 0.9);
-      color: black;
-      padding: 15px 25px;
-      border-radius: 5px;
-      font-weight: bold;
-      z-index: 10000;
-      transition: opacity 0.3s;
-    `;
-    document.body.appendChild(notification);
-  }
-  
-  notification.textContent = message;
-  notification.style.opacity = '1';
-  
-  if (notification.fadeTimeout) {
-    clearTimeout(notification.fadeTimeout);
-  }
-  
-  notification.fadeTimeout = setTimeout(() => {
-    notification.style.opacity = '0';
-  }, duration);
-}
 
 // ============= WEBSOCKET MESSAGE HANDLERS =============
 

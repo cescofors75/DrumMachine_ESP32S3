@@ -216,42 +216,200 @@
         <div id="tab-fx" class="tab-content">
             <!-- FX Section -->
             <section id="section-fx" class="fx-section" data-section="fx" data-title="Sound FX">
-                <h2>SOUND FX</h2>
-                <div class="fx-grid">
-                    <div class="fx-control">
-                        <label for="filterType">FILTER TYPE</label>
-                        <select id="filterType" class="fx-select">
-                            <option value="0">NONE</option>
-                            <option value="1">LOW PASS</option>
-                            <option value="2">HIGH PASS</option>
-                            <option value="3">BAND PASS</option>
-                            <option value="4">NOTCH</option>
-                        </select>
-                    </div>
+                <h2>🎛️ FILTROS & EFECTOS</h2>
+                
+                <!-- Filter Library with presets -->
+                <div class="filter-library">
+                    <h3>📚 BIBLIOTECA DE FILTROS</h3>
+                    <p class="filter-description">Selecciona un filtro para track o pad. Usa F1-F10 (track) o Shift+F1-F10 (pad).</p>
                     
-                    <div class="fx-control">
-                        <label for="filterCutoff">CUTOFF: <span id="filterCutoffValue">8000</span> Hz</label>
-                        <input type="range" id="filterCutoff" min="100" max="16000" value="8000" class="slider">
+                    <div class="filters-grid">
+                        <!-- 0: NONE -->
+                        <div class="filter-card" data-filter="0">
+                            <div class="filter-header">
+                                <span class="filter-icon">⭕</span>
+                                <span class="filter-title">NONE</span>
+                                <span class="filter-key">F1</span>
+                            </div>
+                            <p class="filter-desc">Sin filtro. Sonido original sin procesamiento.</p>
+                        </div>
+                        
+                        <!-- 1: LOW PASS -->
+                        <div class="filter-card" data-filter="1">
+                            <div class="filter-header">
+                                <span class="filter-icon">🔽</span>
+                                <span class="filter-title">LOW PASS</span>
+                                <span class="filter-key">F2</span>
+                            </div>
+                            <p class="filter-desc">Elimina frecuencias altas. Sonido más suave y oscuro.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(1, 500)" class="preset-btn">Dark (500Hz)</button>
+                                <button onclick="applyFilterPreset(1, 1500)" class="preset-btn">Warm (1.5kHz)</button>
+                                <button onclick="applyFilterPreset(1, 5000)" class="preset-btn">Natural (5kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 2: HIGH PASS -->
+                        <div class="filter-card" data-filter="2">
+                            <div class="filter-header">
+                                <span class="filter-icon">🔼</span>
+                                <span class="filter-title">HIGH PASS</span>
+                                <span class="filter-key">F3</span>
+                            </div>
+                            <p class="filter-desc">Elimina frecuencias bajas. Sonido más brillante y delgado.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(2, 100)" class="preset-btn">Subtle (100Hz)</button>
+                                <button onclick="applyFilterPreset(2, 400)" class="preset-btn">Thin (400Hz)</button>
+                                <button onclick="applyFilterPreset(2, 1000)" class="preset-btn">Air (1kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 3: BAND PASS -->
+                        <div class="filter-card" data-filter="3">
+                            <div class="filter-header">
+                                <span class="filter-icon">🎯</span>
+                                <span class="filter-title">BAND PASS</span>
+                                <span class="filter-key">F4</span>
+                            </div>
+                            <p class="filter-desc">Solo deja pasar un rango de frecuencias. Efecto "teléfono".</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(3, 800)" class="preset-btn">Lo-Fi (800Hz)</button>
+                                <button onclick="applyFilterPreset(3, 2000)" class="preset-btn">Radio (2kHz)</button>
+                                <button onclick="applyFilterPreset(3, 4000)" class="preset-btn">Vocal (4kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 4: NOTCH -->
+                        <div class="filter-card" data-filter="4">
+                            <div class="filter-header">
+                                <span class="filter-icon">🚫</span>
+                                <span class="filter-title">NOTCH</span>
+                                <span class="filter-key">F5</span>
+                            </div>
+                            <p class="filter-desc">Elimina frecuencias específicas. Útil para remover resonancias.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(4, 1000)" class="preset-btn">Cut 1kHz</button>
+                                <button onclick="applyFilterPreset(4, 3000)" class="preset-btn">Cut 3kHz</button>
+                                <button onclick="applyFilterPreset(4, 8000)" class="preset-btn">Cut 8kHz</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 5: LOW SHELF -->
+                        <div class="filter-card" data-filter="5">
+                            <div class="filter-header">
+                                <span class="filter-icon">📊</span>
+                                <span class="filter-title">LOW SHELF</span>
+                                <span class="filter-key">F6</span>
+                            </div>
+                            <p class="filter-desc">Aumenta o reduce graves por debajo de frecuencia. EQ de bajos.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(5, 100)" class="preset-btn">Bass (100Hz)</button>
+                                <button onclick="applyFilterPreset(5, 300)" class="preset-btn">Low-Mid (300Hz)</button>
+                                <button onclick="applyFilterPreset(5, 800)" class="preset-btn">Body (800Hz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 6: HIGH SHELF -->
+                        <div class="filter-card" data-filter="6">
+                            <div class="filter-header">
+                                <span class="filter-icon">📈</span>
+                                <span class="filter-title">HIGH SHELF</span>
+                                <span class="filter-key">F7</span>
+                            </div>
+                            <p class="filter-desc">Aumenta o reduce agudos por encima de frecuencia. EQ de altos.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(6, 5000)" class="preset-btn">Presence (5kHz)</button>
+                                <button onclick="applyFilterPreset(6, 8000)" class="preset-btn">Bright (8kHz)</button>
+                                <button onclick="applyFilterPreset(6, 12000)" class="preset-btn">Air (12kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 7: PEAK -->
+                        <div class="filter-card" data-filter="7">
+                            <div class="filter-header">
+                                <span class="filter-icon">⛰️</span>
+                                <span class="filter-title">PEAK</span>
+                                <span class="filter-key">F8</span>
+                            </div>
+                            <p class="filter-desc">Realza frecuencia específica. Perfecto para resonancia y carácter.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(7, 1000)" class="preset-btn">Punch (1kHz)</button>
+                                <button onclick="applyFilterPreset(7, 3000)" class="preset-btn">Snappy (3kHz)</button>
+                                <button onclick="applyFilterPreset(7, 6000)" class="preset-btn">Crispy (6kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 8: ALL PASS -->
+                        <div class="filter-card" data-filter="8">
+                            <div class="filter-header">
+                                <span class="filter-icon">🌀</span>
+                                <span class="filter-title">ALL PASS</span>
+                                <span class="filter-key">F9</span>
+                            </div>
+                            <p class="filter-desc">Cambia fase sin alterar volumen. Efecto phaser/comb.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(8, 500)" class="preset-btn">Phaser (500Hz)</button>
+                                <button onclick="applyFilterPreset(8, 2000)" class="preset-btn">Comb (2kHz)</button>
+                                <button onclick="applyFilterPreset(8, 8000)" class="preset-btn">Subtle (8kHz)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 9: RESONANT -->
+                        <div class="filter-card" data-filter="9">
+                            <div class="filter-header">
+                                <span class="filter-icon">💫</span>
+                                <span class="filter-title">RESONANT</span>
+                                <span class="filter-key">F10</span>
+                            </div>
+                            <p class="filter-desc">Filtro con resonancia extrema. Sonido sintético y metálico.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(9, 400)" class="preset-btn">Deep (400Hz)</button>
+                                <button onclick="applyFilterPreset(9, 1500)" class="preset-btn">Classic (1.5kHz)</button>
+                                <button onclick="applyFilterPreset(9, 4000)" class="preset-btn">Acid (4kHz)</button>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="fx-control">
-                        <label for="filterResonance">RESONANCE: <span id="filterResonanceValue">1.0</span></label>
-                        <input type="range" id="filterResonance" min="0.5" max="20" step="0.1" value="1.0" class="slider">
+                </div>
+                
+                <!-- Active Filters Display -->
+                <div class="active-filters-section">
+                    <h3>✨ FILTROS ACTIVOS</h3>
+                    <div class="active-filters-display">
+                        <div class="active-filter-group">
+                            <h4>🎵 TRACKS (F1-F10)</h4>
+                            <div id="activeTrackFilters" class="active-filter-list">
+                                <span class="no-filters">Ningún filtro aplicado a tracks</span>
+                            </div>
+                        </div>
+                        <div class="active-filter-group">
+                            <h4>🎹 PADS (Shift+F1-F10)</h4>
+                            <div id="activePadFilters" class="active-filter-list">
+                                <span class="no-filters">Ningún filtro aplicado a pads</span>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="fx-control">
-                        <label for="bitCrush">BIT CRUSH: <span id="bitCrushValue">16</span> bits</label>
-                        <input type="range" id="bitCrush" min="4" max="16" value="16" class="slider">
-                    </div>
-                    
-                    <div class="fx-control">
-                        <label for="distortion">DISTORTION: <span id="distortionValue">0</span></label>
-                        <input type="range" id="distortion" min="0" max="100" value="0" class="slider">
-                    </div>
-                    
-                    <div class="fx-control">
-                        <label for="sampleRate">SAMPLE RATE: <span id="sampleRateValue">44100</span> Hz</label>
-                        <input type="range" id="sampleRate" min="8000" max="44100" step="1000" value="44100" class="slider">
+                </div>
+                
+                <!-- Quick Reference -->
+                <div class="filter-reference">
+                    <h4>⌨️ GUÍA RÁPIDA</h4>
+                    <div class="reference-grid">
+                        <div class="reference-item">
+                            <strong>Filtro a Track:</strong>
+                            <p>1. Click en nombre track (BD, SD, etc.)<br>2. Presiona F1-F10</p>
+                        </div>
+                        <div class="reference-item">
+                            <strong>Filtro a Pad:</strong>
+                            <p>1. Click en pad en sección LIVE<br>2. Presiona Shift+F1-F10</p>
+                        </div>
+                        <div class="reference-item">
+                            <strong>Presets Rápidos:</strong>
+                            <p>Click en botones de presets<br>para aplicar frecuencias típicas</p>
+                        </div>
+                        <div class="reference-item">
+                            <strong>Ver Activos:</strong>
+                            <p>Los filtros activos se muestran<br>con badges en pads y tracks</p>
+                        </div>
                     </div>
                 </div>
             </section>
