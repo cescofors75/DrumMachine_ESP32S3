@@ -2546,13 +2546,12 @@ function uploadSample(padIndex, file) {
         btn.textContent = '⏳';
     }
     
-    // Crear FormData
+    // Crear FormData (sin el pad, irá en la URL)
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('pad', padIndex);
     
-    // Enviar via fetch con progreso
-    fetch('/api/upload', {
+    // Enviar via fetch con pad como query parameter
+    fetch(`/api/upload?pad=${padIndex}`, {
         method: 'POST',
         body: formData
     })

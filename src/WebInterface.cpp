@@ -1207,35 +1207,56 @@ static String uploadFilename;
 static int uploadPad = -1;
 static size_t uploadSize = 0;
 static size_t uploadReceived = 0;
+static bool uploadError = false;
+static String uploadErrorMsg = "";
 
 void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   // Obtener pad del parámetro de la URL
   if (index == 0) {
-    // Primera parte del upload
+    // Primera parte del upload - reset de variables
     uploadFilename = filename;
     uploadReceived = 0;
+    uploadError = false;
+    uploadErrorMsg = "";
     
-    if (!request->hasParam("pad", true)) {
-      Serial.println("[Upload] ERROR: Missing 'pad' parameter");
-      request->send(400, "application/json", "{\"success\":false,\"message\":\"Missing pad parameter\"}");
-      broadcastUploadComplete(-1, false, "Missing pad parameter");
+    Serial.println("\n╔════════════════════════════════════════════════╗");
+    Serial.println("║         📤 UPLOAD REQUEST RECEIVED            ║");
+    Serial.println("╚════════════════════════════════════════════════╝");
+    Serial.printf("[Upload] Filename: %s\n", filename.c_str());
+    Serial.printf("[Upload] Checking for 'pad' parameter...\n");
+    
+    // Buscar el parámetro 'pad' en la query string (GET params)
+    if (!request->hasParam("pad", false)) {
+      Serial.println("[Upload] ERROR: Missing 'pad' parameter in query string");
+      Serial.printf("[Upload] Request params count: %d\n", request->params());
+      for (int i = 0; i < request->params(); i++) {
+        AsyncWebParameter* p = request->getParam(i);
+        Serial.printf("[Upload] Param[%d]: %s = %s (isPost=%d, isFile=%d)\n", 
+                     i, p->name().c_str(), p->value().c_str(), p->isPost(), p->isFile());
+      }
+      uploadError = true;
+      uploadErrorMsg = "Missing pad parameter";
+      broadcastUploadComplete(-1, false, uploadErrorMsg);
       return;
     }
     
-    uploadPad = request->getParam("pad", true)->value().toInt();
+    uploadPad = request->getParam("pad", false)->value().toInt();
+    Serial.printf("[Upload] ✓ Pad parameter found: %d\n", uploadPad);
     
     if (uploadPad < 0 || uploadPad >= MAX_SAMPLES) {
       Serial.printf("[Upload] ERROR: Invalid pad number: %d\n", uploadPad);
-      request->send(400, "application/json", "{\"success\":false,\"message\":\"Invalid pad number\"}");
-      broadcastUploadComplete(uploadPad, false, "Invalid pad number");
+      uploadError = true;
+      uploadErrorMsg = "Invalid pad number";
+      broadcastUploadComplete(uploadPad, false, uploadErrorMsg);
       return;
     }
     
     // Validar extensión
     if (!filename.endsWith(".wav") && !filename.endsWith(".WAV")) {
       Serial.printf("[Upload] ERROR: Invalid file type: %s\n", filename.c_str());
-      request->send(400, "application/json", "{\"success\":false,\"message\":\"Only WAV files are supported\"}");
-      broadcastUploadComplete(uploadPad, false, "Only WAV files are supported");
+      uploadError = true;
+      uploadErrorMsg = "Only WAV files are supported";
+      broadcastUploadComplete(uploadPad, false, uploadErrorMsg);
       return;
     }
     
@@ -1263,8 +1284,9 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
     uploadFile = LittleFS.open(filePath, "w");
     if (!uploadFile) {
       Serial.println("[Upload] ERROR: Failed to create file");
-      request->send(500, "application/json", "{\"success\":false,\"message\":\"Failed to create file on flash\"}");
-      broadcastUploadComplete(uploadPad, false, "Failed to create file on flash");
+      uploadError = true;
+      uploadErrorMsg = "Failed to create file on flash";
+      broadcastUploadComplete(uploadPad, false, uploadErrorMsg);
       return;
     }
     
@@ -1275,10 +1297,19 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
     if (uploadSize > 2 * 1024 * 1024) {
       Serial.println("[Upload] ERROR: File too large (max 2MB)");
       uploadFile.close();
-      request->send(413, "application/json", "{\"success\":false,\"message\":\"File too large (max 2MB)\"}");
-      broadcastUploadComplete(uploadPad, false, "File too large (max 2MB)");
+      uploadError = true;
+      uploadErrorMsg = "File too large (max 2MB)";
+      broadcastUploadComplete(uploadPad, false, uploadErrorMsg);
       return;
     }
+  }
+  
+  // Si hay error previo, no procesar más chunks
+  if (uploadError) {
+    if (final) {
+      request->send(400, "application/json", "{\"success\":false,\"message\":\"" + uploadErrorMsg + "\"}");
+    }
+    return;
   }
   
   // Escribir chunk de datos
@@ -1287,8 +1318,12 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
     if (written != len) {
       Serial.printf("[Upload] ERROR: Write failed (%d/%d bytes)\n", written, len);
       uploadFile.close();
-      request->send(500, "application/json", "{\"success\":false,\"message\":\"Write error\"}");
-      broadcastUploadComplete(uploadPad, false, "Write error");
+      uploadError = true;
+      uploadErrorMsg = "Write error";
+      broadcastUploadComplete(uploadPad, false, uploadErrorMsg);
+      if (final) {
+        request->send(500, "application/json", "{\"success\":false,\"message\":\"Write error\"}");
+      }
       return;
     }
     
@@ -1326,6 +1361,12 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
         Serial.println("[Upload] ERROR: Invalid WAV format");
         request->send(400, "application/json", "{\"success\":false,\"message\":\"Invalid WAV format\"}");
         broadcastUploadComplete(uploadPad, false, "Invalid WAV format");
+        uploadPad = -1;
+        uploadFilename = "";
+        uploadSize = 0;
+        uploadReceived = 0;
+        uploadError = false;
+        uploadErrorMsg = "";
         return;
       }
       
@@ -1365,6 +1406,8 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
     uploadFilename = "";
     uploadSize = 0;
     uploadReceived = 0;
+    uploadError = false;
+    uploadErrorMsg = "";
   }
 }
 
