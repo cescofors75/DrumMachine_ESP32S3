@@ -680,9 +680,9 @@ input:focus-visible {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(20, 20, 30, var(--sidebar-opacity, 0.95));
-  backdrop-filter: blur(10px);
-  border-left: 1px solid rgba(255, 255, 255, calc(var(--sidebar-opacity, 0.95) * 0.15));
+  background: rgba(15, 15, 20, var(--sidebar-opacity, 0.98));
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, calc(var(--sidebar-opacity, 0.98) * 0.15));
   box-shadow: -2px 0 20px rgba(0, 0, 0, 0.5);
   z-index: -1;
 }
@@ -695,12 +695,12 @@ input:focus-visible {
   position: sticky;
   top: 0;
   padding: 15px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, calc(var(--sidebar-opacity, 0.95) * 0.15));
+  border-bottom: 1px solid rgba(255, 255, 255, calc(var(--sidebar-opacity, 0.98) * 0.15));
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 10;
-  background: rgba(10, 10, 20, var(--sidebar-opacity, 0.95));
+  background: rgba(10, 10, 20, var(--sidebar-opacity, 0.98));
   backdrop-filter: blur(15px);
 }
 

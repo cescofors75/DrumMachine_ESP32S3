@@ -852,7 +852,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ============= KEYBOARD LEGEND SIDEBAR =============
 
-let sidebarOpacity = 0.95; // Default opacity (95%)
+let sidebarOpacity = 0.98; // Default opacity (98%)
 
 function toggleKeyboardSidebar() {
   const sidebar = document.getElementById('keyboard-sidebar');
@@ -872,11 +872,11 @@ function toggleSidebarTransparency() {
   const sidebar = document.getElementById('keyboard-sidebar');
   if (!sidebar) return;
   
-  // Cycle: 0.95 -> 0.7 -> 0.4 -> 1.0 (opaque) -> 0.95
-  if (sidebarOpacity === 0.95) sidebarOpacity = 0.7;
-  else if (sidebarOpacity === 0.7) sidebarOpacity = 0.4;
-  else if (sidebarOpacity === 0.4) sidebarOpacity = 1.0;
-  else sidebarOpacity = 0.95;
+  // Cycle: 0.98 -> 0.75 -> 0.5 -> 1.0 (opaque) -> 0.98
+  if (sidebarOpacity === 0.98) sidebarOpacity = 0.75;
+  else if (sidebarOpacity === 0.75) sidebarOpacity = 0.5;
+  else if (sidebarOpacity === 0.5) sidebarOpacity = 1.0;
+  else sidebarOpacity = 0.98;
   
   sidebar.style.setProperty('--sidebar-opacity', sidebarOpacity);
   const btn = sidebar.querySelector('.transparency-btn');
@@ -927,30 +927,16 @@ function createKeyboardSidebar() {
       </div>
       
       <div class="key-section">
-        <h3>🎹 Pads (Row 1)</h3>
+        <h3>🎹 Live Pads (8 Instruments)</h3>
         <div class="key-list compact">
-          <div class="key-item"><kbd>1</kbd><span>BD</span></div>
-          <div class="key-item"><kbd>2</kbd><span>SD</span></div>
-          <div class="key-item"><kbd>3</kbd><span>CH</span></div>
-          <div class="key-item"><kbd>4</kbd><span>OH</span></div>
-          <div class="key-item"><kbd>5</kbd><span>LT</span></div>
-          <div class="key-item"><kbd>6</kbd><span>MT</span></div>
-          <div class="key-item"><kbd>7</kbd><span>HT</span></div>
-          <div class="key-item"><kbd>8</kbd><span>CL</span></div>
-          <div class="key-item"><kbd>9</kbd><span>RS</span></div>
-          <div class="key-item"><kbd>0</kbd><span>CP</span></div>
-        </div>
-      </div>
-      
-      <div class="key-section">
-        <h3>🎹 Pads (Row 2)</h3>
-        <div class="key-list compact">
-          <div class="key-item"><kbd>Q</kbd><span>CY</span></div>
-          <div class="key-item"><kbd>W</kbd><span>CB</span></div>
-          <div class="key-item"><kbd>E</kbd><span>MA</span></div>
-          <div class="key-item"><kbd>R</kbd><span>LC</span></div>
-          <div class="key-item"><kbd>T</kbd><span>MC</span></div>
-          <div class="key-item"><kbd>Y</kbd><span>HC</span></div>
+          <div class="key-item"><kbd>1</kbd><span>BD (Bass Drum)</span></div>
+          <div class="key-item"><kbd>2</kbd><span>SD (Snare)</span></div>
+          <div class="key-item"><kbd>3</kbd><span>CH (Closed HH)</span></div>
+          <div class="key-item"><kbd>4</kbd><span>OH (Open HH)</span></div>
+          <div class="key-item"><kbd>5</kbd><span>CP (Clap)</span></div>
+          <div class="key-item"><kbd>6</kbd><span>RS (Rimshot)</span></div>
+          <div class="key-item"><kbd>7</kbd><span>CL (Claves)</span></div>
+          <div class="key-item"><kbd>8</kbd><span>CY (Cymbal)</span></div>
         </div>
         <div class="key-note">Hold = Tremolo | Shift+Key = Mute Track</div>
       </div>
@@ -1002,7 +988,7 @@ function createKeyboardSidebar() {
       
       <div class="key-section unassigned">
         <h3>⚪ Unassigned Keys</h3>
-        <div class="key-note">Available: U, I, O, P, D, F, G, J, K, L</div>
+        <div class="key-note">Available: 9, 0, Q, W, E, R, T, Y, U, I, O, P, D, F, G, J, K, L</div>
       </div>
     </div>
   `;
