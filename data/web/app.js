@@ -1440,6 +1440,7 @@ function togglePlayPause() {
         isPlaying = true;
         console.log('Playing');
     }
+    return isPlaying;
 }
 
 function adjustBPM(change) {
@@ -1659,29 +1660,15 @@ function initSectionManager() {
     // Generar lista de secciones en el panel
     generateSectionList();
     
-    // Eventos del menú
-    const menuToggle = document.getElementById('menuToggle');
-    const closeManager = document.getElementById('closeManager');
-    const managerOverlay = document.getElementById('managerOverlay');
-    const sectionManager = document.getElementById('sectionManager');
-    
-    menuToggle.addEventListener('click', () => {
-        sectionManager.classList.add('active');
-        managerOverlay.classList.add('active');
-        menuToggle.classList.add('active');
-    });
-    
-    const closePanel = () => {
-        saveSectionConfig();
-        applySectionConfig();
-        generateSectionList();
-        sectionManager.classList.remove('active');
-        managerOverlay.classList.remove('active');
-        menuToggle.classList.remove('active');
-    };
-    
-    closeManager.addEventListener('click', closePanel);
-    managerOverlay.addEventListener('click', closePanel);
+    // Botón Info para abrir help sidebar
+    const infoBtn = document.getElementById('infoBtn');
+    if (infoBtn) {
+        infoBtn.addEventListener('click', () => {
+            if (window.showKeyboardHelp) {
+                window.showKeyboardHelp();
+            }
+        });
+    }
 }
 
 function loadSectionConfig() {

@@ -93,18 +93,27 @@ void setLedMonoMode(bool enabled) {
 }
 
 // --- TASKS (CORE PINNING) ---
-// Tarea de Audio: Core 1 (Alta prioridad)
+// CORE 1: Audio Processing (Máxima Prioridad)
+// - Procesamiento de audio en tiempo real
+// - Mezcla de samples y aplicación de filtros
+// - Salida I2S al DAC externo
+// - NO interrumpir NUNCA para evitar glitches
 void audioTask(void *pvParameters) {
-    Serial.println("[Task] Audio Task iniciada en Core 1");
+    Serial.println("[Task] Audio Task iniciada en Core 1 (Prioridad: 24)");
     while (true) {
         audioEngine.process();
-        vTaskDelay(1); 
+        taskYIELD(); // Ceder solo si hay otra tarea de igual prioridad
     }
 }
 
-// Tarea del Sistema: Core 0 (Secuenciador, Web, LED)
+// CORE 0: System, WiFi, Web Server (Prioridad Media)
+// - Secuenciador de patrones MIDI-style
+// - WiFi Access Point + WebServer
+// - Comandos UDP para control remoto
+// - Actualización de LED RGB con fade
+// - Todas las operaciones de red y UI
 void systemTask(void *pvParameters) {
-    Serial.println("[Task] System Task iniciada en Core 0");
+    Serial.println("[Task] System Task iniciada en Core 0 (Prioridad: 5)");
     Serial.flush();
     
     uint32_t lastLedUpdate = 0;
@@ -129,7 +138,7 @@ void systemTask(void *pvParameters) {
             }
         }
         
-        vTaskDelay(10); // 100Hz update rate
+        vTaskDelay(5); // 200Hz update rate - Balance perfecto entre CPU y responsividad
     }
 }
 
@@ -447,28 +456,32 @@ void setup() {
         Serial.println("❌ WiFi falló - continuando sin WiFi");
     }
 
-    // --- LANZAMIENTO DE TAREAS ---
-    Serial.println("\n[STEP 7] Creating tasks...");
-    Serial.println("\n[STEP 7] Starting FreeRTOS tasks...");
+    // --- LANZAMIENTO DE TAREAS OPTIMIZADAS ---
+    Serial.println("\n[STEP 7] Creating optimized dual-core tasks...");
+    Serial.println("ESP32-S3 Dual Core Configuration:");
+    Serial.println("  CORE 1 (240MHz): Audio Engine (Real-time DSP)");
+    Serial.println("  CORE 0 (240MHz): WiFi + WebServer + Sequencer");
     
+    // CORE 1: Audio Task - Máxima prioridad (24) y stack grande
     xTaskCreatePinnedToCore(
         audioTask,
         "AudioTask",
-        10240, // Aumentado de 8192
+        12288,  // 12KB stack - Audio processing con headroom
         NULL,
-        24,
+        24,     // Prioridad máxima - NUNCA interrumpir audio
         NULL,
-        1
+        1       // CORE 1: Dedicado a audio DSP
     );
     
+    // CORE 0: System Task - Prioridad media (5) para WiFi/Web
     xTaskCreatePinnedToCore(
         systemTask,
         "SystemTask",
-        10240, // Aumentado de 8192
+        12288,  // 12KB stack - WiFi + WebServer necesita espacio
         NULL,
-        5,
+        5,      // Prioridad media - No interferir con audio
         NULL,
-        0
+        0       // CORE 0: WiFi, Web, Sequencer, LED
     );
 
     Serial.println("\n--- SISTEMA INICIADO ---");

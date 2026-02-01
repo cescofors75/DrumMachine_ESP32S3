@@ -54,27 +54,11 @@
                     </div>
                 </div>
             </div>
-            <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">
-                <span></span>
-                <span></span>
-                <span></span>
+            <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts">
+                ℹ️ INFO
             </button>
         </header>
 
-        <!-- Tab Manager Panel (nuevo sistema de tabs) -->
-        <div id="tabManager" class="tab-manager">
-            <div class="tab-manager-header">
-                <h3>📋 NAVEGACIÓN</h3>
-                <button id="closeManager" class="close-manager">✕</button>
-            </div>
-            <div class="tab-manager-content">
-                <div id="tabList" class="tab-list">
-                    <!-- Se genera dinámicamente -->
-                </div>
-            </div>
-        </div>
-        <div id="managerOverlay" class="manager-overlay"></div>
-        
         <!-- Tab Navigation Bar -->
         <nav class="tab-navigation">
             <button class="tab-btn active" data-tab="performance">🎹 LIVE</button>
@@ -88,10 +72,11 @@
         <div id="tab-performance" class="tab-content active">
             <!-- Live Pads Section -->
             <section id="section-pads" class="pads-section" data-section="pads" data-title="Live Pads">
-                <h2>LIVE PADS</h2>
-                <div class="pads-controls" style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button id="loadSampleListsBtn" class="btn" style="background: #ff6600; padding: 8px 16px;">📂 CARGAR SAMPLERS</button>
-                    <span id="sampleLoadStatus" style="color: #aaa; padding: 8px; display: none;">Cargando...</span>
+                <div class="pads-header">
+                    <h2>LIVE PADS</h2>
+                    <button id="loadSampleListsBtn" class="btn btn-load-samples" title="Recargar Samplers">
+                        🔄
+                    </button>
                 </div>
                 <div class="pads-grid" id="padsGrid">
                     <!-- Los pads se generarán dinámicamente -->
@@ -114,13 +99,24 @@
             <!-- Sequencer Section -->
             <section id="section-sequencer" class="sequencer-section" data-section="sequencer" data-title="Sequencer">
                 <div class="sequencer-header">
-                    <h2>SEQUENCER</h2>
                     <div class="sequencer-controls">
-                        <button id="playBtn" class="btn btn-play">▶ PLAY</button>
-                        <button id="stopBtn" class="btn btn-stop">■ STOP</button>
-                        <button id="clearBtn" class="btn btn-clear">✕ CLEAR</button>
+                        <button id="playBtn" class="seq-btn seq-btn-play" title="Play/Pause">
+                            <span class="seq-btn-bg"></span>
+                            <span class="seq-btn-icon">▶</span>
+                            <span class="seq-btn-label">PLAY</span>
+                        </button>
+                        <button id="stopBtn" class="seq-btn seq-btn-stop" title="Stop">
+                            <span class="seq-btn-bg"></span>
+                            <span class="seq-btn-icon">⬛</span>
+                            <span class="seq-btn-label">STOP</span>
+                        </button>
+                        <button id="clearBtn" class="seq-btn seq-btn-clear" title="Clear Pattern">
+                            <span class="seq-btn-bg"></span>
+                            <span class="seq-btn-icon">⚡</span>
+                            <span class="seq-btn-label">CLEAR</span>
+                        </button>
                         <div class="pattern-display">
-                            <span class="pattern-label">PATTERN:</span>
+                            <span class="pattern-label">PATTERN</span>
                             <span id="currentPatternName" class="pattern-name">HIP HOP</span>
                         </div>
                     </div>
@@ -173,44 +169,7 @@
                 </div>
             </section>
 
-            <!-- Keyboard Shortcuts Legend -->
-            <section id="section-keyboard" class="keyboard-legend" data-section="keyboard" data-title="Keyboard Shortcuts">
-                <div class="legend-title">⌨️ KEYBOARD SHORTCUTS</div>
-                <div class="legend-grid">
-                    <div class="legend-item">
-                        <span class="legend-key">1-9, 0, Q-U</span>
-                        <span class="legend-desc">Trigger Pads 1-16 (Tremolo)</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">SPACE</span>
-                        <span class="legend-desc">Play / Pause</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">[ / ]</span>
-                        <span class="legend-desc">BPM +5 / -5</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">- / +</span>
-                        <span class="legend-desc">Live Volume +5 / -5</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">A / S</span>
-                        <span class="legend-desc">Sequencer Volume +5 / -5</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">SHIFT + PAD</span>
-                        <span class="legend-desc">Mute / Unmute Track</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">N / B</span>
-                        <span class="legend-desc">Pattern Next / Previous</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-key">C</span>
-                        <span class="legend-desc">Mono / Multicolor</span>
-                    </div>
-                </div>
-            </section>
+
         </div>
 
         <!-- TAB: FX -->
