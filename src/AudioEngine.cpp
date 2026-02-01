@@ -112,7 +112,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
 }
 
 bool AudioEngine::setSampleBuffer(int padIndex, int16_t* buffer, uint32_t length) {
-  if (padIndex < 0 || padIndex >= 16) return false;
+  if (padIndex < 0 || padIndex >= 8) return false;
   
   sampleBuffers[padIndex] = buffer;
   sampleLengths[padIndex] = length;
@@ -128,7 +128,7 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
 }
 
 void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
-  if (padIndex < 0 || padIndex >= 16) {
+  if (padIndex < 0 || padIndex >= 8) {
     Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
     return;
   }
@@ -156,7 +156,7 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
-  if (padIndex < 0 || padIndex >= 16) {
+  if (padIndex < 0 || padIndex >= 8) {
     Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
     return;
   }
@@ -636,7 +636,7 @@ int AudioEngine::getActiveTrackFiltersCount() {
 // ============= PER-PAD FILTER MANAGEMENT =============
 
 bool AudioEngine::setPadFilter(int pad, FilterType type, float cutoff, float resonance, float gain) {
-  if (pad < 0 || pad >= 16) return false;
+  if (pad < 0 || pad >= 8) return false;
   
   // Check if enabling a new filter would exceed the limit of 8
   if (type != FILTER_NONE && !padFilterActive[pad]) {
@@ -663,20 +663,20 @@ bool AudioEngine::setPadFilter(int pad, FilterType type, float cutoff, float res
 }
 
 void AudioEngine::clearPadFilter(int pad) {
-  if (pad < 0 || pad >= 16) return;
+  if (pad < 0 || pad >= 8) return;
   padFilters[pad].filterType = FILTER_NONE;
   padFilterActive[pad] = false;
   Serial.printf("[AudioEngine] Pad %d filter cleared\n", pad);
 }
 
 FilterType AudioEngine::getPadFilter(int pad) {
-  if (pad < 0 || pad >= 16) return FILTER_NONE;
+  if (pad < 0 || pad >= 8) return FILTER_NONE;
   return padFilters[pad].filterType;
 }
 
 int AudioEngine::getActivePadFiltersCount() {
   int count = 0;
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 8; i++) {
     if (padFilterActive[i]) count++;
   }
   return count;

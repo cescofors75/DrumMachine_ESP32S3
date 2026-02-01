@@ -33,13 +33,13 @@ let keyboardTremoloState = {};
 
 // Pad hold timers for long press detection
 let padHoldTimers = {};
-let trackMutedState = new Array(16).fill(false);
+let trackMutedState = new Array(8).fill(false);
 
-// 16 instrumentos RED808
-const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+// 8 instrumentos principales
+const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
 
 // Tecla asociada a cada pad (mostrar en UI y para accesos directos)
-const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y'];
+const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 // Descripción completa de cada instrumento
 const padDescriptions = [
@@ -48,17 +48,9 @@ const padDescriptions = [
     'Closed Hi-Hat',
     'Open Hi-Hat',
     'Hand Clap (Palmas)',
-    'Cowbell (Cencerro)',
     'Rim Shot (Aro)',
     'Claves',
-    'Maracas',
-    'Cymbal (Platillo)',
-    'Hi Tom (Agudo)',
-    'Low Tom (Grave)',
-    'Mid Conga',
-    'Mid Tom (Medio)',
-    'Hi Conga',
-    'Low Conga'
+    'Cymbal (Platillo)'
 ];
 
 const filterTypeLabels = {
@@ -86,12 +78,10 @@ window.FILTER_TYPES = FILTER_TYPES;
 
 const instrumentPalette = [
     '#ff6b6b', '#f7b731', '#26de81', '#45aaf2',
-    '#a55eea', '#fd9644', '#2bcbba', '#778ca3',
-    '#fed330', '#0fb9b1', '#fc5c65', '#4b7bec',
-    '#f368e0', '#20bf6b', '#a5b1c2', '#e84393'
+    '#a55eea', '#fd9644', '#2bcbba', '#778ca3'
 ];
 
-const padSampleMetadata = new Array(16).fill(null);
+const padSampleMetadata = new Array(8).fill(null);
 const DEFAULT_SAMPLE_QUALITY = '44.1kHz • 16-bit mono';
 const sampleCatalog = {};
 let sampleSelectorContext = null;
@@ -249,9 +239,9 @@ function loadPatternData(data) {
         el.classList.remove('active');
     });
     
-    // Cargar datos del pattern (16 tracks)
+    // Cargar datos del pattern (8 tracks)
     let activatedSteps = 0;
-    for (let track = 0; track < 16; track++) {
+    for (let track = 0; track < 8; track++) {
         // Las keys pueden ser strings o números
         const trackData = data[track] || data[track.toString()];
         if (trackData) {
@@ -295,7 +285,7 @@ function createPads() {
     
     const families = padNames;
     
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 8; i++) {
         const padContainer = document.createElement('div');
         padContainer.className = 'pad-container';
         
@@ -744,15 +734,15 @@ function updateTrackLoopVisual(trackIndex) {
 function createSequencer() {
     const grid = document.getElementById('sequencerGrid');
     const indicator = document.getElementById('stepIndicator');
-    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
-    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3', '#fed330', '#0fb9b1', '#fc5c65', '#4b7bec', '#f368e0', '#20bf6b', '#a5b1c2', '#e84393'];
+    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
 
     stepDots = [];
     stepColumns = Array.from({ length: 16 }, () => []);
     lastCurrentStep = null;
     
-    // 16 tracks x 16 steps (con labels)
-    for (let track = 0; track < 16; track++) {
+    // 8 tracks x 16 steps (con labels)
+    for (let track = 0; track < 8; track++) {
         // Track label con botón mute
         const label = document.createElement('div');
         label.className = 'track-label';
@@ -1363,7 +1353,7 @@ function initVisualizers() {
 let isPlaying = false;
 
 function setupKeyboardControls() {
-    // Mapeo de teclas a pads (16 pads)
+    // Mapeo de teclas a pads (8 pads)
     const keyToPad = padKeyBindings.reduce((mapping, key, idx) => {
         mapping[key.toUpperCase()] = idx;
         return mapping;
@@ -1413,8 +1403,8 @@ function setupKeyboardControls() {
         }
     });
     
-    console.log('✓ Keyboard controls initialized (16 pads)');
-    console.log('  Keys: 1-9,0,Q-Y=Pads, SPACE=Play/Pause, [/]=BPM, -/+=Volume');
+    console.log('✓ Keyboard controls initialized (8 pads)');
+    console.log('  Keys: 1-8=Pads, SPACE=Play/Pause, [/]=BPM, -/+=Volume');
     
     // Export functions for keyboard-controls.js
     window.togglePlayPause = togglePlayPause;
@@ -2298,7 +2288,7 @@ function applyFilterPreset(filterType, cutoffFreq) {
     // Check if pad is selected
     if (window.selectedPad !== null && window.selectedPad !== undefined) {
         const pad = window.selectedPad;
-        const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+        const names = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
         
         sendWebSocket({
             cmd: 'setPadFilter',
@@ -2310,7 +2300,7 @@ function applyFilterPreset(filterType, cutoffFreq) {
         
         if (window.showToast) {
             window.showToast(
-                `Pad ${pad + 1} (${padNames[pad]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
+                `Pad ${pad + 1} (${names[pad]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
                 window.TOAST_TYPES?.SUCCESS || 'success',
                 2500
             );

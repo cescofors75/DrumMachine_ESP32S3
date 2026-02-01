@@ -11,14 +11,14 @@
 #include <driver/i2s.h>
 #include <cmath>
 
-#define MAX_VOICES 16
+#define MAX_VOICES 8
 #define SAMPLE_RATE 44100
 #define DMA_BUF_COUNT 4
 #define DMA_BUF_LEN 128
 
 // Constants for filter management
-static constexpr int MAX_AUDIO_TRACKS = 16;  // For per-track filters
-static constexpr int MAX_PADS = 16;           // For per-pad filters
+static constexpr int MAX_AUDIO_TRACKS = 8;  // For per-track filters
+static constexpr int MAX_PADS = 8;           // For per-pad filters
 
 
 

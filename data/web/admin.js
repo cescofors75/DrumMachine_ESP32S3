@@ -79,10 +79,10 @@ function handleWebSocketMessage(data) {
 
 // Data Polling
 function startDataPolling() {
-  // Poll system info every 2 seconds
-  setInterval(() => {
-    fetchSystemInfo();
-  }, 2000);
+  // DISABLED: Poll system info every 2 seconds to avoid errors
+  // setInterval(() => {
+  //   fetchSystemInfo();
+  // }, 2000);
 }
 
 async function fetchSystemInfo() {

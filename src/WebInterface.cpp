@@ -716,6 +716,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   
   if (cmd == "trigger") {
     int pad = doc["pad"];
+    if (pad < 0 || pad >= 8) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
+      return;
+    }
     int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
     triggerPadWithLED(pad, velocity);
     broadcastPadTrigger(pad);
@@ -723,6 +727,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setStep") {
     int track = doc["track"];
     int step = doc["step"];
+    if (track < 0 || track >= 8 || step < 0 || step >= 16) {
+      Serial.printf("[WS] Invalid track %d or step %d\n", track, step);
+      return;
+    }
     bool active = doc["active"];
     sequencer.setStep(track, step, active);
   }
@@ -746,6 +754,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     const char* family = doc["family"];
     const char* filename = doc["filename"];
     int padIndex = doc["pad"];
+    if (padIndex < 0 || padIndex >= 8) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", padIndex);
+      return;
+    }
     
     String fullPath = String("/") + String(family) + String("/") + String(filename);
     Serial.printf("[loadSample] Loading %s to pad %d\n", fullPath.c_str(), padIndex);
@@ -767,11 +779,19 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "mute") {
     int track = doc["track"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
     bool muted = doc["value"];
     sequencer.muteTrack(track, muted);
   }
   else if (cmd == "toggleLoop") {
     int track = doc["track"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
     sequencer.toggleLoop(track);
     
     StaticJsonDocument<128> responseDoc;
@@ -786,6 +806,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "pauseLoop") {
     int track = doc["track"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
     sequencer.pauseLoop(track);
     
     StaticJsonDocument<128> responseDoc;
@@ -841,6 +865,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   // ============= NEW: Per-Track Filter Commands =============
   else if (cmd == "setTrackFilter") {
     int track = doc["track"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
     int filterType = doc["filterType"];
     float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
     float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
@@ -861,6 +889,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearTrackFilter") {
     int track = doc["track"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
     audioEngine.clearTrackFilter(track);
     
     // Send response
@@ -876,6 +908,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   // ============= NEW: Per-Pad Filter Commands =============
   else if (cmd == "setPadFilter") {
     int pad = doc["pad"];
+    if (pad < 0 || pad >= 8) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
+      return;
+    }
     int filterType = doc["filterType"];
     float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
     float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
@@ -896,6 +932,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearPadFilter") {
     int pad = doc["pad"];
+    if (pad < 0 || pad >= 8) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
+      return;
+    }
     audioEngine.clearPadFilter(pad);
     
     // Send response
@@ -933,6 +973,10 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int track = doc["track"];
     int step = doc["step"];
     int velocity = doc["velocity"];
+    if (track < 0 || track >= 8 || step < 0 || step >= 16) {
+      Serial.printf("[WS] Invalid track %d or step %d\n", track, step);
+      return;
+    }
     
     sequencer.setStepVelocity(track, step, velocity);
     

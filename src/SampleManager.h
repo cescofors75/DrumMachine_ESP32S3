@@ -11,7 +11,7 @@
 #include <FS.h>
 #include "AudioEngine.h"
 
-#define MAX_SAMPLES 16
+#define MAX_SAMPLES 8
 #define MAX_SAMPLE_SIZE (512 * 1024) // 512KB per sample
 
 // WAV file header structure

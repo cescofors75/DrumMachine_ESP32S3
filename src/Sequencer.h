@@ -1,6 +1,6 @@
 /*
  * Sequencer.h
- * Sequencer de 16 steps per Drum Machine
+ * Sequencer de 16 steps per Drum Machine (8 tracks)
  * (OPCIONAL - per afegir funcionalitat de sequencer)
  */
 
@@ -11,7 +11,7 @@
 
 #define MAX_PATTERNS 16
 #define STEPS_PER_PATTERN 16
-#define MAX_TRACKS 16
+#define MAX_TRACKS 8
 
 class Sequencer {
 public:

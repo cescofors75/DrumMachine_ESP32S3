@@ -138,7 +138,7 @@ bool KitManager::parseKitFile(const char* filename, int kitIndex) {
       String sampleFile = line.substring(spaceIdx + 1);
       sampleFile.trim();
       
-      if (pad >= 0 && pad < 16 && sampleFile.length() > 0) {
+      if (pad >= 0 && pad < 8 && sampleFile.length() > 0) {
         kit.samples[kit.sampleCount].padIndex = pad;
         sampleFile.toCharArray(kit.samples[kit.sampleCount].filename, 64);
         kit.sampleCount++;
