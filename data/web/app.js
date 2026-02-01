@@ -399,7 +399,7 @@ function createPads() {
         pad.innerHTML = `
             <div class="pad-header">
                 <span class="pad-number">${(i + 1).toString().padStart(2, '0')}</span>
-                <button class="pad-upload-btn" data-pad="${i}" title="Subir WAV">📤</button>
+                <button class="pad-upload-btn" data-pad="${i}" title="Load Sample">+</button>
             </div>
             <div class="pad-content">
                 <div class="pad-name">${padNames[i]}</div>
