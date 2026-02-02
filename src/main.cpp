@@ -471,9 +471,9 @@ void setup() {
             // Broadcast a la web
             webInterface.broadcastMIDIMessage(msg);
             
-            // Mapear MIDI notes a pads (36-43 = BD,SD,CH,OH,CP,RS,CL,CY)
+            // Mapear MIDI notes a pads usando el mapping configurado
             if (msg.type == MIDI_NOTE_ON && msg.data2 > 0) {
-                int pad = msg.data1 - 36;
+                int8_t pad = midiController.getMappedPad(msg.data1);
                 if (pad >= 0 && pad < 8) {
                     triggerPadWithLED(pad, msg.data2);
                 }

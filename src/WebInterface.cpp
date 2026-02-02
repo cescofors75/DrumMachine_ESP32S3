@@ -394,6 +394,51 @@ bool WebInterface::begin(const char* ssid, const char* password) {
     }
   );
   
+  // MIDI Mapping endpoints
+  server->on("/api/midi/mapping", HTTP_GET, [this](AsyncWebServerRequest *request){
+    StaticJsonDocument<1024> doc;
+    JsonArray mappings = doc.createNestedArray("mappings");
+    
+    int count = 0;
+    const MIDINoteMapping* maps = midiController->getAllMappings(count);
+    for (int i = 0; i < count; i++) {
+      if (maps[i].enabled) {
+        JsonObject mapping = mappings.createNestedObject();
+        mapping["note"] = maps[i].note;
+        mapping["pad"] = maps[i].pad;
+      }
+    }
+    
+    String output;
+    serializeJson(doc, output);
+    request->send(200, "application/json", output);
+  });
+  
+  server->on("/api/midi/mapping", HTTP_POST, [this](AsyncWebServerRequest *request){}, NULL,
+    [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+      StaticJsonDocument<512> doc;
+      DeserializationError error = deserializeJson(doc, data, len);
+      
+      if (error) {
+        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        return;
+      }
+      
+      // Procesar mappings
+      if (doc.containsKey("note") && doc.containsKey("pad")) {
+        uint8_t note = doc["note"];
+        int8_t pad = doc["pad"];
+        midiController->setNoteMapping(note, pad);
+        request->send(200, "application/json", "{\"success\":true}");
+      } else if (doc.containsKey("reset") && doc["reset"] == true) {
+        midiController->resetToDefaultMapping();
+        request->send(200, "application/json", "{\"success\":true,\"message\":\"Mapping reset to default\"}");
+      } else {
+        request->send(400, "application/json", "{\"error\":\"Missing parameters\"}");
+      }
+    }
+  );
+  
   server->begin();
   Serial.println("✓ RED808 Web Server iniciado");
   
@@ -1158,6 +1203,20 @@ void WebInterface::setMIDIController(MIDIController* controller) {
 void WebInterface::broadcastMIDIMessage(const MIDIMessage& msg) {
   if (!initialized || !ws) return;
   
+  // Throttling: solo broadcast cada 250ms para evitar sobrecarga
+  static uint32_t lastBroadcastTime = 0;
+  static uint32_t messageCount = 0;
+  uint32_t now = millis();
+  
+  messageCount++;
+  
+  // Solo enviar actualizaciones cada 250ms (máximo 4 por segundo)
+  if (now - lastBroadcastTime < 250) {
+    return; // Skip este broadcast
+  }
+  
+  lastBroadcastTime = now;
+  
   StaticJsonDocument<256> doc;
   doc["type"] = "midiMessage";
   
@@ -1178,6 +1237,7 @@ void WebInterface::broadcastMIDIMessage(const MIDIMessage& msg) {
   doc["data1"] = msg.data1;
   doc["data2"] = msg.data2;
   doc["timestamp"] = msg.timestamp;
+  doc["totalMessages"] = messageCount; // Contador acumulado
   
   String output;
   serializeJson(doc, output);

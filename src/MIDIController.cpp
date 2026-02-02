@@ -27,12 +27,16 @@ MIDIController::MIDIController()
   , messagesThisSecond(0)
   , runningStatus(0)
   , dataIndex(0)
+  , mappingCount(0)
 {
   deviceInfo.connected = false;
   deviceInfo.deviceName = "No device";
   deviceInfo.vendorId = 0;
   deviceInfo.productId = 0;
   deviceInfo.connectTime = 0;
+  
+  // Inicializar mapeo por defecto (36-43 → pads 0-7)
+  resetToDefaultMapping();
   
   s_midiInstance = this;
 }
@@ -200,39 +204,23 @@ void MIDIController::update() {
 }
 
 void MIDIController::handleMIDIData(const uint8_t* data, size_t length) {
-  for (size_t i = 0; i < length; i++) {
-    uint8_t byte = data[i];
+  // USB MIDI packets: 4 bytes cada uno [Cable/CIN, Status, Data1, Data2]
+  // CIN (Code Index Number) en nibble bajo del primer byte indica el tipo de mensaje
+  
+  for (size_t i = 0; i + 3 < length; i += 4) {
+    uint8_t header = data[i];
+    uint8_t status = data[i + 1];
+    uint8_t data1 = data[i + 2];
+    uint8_t data2 = data[i + 3];
     
-    // Status byte (starts with 1)
-    if (byte & 0x80) {
-      runningStatus = byte;
-      dataIndex = 0;
-      
-      // Some messages have no data bytes
-      if ((runningStatus & 0xF0) == MIDI_PROGRAM_CHANGE || 
-          (runningStatus & 0xF0) == MIDI_CHANNEL_PRESSURE) {
-        // Wait for 1 data byte
-        continue;
-      }
-    } else {
-      // Data byte
-      if (runningStatus == 0) continue; // No status set yet
-      
-      pendingData[dataIndex++] = byte;
-      
-      // Check if we have complete message
-      bool complete = false;
-      uint8_t expectedBytes = 2;
-      
-      if ((runningStatus & 0xF0) == MIDI_PROGRAM_CHANGE || 
-          (runningStatus & 0xF0) == MIDI_CHANNEL_PRESSURE) {
-        expectedBytes = 1;
-      }
-      
-      if (dataIndex >= expectedBytes) {
-        processMIDIMessage(runningStatus, pendingData[0], 
-                          expectedBytes > 1 ? pendingData[1] : 0);
-        dataIndex = 0;
+    uint8_t cin = header & 0x0F; // Code Index Number
+    
+    // Filtrar paquetes válidos según CIN
+    // 0x08 = Note Off, 0x09 = Note On, 0x0B = Control Change, 0x0E = Pitch Bend, etc.
+    if (cin >= 0x08 && cin <= 0x0F) {
+      // Procesar solo si el status byte es válido (bit 7 = 1)
+      if (status & 0x80) {
+        processMIDIMessage(status, data1, data2);
       }
     }
   }
@@ -561,4 +549,70 @@ void MIDIController::readMidiData() {
     // El device envía: [status byte] [data1] [data2]
     handleMIDIData(data, numBytes);
   }
+}
+
+// ========================================
+// MIDI NOTE MAPPING FUNCTIONS
+// ========================================
+
+void MIDIController::setNoteMapping(uint8_t note, int8_t pad) {
+  // Buscar si ya existe mapeo para esta nota
+  for (int i = 0; i < mappingCount; i++) {
+    if (noteMappings[i].note == note) {
+      noteMappings[i].pad = pad;
+      noteMappings[i].enabled = (pad >= 0);
+      Serial.printf("[MIDI Mapping] Updated: Note %d → Pad %d\n", note, pad);
+      return;
+    }
+  }
+  
+  // Agregar nuevo mapeo si hay espacio
+  if (mappingCount < MAX_MIDI_MAPPINGS) {
+    noteMappings[mappingCount].note = note;
+    noteMappings[mappingCount].pad = pad;
+    noteMappings[mappingCount].enabled = (pad >= 0);
+    mappingCount++;
+    Serial.printf("[MIDI Mapping] Added: Note %d → Pad %d\n", note, pad);
+  } else {
+    Serial.println("[MIDI Mapping] ⚠️ Maximum mappings reached!");
+  }
+}
+
+int8_t MIDIController::getMappedPad(uint8_t note) const {
+  for (int i = 0; i < mappingCount; i++) {
+    if (noteMappings[i].note == note && noteMappings[i].enabled) {
+      return noteMappings[i].pad;
+    }
+  }
+  return -1; // No mapping found
+}
+
+void MIDIController::clearMapping(uint8_t note) {
+  for (int i = 0; i < mappingCount; i++) {
+    if (noteMappings[i].note == note) {
+      noteMappings[i].enabled = false;
+      Serial.printf("[MIDI Mapping] Cleared: Note %d\n", note);
+      return;
+    }
+  }
+}
+
+void MIDIController::resetToDefaultMapping() {
+  mappingCount = 0;
+  
+  // Mapeo por defecto: notas 36-43 → pads 0-7
+  // 36=BD, 37=SD, 38=CH, 39=OH, 40=CP, 41=RS, 42=CL, 43=CY
+  for (int i = 0; i < 8; i++) {
+    noteMappings[i].note = 36 + i;
+    noteMappings[i].pad = i;
+    noteMappings[i].enabled = true;
+  }
+  mappingCount = 8;
+  
+  Serial.println("[MIDI Mapping] Reset to default (36-43 → pads 0-7)");
+}
+
+const MIDINoteMapping* MIDIController::getAllMappings(int& count) const {
+  count = mappingCount;
+  return noteMappings;
 }

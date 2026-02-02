@@ -641,7 +641,7 @@ function createTrackFilterPanel() {
     <div class="track-filter-content">
       <div class="filter-grid">
         ${FILTER_TYPES.map((filter, idx) => `
-          <button class="filter-btn" data-filter="${idx}" onclick="applyTrackFilterFromPanel(${idx})" title="F${idx + 1}">
+          <button class="filter-btn" data-filter="${idx}" onclick="window.applyTrackFilterFromPanel(${idx})" title="F${idx + 1}">
             <span class="filter-icon">${filter.icon}</span>
             <span class="filter-name">${filter.name}</span>
           </button>
@@ -655,14 +655,9 @@ function createTrackFilterPanel() {
   
   document.body.appendChild(panel);
   
-  // Close on click outside
-  document.addEventListener('click', function(e) {
-    const panel = document.getElementById('track-filter-panel');
-    if (panel && panel.style.display === 'block') {
-      if (!panel.contains(e.target) && !e.target.closest('.track-label')) {
-        hideTrackFilterPanel();
-      }
-    }
+  // Stop propagation on clicks inside panel
+  panel.addEventListener('click', function(e) {
+    e.stopPropagation();
   });
   
   return panel;
@@ -699,7 +694,31 @@ function applyTrackFilterFromPanel(filterType) {
 window.showTrackFilterPanel = showTrackFilterPanel;
 window.hideTrackFilterPanel = hideTrackFilterPanel;
 window.applyTrackFilterFromPanel = applyTrackFilterFromPanel;
+window.hideVelocityEditor = hideVelocityEditor;
 window.initKeyboardControls = initKeyboardControls;
+
+// Global click handler to close editors when clicking outside
+let globalClickHandlerAdded = false;
+if (!globalClickHandlerAdded) {
+  document.addEventListener('click', function(e) {
+    // Close velocity editor if clicking outside
+    const velEditor = document.getElementById('velocity-editor');
+    if (velEditor && velEditor.style.display === 'block') {
+      if (!velEditor.contains(e.target) && !e.target.closest('.seq-step')) {
+        hideVelocityEditor();
+      }
+    }
+    
+    // Close filter panel if clicking outside
+    const filterPanel = document.getElementById('track-filter-panel');
+    if (filterPanel && filterPanel.style.display === 'block') {
+      if (!filterPanel.contains(e.target) && !e.target.closest('.track-label')) {
+        hideTrackFilterPanel();
+      }
+    }
+  });
+  globalClickHandlerAdded = true;
+}
 
 // ============= VELOCITY EDITOR UI =============
 
@@ -742,7 +761,10 @@ function createVelocityEditor() {
   editor.className = 'velocity-editor';
   editor.innerHTML = `
     <div class="velocity-editor-content">
-      <label>Velocity: <span id="vel-value">127</span></label>
+      <div class="velocity-editor-header">
+        <label>Velocity: <span id="vel-value">127</span></label>
+        <button class="velocity-close-btn" onclick="window.hideVelocityEditor()">×</button>
+      </div>
       <input type="range" id="vel-slider" min="1" max="127" value="127">
       <div class="velocity-presets">
         <button onclick="applyVelocityPreset(40)" title="Q">Ghost</button>
@@ -751,22 +773,12 @@ function createVelocityEditor() {
         <button onclick="applyVelocityPreset(127)" title="R">Accent</button>
       </div>
       <div class="keyboard-hints">
-        <small>↑↓: ±10 | Shift+↑↓: ±1 | Q/W/E/R: Presets | 1-9: Steps</small>
+        <small>↑↓: ±10 | Shift+↑↓: ±1 | Q/W/E/R: Presets | ESC: Cerrar</small>
       </div>
     </div>
   `;
   
   document.body.appendChild(editor);
-  
-  // Close on click outside
-  document.addEventListener('click', function closeOnClickOutside(e) {
-    const editor = document.getElementById('velocity-editor');
-    if (editor && editor.style.display === 'block') {
-      if (!editor.contains(e.target) && !e.target.closest('[data-track][data-step]')) {
-        hideVelocityEditor();
-      }
-    }
-  });
   
   // Slider event
   editor.querySelector('#vel-slider').addEventListener('input', function(e) {
@@ -775,6 +787,11 @@ function createVelocityEditor() {
     if (selectedCell) {
       setStepVelocity(selectedCell.track, selectedCell.step, velocity);
     }
+  });
+  
+  // Stop propagation on clicks inside editor
+  editor.addEventListener('click', function(e) {
+    e.stopPropagation();
   });
   
   return editor;

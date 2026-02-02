@@ -226,19 +226,22 @@ function handleWebSocketMessage(data) {
                 // Create or update badge on track label
                 const trackLabel = document.querySelector(`.track-label[data-track="${data.track}"]`);
                 if (trackLabel && data.filterType !== undefined) {
+                    // Always remove existing badge first to avoid duplicates
                     let badge = trackLabel.querySelector('.track-filter-badge');
-                    if (data.filterType === 0) {
-                        // Remove badge if NONE
-                        if (badge) badge.remove();
-                    } else {
-                        if (!badge) {
-                            badge = document.createElement('div');
-                            badge.className = 'track-filter-badge';
-                            trackLabel.appendChild(badge);
-                        }
+                    if (badge) {
+                        badge.remove();
+                        badge = null;
+                    }
+                    
+                    // Only create badge if filter type is NOT 0 (NONE)
+                    if (data.filterType !== 0 && data.filterType > 0) {
+                        // Create new badge
+                        badge = document.createElement('div');
+                        badge.className = 'track-filter-badge';
                         const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
                         const cutoff = data.cutoff || '?';
                         badge.innerHTML = `${filterIcons[data.filterType]} <span class="badge-freq">${cutoff}Hz</span>`;
+                        trackLabel.appendChild(badge);
                     }
                 }
             }
@@ -2142,18 +2145,19 @@ function applyFilterPreset(filterType, cutoffFreq) {
         // Create or update badge on track label
         const trackLabel = document.querySelector(`.track-label[data-track="${track}"]`);
         if (trackLabel) {
+            // Always remove existing badge first to avoid duplicates
             let badge = trackLabel.querySelector('.track-filter-badge');
+            if (badge) badge.remove();
+            
             if (filterType === 0) {
-                // Remove badge if NONE
-                if (badge) badge.remove();
+                // Type 0 = NONE, badge already removed
             } else {
-                if (!badge) {
-                    badge = document.createElement('div');
-                    badge.className = 'track-filter-badge';
-                    trackLabel.appendChild(badge);
-                }
+                // Create new badge
+                badge = document.createElement('div');
+                badge.className = 'track-filter-badge';
                 const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
                 badge.innerHTML = `${filterIcons[filterType]} <span class="badge-freq">${cutoffFreq}Hz</span>`;
+                trackLabel.appendChild(badge);
             }
         }
         
@@ -2346,23 +2350,26 @@ function updateMIDIMonitorDisplay() {
     const monitor = document.getElementById('midiMonitor');
     if (!monitor) return;
     
-    // Remove placeholder if exists
+    // Remove placeholder if exists (only once)
     const placeholder = monitor.querySelector('.monitor-placeholder');
     if (placeholder) {
         placeholder.remove();
     }
     
-    // Clear monitor
-    monitor.innerHTML = '';
-    
-    // Add messages
-    midiMessagesQueue.forEach((msg) => {
-        const entry = createMIDIMessageEntry(msg);
-        monitor.appendChild(entry);
-    });
-    
-    // Auto-scroll to top (newest messages)
-    monitor.scrollTop = 0;
+    // OPTIMIZACIÓN: Solo agregar el mensaje más reciente en lugar de re-renderizar todo
+    // Esto evita el parpadeo y duplicación
+    if (midiMessagesQueue.length > 0) {
+        const latestMsg = midiMessagesQueue[0];
+        const entry = createMIDIMessageEntry(latestMsg);
+        
+        // Insertar al inicio (más nuevo arriba)
+        monitor.insertBefore(entry, monitor.firstChild);
+        
+        // Limitar el número de mensajes visibles (eliminar los más antiguos)
+        while (monitor.children.length > MAX_MIDI_MESSAGES_DISPLAY) {
+            monitor.removeChild(monitor.lastChild);
+        }
+    }
 }
 
 function createMIDIMessageEntry(msg) {
@@ -2619,6 +2626,206 @@ function handleUploadComplete(data) {
     
     currentUploadPad = -1;
 }
+
+// ============================================
+// MIDI MAPPING EDITOR
+// ============================================
+
+let isEditingMapping = false;
+let originalMappings = {};
+
+async function loadMIDIMapping() {
+    try {
+        const response = await fetch('/api/midi/mapping');
+        const data = await response.json();
+        
+        if (data.mappings) {
+            // Actualizar el grid con los mapeos actuales
+            data.mappings.forEach(mapping => {
+                const item = document.querySelector(`.mapping-item[data-pad="${mapping.pad}"]`);
+                if (item) {
+                    const badge = item.querySelector('.note-badge');
+                    badge.textContent = mapping.note;
+                    item.dataset.note = mapping.note;
+                    
+                    // Actualizar nombre de nota
+                    const noteName = getNoteNameFromNumber(mapping.note);
+                    item.querySelector('.note-name').textContent = noteName;
+                }
+            });
+            
+            console.log('[MIDI Mapping] Loaded:', data.mappings);
+        }
+    } catch (error) {
+        console.error('[MIDI Mapping] Error loading:', error);
+    }
+}
+
+function toggleMappingEdit() {
+    isEditingMapping = !isEditingMapping;
+    
+    const editBtn = document.getElementById('editMappingBtn');
+    const resetBtn = document.getElementById('resetMappingBtn');
+    const saveBtn = document.getElementById('saveMappingBtn');
+    const badges = document.querySelectorAll('.note-badge.editable');
+    const mappingGrid = document.getElementById('mappingGrid');
+    
+    if (isEditingMapping) {
+        // Modo edición activado
+        editBtn.style.display = 'none';
+        resetBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'inline-block';
+        mappingGrid.classList.add('editing');
+        
+        // Guardar valores originales
+        badges.forEach(badge => {
+            const item = badge.closest('.mapping-item');
+            originalMappings[item.dataset.pad] = badge.textContent;
+            badge.contentEditable = 'true';
+            badge.classList.add('editing');
+        });
+        
+        if (window.showToast) {
+            window.showToast('✏️ Modo edición activado - Haz clic en las notas para editarlas', window.TOAST_TYPES.INFO, 3000);
+        }
+    } else {
+        // Cancelar edición
+        editBtn.style.display = 'inline-block';
+        resetBtn.style.display = 'none';
+        saveBtn.style.display = 'none';
+        mappingGrid.classList.remove('editing');
+        
+        // Restaurar valores originales
+        badges.forEach(badge => {
+            const item = badge.closest('.mapping-item');
+            badge.textContent = originalMappings[item.dataset.pad];
+            badge.contentEditable = 'false';
+            badge.classList.remove('editing');
+        });
+        
+        originalMappings = {};
+    }
+}
+
+async function saveMIDIMapping() {
+    const badges = document.querySelectorAll('.note-badge.editable');
+    const mappings = [];
+    let hasErrors = false;
+    
+    // Validar y recopilar mappings
+    badges.forEach(badge => {
+        const item = badge.closest('.mapping-item');
+        const pad = parseInt(item.dataset.pad);
+        const note = parseInt(badge.textContent.trim());
+        
+        if (isNaN(note) || note < 0 || note > 127) {
+            badge.classList.add('error');
+            hasErrors = true;
+            return;
+        }
+        
+        badge.classList.remove('error');
+        mappings.push({ note, pad });
+    });
+    
+    if (hasErrors) {
+        if (window.showToast) {
+            window.showToast('❌ Notas inválidas (deben ser 0-127)', window.TOAST_TYPES.ERROR, 3000);
+        }
+        return;
+    }
+    
+    // Enviar cada mapeo al servidor
+    try {
+        for (const mapping of mappings) {
+            const response = await fetch('/api/midi/mapping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mapping)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to save mapping for pad ${mapping.pad}`);
+            }
+        }
+        
+        // Actualizar nombres de notas
+        badges.forEach(badge => {
+            const note = parseInt(badge.textContent.trim());
+            const item = badge.closest('.mapping-item');
+            const noteName = getNoteNameFromNumber(note);
+            item.querySelector('.note-name').textContent = noteName;
+            item.dataset.note = note;
+        });
+        
+        // Salir del modo edición
+        toggleMappingEdit();
+        
+        if (window.showToast) {
+            window.showToast('✅ Mapeo MIDI guardado correctamente', window.TOAST_TYPES.SUCCESS, 3000);
+        }
+        
+        console.log('[MIDI Mapping] Saved:', mappings);
+    } catch (error) {
+        console.error('[MIDI Mapping] Error saving:', error);
+        if (window.showToast) {
+            window.showToast('❌ Error al guardar mapeo', window.TOAST_TYPES.ERROR, 3000);
+        }
+    }
+}
+
+async function resetMIDIMapping() {
+    if (!confirm('¿Resetear el mapeo MIDI a los valores por defecto (36-43)?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/midi/mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reset: true })
+        });
+        
+        if (response.ok) {
+            // Recargar mapeo desde el servidor
+            await loadMIDIMapping();
+            
+            // Salir del modo edición
+            if (isEditingMapping) {
+                toggleMappingEdit();
+            }
+            
+            if (window.showToast) {
+                window.showToast('🔄 Mapeo MIDI reseteado a valores por defecto', window.TOAST_TYPES.SUCCESS, 3000);
+            }
+            
+            console.log('[MIDI Mapping] Reset to default');
+        } else {
+            throw new Error('Reset failed');
+        }
+    } catch (error) {
+        console.error('[MIDI Mapping] Error resetting:', error);
+        if (window.showToast) {
+            window.showToast('❌ Error al resetear mapeo', window.TOAST_TYPES.ERROR, 3000);
+        }
+    }
+}
+
+// Cargar mapeo al iniciar la página MIDI
+document.addEventListener('DOMContentLoaded', () => {
+    // Cargar mapeo cuando se abre la tab MIDI
+    const midiTab = document.querySelector('[data-tab="midi"]');
+    if (midiTab) {
+        midiTab.addEventListener('click', () => {
+            setTimeout(loadMIDIMapping, 100);
+        });
+    }
+    
+    // Cargar inmediatamente si ya estamos en la tab MIDI
+    if (window.location.hash === '#midi' || document.getElementById('tab-midi')?.classList.contains('active')) {
+        setTimeout(loadMIDIMapping, 500);
+    }
+});
 
 // Export to window
 window.applyFilterPreset = applyFilterPreset;

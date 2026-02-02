@@ -14,6 +14,8 @@
 #define MIDI_CHANNEL_PRESSURE 0xD0
 #define MIDI_PITCH_BEND 0xE0
 
+#define MAX_MIDI_MAPPINGS 16  // Soporte hasta 16 mapeos de notas MIDI
+
 struct MIDIMessage {
   uint8_t type;       // Message type (0x80-0xF0)
   uint8_t channel;    // MIDI channel (0-15)
@@ -28,6 +30,13 @@ struct MIDIDeviceInfo {
   uint16_t vendorId;
   uint16_t productId;
   uint32_t connectTime;
+};
+
+// MIDI Note Mapping: nota MIDI → pad
+struct MIDINoteMapping {
+  uint8_t note;      // MIDI note number (0-127)
+  int8_t pad;        // Pad index (0-15), -1 = unmapped
+  bool enabled;      // Mapping activo
 };
 
 // Callback types
@@ -50,6 +59,13 @@ public:
   // Message handling
   void setMessageCallback(MIDIMessageCallback callback) { messageCallback = callback; }
   void setDeviceCallback(MIDIDeviceCallback callback) { deviceCallback = callback; }
+
+  // MIDI Note Mapping
+  void setNoteMapping(uint8_t note, int8_t pad);  // Mapear nota → pad
+  int8_t getMappedPad(uint8_t note) const;        // Obtener pad de una nota
+  void clearMapping(uint8_t note);                 // Eliminar mapeo
+  void resetToDefaultMapping();                    // Resetear a mapeo por defecto (36-43)
+  const MIDINoteMapping* getAllMappings(int& count) const;  // Obtener todos los mapeos
 
   // Get recent messages (for web display)
   void getRecentMessages(MIDIMessage* buffer, size_t& count, size_t maxCount);
@@ -103,6 +119,10 @@ private:
   uint8_t runningStatus;
   uint8_t dataIndex;
   uint8_t pendingData[2];
+  
+  // Note Mapping
+  MIDINoteMapping noteMappings[MAX_MIDI_MAPPINGS];
+  int mappingCount;
 };
 
 #endif // MIDI_CONTROLLER_H

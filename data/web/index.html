@@ -459,53 +459,58 @@
                         <div class="dashboard-card mapping-card">
                             <div class="card-header">
                                 <h3><span class="card-icon">🗺️</span> Note Mapping</h3>
+                                <div class="mapping-controls">
+                                    <button class="mapping-btn" id="editMappingBtn" onclick="toggleMappingEdit()">✏️ Editar</button>
+                                    <button class="mapping-btn secondary" id="resetMappingBtn" onclick="resetMIDIMapping()" style="display:none;">🔄 Reset</button>
+                                    <button class="mapping-btn primary" id="saveMappingBtn" onclick="saveMIDIMapping()" style="display:none;">💾 Guardar</button>
+                                </div>
                             </div>
                             <div class="card-body">
-                                <div class="mapping-grid">
-                                    <div class="mapping-item" data-note="36">
-                                        <span class="note-badge">36</span>
+                                <div class="mapping-grid" id="mappingGrid">
+                                    <div class="mapping-item" data-pad="0" data-note="36">
+                                        <span class="note-badge editable" contenteditable="false">36</span>
                                         <span class="note-name">C1</span>
                                         <span class="pad-target">BD</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="37">
-                                        <span class="note-badge">37</span>
+                                    <div class="mapping-item" data-pad="1" data-note="37">
+                                        <span class="note-badge editable" contenteditable="false">37</span>
                                         <span class="note-name">C#1</span>
                                         <span class="pad-target">SD</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="38">
-                                        <span class="note-badge">38</span>
+                                    <div class="mapping-item" data-pad="2" data-note="38">
+                                        <span class="note-badge editable" contenteditable="false">38</span>
                                         <span class="note-name">D1</span>
                                         <span class="pad-target">CH</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="39">
-                                        <span class="note-badge">39</span>
+                                    <div class="mapping-item" data-pad="3" data-note="39">
+                                        <span class="note-badge editable" contenteditable="false">39</span>
                                         <span class="note-name">D#1</span>
                                         <span class="pad-target">OH</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="40">
-                                        <span class="note-badge">40</span>
+                                    <div class="mapping-item" data-pad="4" data-note="40">
+                                        <span class="note-badge editable" contenteditable="false">40</span>
                                         <span class="note-name">E1</span>
                                         <span class="pad-target">CP</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="41">
-                                        <span class="note-badge">41</span>
+                                    <div class="mapping-item" data-pad="5" data-note="41">
+                                        <span class="note-badge editable" contenteditable="false">41</span>
                                         <span class="note-name">F1</span>
                                         <span class="pad-target">RS</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="42">
-                                        <span class="note-badge">42</span>
+                                    <div class="mapping-item" data-pad="6" data-note="42">
+                                        <span class="note-badge editable" contenteditable="false">42</span>
                                         <span class="note-name">F#1</span>
                                         <span class="pad-target">CL</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-note="43">
-                                        <span class="note-badge">43</span>
+                                    <div class="mapping-item" data-pad="7" data-note="43">
+                                        <span class="note-badge editable" contenteditable="false">43</span>
                                         <span class="note-name">G1</span>
                                         <span class="pad-target">CB</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
