@@ -78,6 +78,7 @@ private:
   usb_transfer_t* midiTransfer;
   uint8_t midiEndpointAddress;
   uint16_t midiMaxPacketSize;
+  int interfaceNum;
 
   // Device state
   MIDIDeviceInfo deviceInfo;

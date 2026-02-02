@@ -18,6 +18,7 @@ MIDIController::MIDIController()
   , midiTransfer(nullptr)
   , midiEndpointAddress(0)
   , midiMaxPacketSize(0)
+  , interfaceNum(-1)
   , historyIndex(0)
   , historyCount(0)
   , totalMessages(0)
@@ -305,6 +306,13 @@ void MIDIController::notifyDeviceChange(bool connected) {
 bool MIDIController::openMidiDevice(uint8_t deviceAddress) {
   Serial.println("[MIDI] Opening MIDI device...");
   
+  // Close previous device if exists
+  if (deviceHandle) {
+    Serial.println("[MIDI] Closing previous device first...");
+    closeMidiDevice();
+    vTaskDelay(pdMS_TO_TICKS(100)); // Wait for cleanup
+  }
+  
   // Open the device
   esp_err_t err = usb_host_device_open(clientHandle, deviceAddress, &deviceHandle);
   if (err != ESP_OK) {
@@ -362,7 +370,7 @@ bool MIDIController::openMidiDevice(uint8_t deviceAddress) {
   Serial.println("[MIDI] === End interface list ===");
   
   // Buscar interfaz compatible (versión que funcionaba)
-  int interfaceNum = -1;
+  interfaceNum = -1;  // Usar variable miembro, no local
   offset = 0;
   
   while (offset < totalLength) {
@@ -482,18 +490,33 @@ bool MIDIController::openMidiDevice(uint8_t deviceAddress) {
 }
 
 void MIDIController::closeMidiDevice() {
+  Serial.println("[MIDI] Closing device and freeing resources...");
+  
   if (midiTransfer) {
     usb_host_transfer_free(midiTransfer);
     midiTransfer = nullptr;
+    Serial.println("[MIDI] ✓ Transfer freed");
+  }
+  
+  // Release interface before closing device
+  if (deviceHandle && interfaceNum >= 0) {
+    esp_err_t err = usb_host_interface_release(clientHandle, deviceHandle, interfaceNum);
+    if (err == ESP_OK) {
+      Serial.printf("[MIDI] ✓ Interface %d released\n", interfaceNum);
+    }
+    interfaceNum = -1;
   }
   
   if (deviceHandle) {
     usb_host_device_close(clientHandle, deviceHandle);
     deviceHandle = nullptr;
+    Serial.println("[MIDI] ✓ Device closed");
   }
   
   midiEndpointAddress = 0;
   midiMaxPacketSize = 0;
+  
+  Serial.println("[MIDI] ✓ All resources freed");
 }
 
 void MIDIController::readMidiData() {
