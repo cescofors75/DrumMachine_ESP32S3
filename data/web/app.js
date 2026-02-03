@@ -14,6 +14,13 @@ let stepDots = [];
 let stepColumns = Array.from({ length: 16 }, () => []);
 let lastCurrentStep = null;
 
+// Sequencer view mode
+let sequencerViewMode = 'grid'; // 'grid' or 'circular'
+let circularCanvas = null;
+let circularCtx = null;
+let circularAnimationFrame = null;
+let circularSequencerData = Array.from({ length: 8 }, () => Array(16).fill(false));
+
 // Visualizer data
 let spectrumData = new Array(64).fill(0);
 let waveformData = new Array(128).fill(0);
@@ -212,7 +219,13 @@ function handleWebSocketMessage(data) {
                 patternButtons.forEach((btn, idx) => {
                     if (idx === data.index) {
                         btn.classList.add('active');
-                        document.getElementById('currentPatternName').textContent = btn.textContent.trim();
+                        const patternName = btn.textContent.trim();
+                        document.getElementById('currentPatternName').textContent = patternName;
+                        // Update circular pattern name
+                        const circularPatternName = document.getElementById('circularPatternName');
+                        if (circularPatternName) {
+                            circularPatternName.textContent = patternName;
+                        }
                     } else {
                         btn.classList.remove('active');
                     }
@@ -353,6 +366,9 @@ function loadPatternData(data) {
         el.classList.remove('active');
     });
     
+    // Clear circular data
+    circularSequencerData = Array.from({ length: 8 }, () => Array(16).fill(false));
+    
     // Cargar datos del pattern (8 tracks)
     let activatedSteps = 0;
     for (let track = 0; track < 8; track++) {
@@ -369,6 +385,10 @@ function loadPatternData(data) {
                         trackSteps++;
                     } else if (track >= 8) {
                         console.warn(`Step element not found for track ${track}, step ${step}`);
+                    }
+                    // Update circular data
+                    if (circularSequencerData[track]) {
+                        circularSequencerData[track][step] = true;
                     }
                 }
             });
@@ -1088,6 +1108,11 @@ function createSequencer() {
 function toggleStep(track, step, element) {
     const isActive = element.classList.toggle('active');
     
+    // Update circular data
+    if (circularSequencerData[track]) {
+        circularSequencerData[track][step] = isActive;
+    }
+    
     sendWebSocket({
         cmd: 'setStep',
         track: track,
@@ -1129,6 +1154,274 @@ function updateCurrentStep(step) {
     lastCurrentStep = step;
 }
 
+// Toggle between grid and circular view
+function toggleSequencerView() {
+    const gridContainer = document.getElementById('sequencerContainer');
+    const circularContainer = document.getElementById('sequencerCircularContainer');
+    const viewModeBtn = document.getElementById('viewModeBtn');
+    const btnLabel = viewModeBtn.querySelector('.seq-btn-label');
+    const btnIcon = viewModeBtn.querySelector('.seq-btn-icon');
+    
+    if (sequencerViewMode === 'grid') {
+        // Switch to circular
+        sequencerViewMode = 'circular';
+        gridContainer.classList.add('hidden');
+        circularContainer.classList.remove('hidden');
+        btnLabel.textContent = 'GRID';
+        btnIcon.textContent = '▦';
+        
+        // Initialize circular view if not already done
+        initCircularSequencer();
+        syncCircularFromGrid();
+        renderCircularSequencer();
+    } else {
+        // Switch to grid
+        sequencerViewMode = 'grid';
+        gridContainer.classList.remove('hidden');
+        circularContainer.classList.add('hidden');
+        btnLabel.textContent = 'CIRCULAR';
+        btnIcon.textContent = '⭘';
+        
+        // Stop circular animation
+        if (circularAnimationFrame) {
+            cancelAnimationFrame(circularAnimationFrame);
+            circularAnimationFrame = null;
+        }
+    }
+}
+
+// Initialize circular sequencer
+function initCircularSequencer() {
+    if (circularCanvas) return; // Already initialized
+    
+    circularCanvas = document.getElementById('circularCanvas');
+    circularCtx = circularCanvas.getContext('2d');
+    
+    // Set canvas size
+    const container = document.getElementById('circularSequencer');
+    const size = Math.min(container.clientWidth, container.clientHeight, 600);
+    circularCanvas.width = size;
+    circularCanvas.height = size;
+    
+    // Handle canvas clicks
+    circularCanvas.addEventListener('click', handleCircularClick);
+    
+    // Create track labels
+    const trackLabelsContainer = document.getElementById('circularTrackLabels');
+    trackLabelsContainer.innerHTML = '';
+    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    
+    trackNames.forEach((name, index) => {
+        const label = document.createElement('div');
+        label.className = 'circular-track-label';
+        label.textContent = name;
+        label.style.color = trackColors[index];
+        label.dataset.track = index;
+        label.addEventListener('click', () => {
+            if (window.selectTrack) {
+                window.selectTrack(index);
+            }
+        });
+        trackLabelsContainer.appendChild(label);
+    });
+}
+
+// Sync circular data from grid
+function syncCircularFromGrid() {
+    document.querySelectorAll('.seq-step').forEach(el => {
+        const track = parseInt(el.dataset.track);
+        const step = parseInt(el.dataset.step);
+        if (!isNaN(track) && !isNaN(step)) {
+            circularSequencerData[track][step] = el.classList.contains('active');
+        }
+    });
+}
+
+// Handle clicks on circular sequencer
+function handleCircularClick(event) {
+    const rect = circularCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    const centerX = circularCanvas.width / 2;
+    const centerY = circularCanvas.height / 2;
+    
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Calculate which ring (track) was clicked
+    const maxRadius = Math.min(centerX, centerY) * 0.85;
+    const minRadius = maxRadius * 0.25;
+    const ringWidth = (maxRadius - minRadius) / 8;
+    
+    if (distance < minRadius || distance > maxRadius) return;
+    
+    const track = Math.floor((distance - minRadius) / ringWidth);
+    if (track < 0 || track >= 8) return;
+    
+    // Calculate which step was clicked
+    let angle = Math.atan2(dy, dx);
+    angle = (angle + Math.PI * 2.5) % (Math.PI * 2); // Start from top
+    const step = Math.floor((angle / (Math.PI * 2)) * 16);
+    
+    if (step < 0 || step >= 16) return;
+    
+    // Toggle step
+    circularSequencerData[track][step] = !circularSequencerData[track][step];
+    
+    // Update grid and send to ESP32
+    const gridStep = document.querySelector(`.seq-step[data-track="${track}"][data-step="${step}"]`);
+    if (gridStep) {
+        if (circularSequencerData[track][step]) {
+            gridStep.classList.add('active');
+        } else {
+            gridStep.classList.remove('active');
+        }
+    }
+    
+    sendWebSocket({
+        cmd: 'setStep',
+        track: track,
+        step: step,
+        active: circularSequencerData[track][step]
+    });
+    
+    renderCircularSequencer();
+}
+
+// Render circular sequencer
+function renderCircularSequencer() {
+    if (!circularCtx || sequencerViewMode !== 'circular') return;
+    
+    const ctx = circularCtx;
+    const width = circularCanvas.width;
+    const height = circularCanvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // Clear canvas
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, width, height);
+    
+    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const maxRadius = Math.min(centerX, centerY) * 0.85;
+    const minRadius = maxRadius * 0.25;
+    const ringWidth = (maxRadius - minRadius) / 8;
+    
+    // Draw circular grid
+    for (let track = 0; track < 8; track++) {
+        const innerRadius = minRadius + track * ringWidth;
+        const outerRadius = innerRadius + ringWidth;
+        const midRadius = (innerRadius + outerRadius) / 2;
+        
+        // Draw ring outline
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Draw steps
+        for (let step = 0; step < 16; step++) {
+            const angle = (step / 16) * Math.PI * 2 - Math.PI / 2;
+            const nextAngle = ((step + 1) / 16) * Math.PI * 2 - Math.PI / 2;
+            
+            const isActive = circularSequencerData[track][step];
+            const isCurrent = step === currentStep;
+            
+            // Draw step arc
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, outerRadius - 2, angle + 0.02, nextAngle - 0.02);
+            ctx.arc(centerX, centerY, innerRadius + 2, nextAngle - 0.02, angle + 0.02, true);
+            ctx.closePath();
+            
+            if (isActive) {
+                ctx.fillStyle = trackColors[track];
+                ctx.globalAlpha = isCurrent ? 1.0 : 0.7;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                
+                // Add glow effect for active steps
+                ctx.shadowBlur = isCurrent ? 20 : 10;
+                ctx.shadowColor = trackColors[track];
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            } else if (isCurrent) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.fill();
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+                ctx.fill();
+            }
+            
+            // Draw step separator
+            if (step % 4 === 0) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+            } else {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+            }
+            ctx.beginPath();
+            ctx.moveTo(
+                centerX + Math.cos(angle) * innerRadius,
+                centerY + Math.sin(angle) * innerRadius
+            );
+            ctx.lineTo(
+                centerX + Math.cos(angle) * outerRadius,
+                centerY + Math.sin(angle) * outerRadius
+            );
+            ctx.stroke();
+        }
+    }
+    
+    // Draw center circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, minRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.95)';
+    ctx.fill();
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Draw step indicator
+    const indicatorAngle = (currentStep / 16) * Math.PI * 2 - Math.PI / 2;
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+        centerX + Math.cos(indicatorAngle) * maxRadius,
+        centerY + Math.sin(indicatorAngle) * maxRadius
+    );
+    ctx.stroke();
+    
+    // Add pulsing dot at the end of indicator
+    ctx.beginPath();
+    ctx.arc(
+        centerX + Math.cos(indicatorAngle) * maxRadius,
+        centerY + Math.sin(indicatorAngle) * maxRadius,
+        5,
+        0,
+        Math.PI * 2
+    );
+    ctx.fillStyle = '#ff0000';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ff0000';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Update center display
+    document.getElementById('circularStepNumber').textContent = currentStep + 1;
+    
+    // Request next frame if in circular mode
+    if (sequencerViewMode === 'circular') {
+        circularAnimationFrame = requestAnimationFrame(renderCircularSequencer);
+    }
+}
+
 // Controls
 function setupControls() {
     // Play/Stop
@@ -1157,6 +1450,14 @@ function setupControls() {
             });
         }
     });
+    
+    // View Mode Toggle Button
+    const viewModeBtn = document.getElementById('viewModeBtn');
+    if (viewModeBtn) {
+        viewModeBtn.addEventListener('click', () => {
+            toggleSequencerView();
+        });
+    }
     
     // Clear MIDI Monitor button
     const clearMidiBtn = document.getElementById('clearMidiMonitor');
@@ -1247,6 +1548,12 @@ function setupControls() {
             
             // Actualizar display del patrón
             document.getElementById('currentPatternName').textContent = patternName;
+            
+            // Update circular pattern name
+            const circularPatternName = document.getElementById('circularPatternName');
+            if (circularPatternName) {
+                circularPatternName.textContent = patternName;
+            }
             
             // Cambiar pattern directamente por WebSocket
             // El backend envía automáticamente los datos del patrón

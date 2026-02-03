@@ -111,6 +111,11 @@
                             <span class="seq-btn-icon">⚡</span>
                             <span class="seq-btn-label">CLEAR</span>
                         </button>
+                        <button id="viewModeBtn" class="seq-btn seq-btn-view-mode" title="Cambiar vista: Grid / Circular">
+                            <span class="seq-btn-bg"></span>
+                            <span class="seq-btn-icon">⭘</span>
+                            <span class="seq-btn-label">CIRCULAR</span>
+                        </button>
                         <div class="pattern-display">
                             <span class="pattern-label">PATTERN</span>
                             <span id="currentPatternName" class="pattern-name">HIP HOP</span>
@@ -118,13 +123,26 @@
                     </div>
                 </div>
                 
-                <div class="sequencer-grid-wrapper">
+                <div class="sequencer-grid-wrapper" id="sequencerContainer">
                     <div class="sequencer-grid" id="sequencerGrid">
                         <!-- 16 tracks x 16 steps -->
                     </div>
                     
                     <div class="step-indicator" id="stepIndicator">
                         <!-- Indicador de step actual -->
+                    </div>
+                </div>
+                
+                <div class="sequencer-circular-wrapper hidden" id="sequencerCircularContainer">
+                    <div class="circular-sequencer" id="circularSequencer">
+                        <canvas id="circularCanvas"></canvas>
+                        <div class="circular-center-display">
+                            <div class="circular-step-number" id="circularStepNumber">1</div>
+                            <div class="circular-pattern-name" id="circularPatternName">HIP HOP</div>
+                        </div>
+                        <div class="circular-track-labels" id="circularTrackLabels">
+                            <!-- Track labels dinámicos -->
+                        </div>
                     </div>
                 </div>
             </section>

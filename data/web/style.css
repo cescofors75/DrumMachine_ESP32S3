@@ -1988,6 +1988,135 @@ body.mono-mode .seq-step.active {
     50% { box-shadow: 0 0 25px var(--red-glow), 0 0 40px var(--red-primary); }
 }
 
+/* Circular Sequencer View */
+.sequencer-circular-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    min-height: 600px;
+}
+
+.sequencer-circular-wrapper.hidden {
+    display: none;
+}
+
+.circular-sequencer {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#circularCanvas {
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.3), 
+                0 0 80px rgba(255, 0, 0, 0.2),
+                inset 0 0 60px rgba(0, 0, 0, 0.5);
+}
+
+.circular-center-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.circular-step-number {
+    font-size: 48px;
+    font-weight: bold;
+    color: var(--red-primary);
+    text-shadow: 0 0 20px var(--red-glow),
+                 0 0 40px var(--red-primary),
+                 0 2px 4px rgba(0, 0, 0, 0.8);
+    font-family: var(--font-mono);
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: stepPulse 0.5s ease-in-out infinite;
+}
+
+.circular-pattern-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes stepPulse {
+    0%, 100% { 
+        transform: scale(1);
+        text-shadow: 0 0 20px var(--red-glow),
+                     0 0 40px var(--red-primary),
+                     0 2px 4px rgba(0, 0, 0, 0.8);
+    }
+    50% { 
+        transform: scale(1.1);
+        text-shadow: 0 0 30px var(--red-glow),
+                     0 0 60px var(--red-primary),
+                     0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+}
+
+.circular-track-labels {
+    position: absolute;
+    bottom: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 500px;
+}
+
+.circular-track-label {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    background: rgba(10, 10, 10, 0.7);
+    border: 2px solid currentColor;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.circular-track-label:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px currentColor,
+                0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.circular-track-label:active {
+    transform: translateY(0);
+}
+
+/* Hide class for toggling views */
+.hidden {
+    display: none !important;
+}
+
+/* View mode button styling */
+.seq-btn-view-mode .seq-btn-icon {
+    font-size: 18px;
+}
+
 /* Controls */
 .controls-section {
     display: flex;
@@ -2782,6 +2911,34 @@ body.mono-mode .info-item {
         font-size: 0.9em;
         white-space: nowrap;
         flex-shrink: 0;
+    }
+    
+    /* Circular sequencer responsive */
+    .sequencer-circular-wrapper {
+        padding: 10px;
+        min-height: 400px;
+    }
+    
+    .circular-sequencer {
+        max-width: 90vw;
+    }
+    
+    .circular-step-number {
+        font-size: 36px;
+    }
+    
+    .circular-pattern-name {
+        font-size: 11px;
+    }
+    
+    .circular-track-labels {
+        bottom: -50px;
+        gap: 8px;
+    }
+    
+    .circular-track-label {
+        padding: 6px 12px;
+        font-size: 11px;
     }
 }
 
