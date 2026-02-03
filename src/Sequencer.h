@@ -52,6 +52,10 @@ public:
   void muteTrack(int track, bool muted);
   bool isTrackMuted(int track);
   
+  // Track volumes (0-100)
+  void setTrackVolume(int track, uint8_t volume);
+  uint8_t getTrackVolume(int track);
+  
   // Playback
   int getCurrentStep();
   
@@ -63,7 +67,7 @@ public:
   void processLoops(); // Called internally
   
   // Callbacks
-  typedef void (*StepCallback)(int track, uint8_t velocity);
+  typedef void (*StepCallback)(int track, uint8_t velocity, uint8_t trackVolume);
   typedef void (*StepChangeCallback)(int newStep);
   void setStepCallback(StepCallback callback);
   void setStepChangeCallback(StepChangeCallback callback);
@@ -80,6 +84,7 @@ private:
   uint32_t lastStepTime;
   uint32_t stepInterval; // microseconds
   bool trackMuted[MAX_TRACKS];
+  uint8_t trackVolume[MAX_TRACKS]; // Volume per track (0-100)
   
   StepCallback stepCallback;
   StepChangeCallback stepChangeCallback;

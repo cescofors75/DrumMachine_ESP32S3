@@ -23,6 +23,7 @@ Sequencer::Sequencer() :
       }
       if (p == 0) {
         trackMuted[t] = false;
+        trackVolume[t] = 100; // Default volume 100%
         loopActive[t] = false;
         loopPaused[t] = false;
       }
@@ -206,7 +207,7 @@ void Sequencer::processStep() {
       
       // Call callback if set
       if (stepCallback != nullptr) {
-        stepCallback(track, velocity);
+        stepCallback(track, velocity, trackVolume[track]);
       }
     }
   }
@@ -319,6 +320,20 @@ bool Sequencer::isTrackMuted(int track) {
   return false;
 }
 
+void Sequencer::setTrackVolume(int track, uint8_t volume) {
+  if (track >= 0 && track < MAX_TRACKS) {
+    trackVolume[track] = constrain(volume, 0, 100);
+    Serial.printf("Track %d volume set to %d%%\n", track, trackVolume[track]);
+  }
+}
+
+uint8_t Sequencer::getTrackVolume(int track) {
+  if (track >= 0 && track < MAX_TRACKS) {
+    return trackVolume[track];
+  }
+  return 100; // Default volume
+}
+
 int Sequencer::getCurrentPattern() {
   return currentPattern;
 }
@@ -387,7 +402,7 @@ void Sequencer::processLoops() {
   for (int track = 0; track < MAX_TRACKS; track++) {
     if (loopActive[track] && !loopPaused[track] && !trackMuted[track]) {
       if (stepCallback != nullptr) {
-        stepCallback(track, 100); // Loop triggers at consistent velocity
+        stepCallback(track, 100, trackVolume[track]); // Loop triggers at consistent velocity with track volume
       }
     }
   }

@@ -127,7 +127,7 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
   triggerSampleLive(padIndex, velocity);
 }
 
-void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
+void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume) {
   if (padIndex < 0 || padIndex >= 8) {
     Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
     return;
@@ -146,15 +146,17 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity) {
   voices[voiceIndex].length = sampleLengths[padIndex];
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
-  voices[voiceIndex].volume = sequencerVolume;
+  // Apply sequencerVolume and trackVolume (both 0-100)
+  voices[voiceIndex].volume = (sequencerVolume * trackVolume) / 100;
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = false;
   
   const char* filterStatus = trackFilterActive[padIndex] ? "FILTER ON" : "no filter";
-  Serial.printf("[AudioEngine] *** SEQ TRACK %d -> Voice %d, Length: %d, Vel: %d, %s ***\n",
-                padIndex, voiceIndex, sampleLengths[padIndex], velocity, filterStatus);
+  Serial.printf("[AudioEngine] *** SEQ TRACK %d -> Voice %d, Length: %d, Vel: %d, Vol: %d%% (Seq:%d%% x Track:%d%%), %s ***\n",
+                padIndex, voiceIndex, sampleLengths[padIndex], velocity, voices[voiceIndex].volume,
+                sequencerVolume, trackVolume, filterStatus);
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {

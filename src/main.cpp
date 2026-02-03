@@ -147,8 +147,8 @@ void systemTask(void *pvParameters) {
 
 // Callback que el Sequencer llama cada vez que hay un "trigger" en un step
 // NO enciende el LED (solo secuenciador)
-void onStepTrigger(int track, uint8_t velocity) {
-    audioEngine.triggerSampleSequencer(track, velocity);
+void onStepTrigger(int track, uint8_t velocity, uint8_t trackVolume) {
+    audioEngine.triggerSampleSequencer(track, velocity, trackVolume);
 }
 
 // Función para triggers manuales desde live pads (web interface)

@@ -79,6 +79,11 @@ static void populateStateDocument(StaticJsonDocument<6144>& doc) {
     for (int track = 0; track < MAX_TRACKS; track++) {
       trackMuted.add(sequencer.isTrackMuted(track));
     }
+    
+    JsonArray trackVolumes = doc.createNestedArray("trackVolumes");
+    for (int track = 0; track < MAX_TRACKS; track++) {
+      trackVolumes.add(sequencer.getTrackVolume(track));
+    }
 
   JsonArray sampleArray = doc.createNestedArray("samples");
   for (int pad = 0; pad < MAX_SAMPLES; pad++) {
@@ -1112,6 +1117,56 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       
       Serial.printf("► Pattern %d sent to SLAVE %s\n", patternNum + 1, udp.remoteIP().toString().c_str());
     }
+  }
+  // ============= NEW: Track Volume Commands =============
+  else if (cmd == "setTrackVolume") {
+    int track = doc["track"];
+    int volume = doc["volume"];
+    if (track < 0 || track >= 8) {
+      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+      return;
+    }
+    
+    sequencer.setTrackVolume(track, volume);
+    
+    // Broadcast to all clients
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "trackVolumeSet";
+    responseDoc["track"] = track;
+    responseDoc["volume"] = volume;
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "getTrackVolume") {
+    int track = doc["track"];
+    
+    uint8_t volume = sequencer.getTrackVolume(track);
+    
+    // Send response
+    StaticJsonDocument<128> responseDoc;
+    responseDoc["type"] = "trackVolume";
+    responseDoc["track"] = track;
+    responseDoc["volume"] = volume;
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "getTrackVolumes") {
+    // Send all track volumes
+    StaticJsonDocument<256> responseDoc;
+    responseDoc["type"] = "trackVolumes";
+    
+    JsonArray volumes = responseDoc.createNestedArray("volumes");
+    for (int track = 0; track < 8; track++) {
+      volumes.add(sequencer.getTrackVolume(track));
+    }
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
   }
 }
 

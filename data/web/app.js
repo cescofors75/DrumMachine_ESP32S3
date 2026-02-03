@@ -307,6 +307,24 @@ function handleWebSocketMessage(data) {
                 console.log(`Received ${data.presets.length} filter presets`);
             }
             break;
+        case 'trackVolumeSet':
+            // Update track volume
+            if (data.track !== undefined && data.volume !== undefined) {
+                updateTrackVolume(data.track, data.volume);
+                console.log(`Track ${data.track} volume set to ${data.volume}%`);
+            }
+            break;
+        case 'trackVolumes':
+            // Initial track volumes state
+            if (Array.isArray(data.volumes)) {
+                data.volumes.forEach((volume, track) => {
+                    if (track < 8) {
+                        updateTrackVolume(track, volume);
+                    }
+                });
+                console.log('Track volumes loaded:', data.volumes);
+            }
+            break;
         case 'midiDevice':
             handleMIDIDeviceMessage(data);
             break;
@@ -975,19 +993,21 @@ function createSequencer() {
     
     // 8 tracks x 16 steps (con labels)
     for (let track = 0; track < 8; track++) {
-        // Track label con botón mute
+        // Track label con botón volumen
         const label = document.createElement('div');
         label.className = 'track-label';
         label.dataset.track = track;
         
-        const muteBtn = document.createElement('button');
-        muteBtn.className = 'mute-btn';
-        muteBtn.setAttribute('aria-label', 'Mute');
-        muteBtn.title = 'Mute';
-        muteBtn.dataset.track = track;
-        muteBtn.addEventListener('click', (e) => {
+        const volumeBtn = document.createElement('button');
+        volumeBtn.className = 'volume-btn';
+        volumeBtn.setAttribute('aria-label', 'Volume');
+        volumeBtn.title = 'Volume';
+        volumeBtn.textContent = 'V';
+        volumeBtn.dataset.track = track;
+        volumeBtn.style.borderColor = trackColors[track];
+        volumeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            setTrackMuted(track, !trackMutedState[track], true);
+            showVolumeMenu(track, e.target);
         });
         
         const filterBtn = document.createElement('button');
@@ -996,6 +1016,7 @@ function createSequencer() {
         filterBtn.title = 'Aplicar filtro (F1-F10)';
         filterBtn.textContent = 'F';
         filterBtn.dataset.track = track;
+        filterBtn.style.borderColor = trackColors[track];
         filterBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             // Set selected track globally so filter panel can use it
@@ -1015,11 +1036,14 @@ function createSequencer() {
         loopIndicator.className = 'loop-indicator';
         loopIndicator.textContent = 'LOOP';
         
-        label.appendChild(muteBtn);
+        label.appendChild(volumeBtn);
         label.appendChild(filterBtn);
         label.appendChild(name);
         label.appendChild(loopIndicator);
         label.style.borderColor = trackColors[track];
+        
+        // Set initial background with color and alpha based on volume
+        updateTrackLabelBackground(label, track, trackVolumes[track]);
         
         // Hacer click en label selecciona el track para filtros
         label.addEventListener('click', (e) => {
@@ -1541,6 +1565,15 @@ function updateSequencerState(data) {
             const nextMuted = !!muted;
             if (trackMutedState[track] !== nextMuted) {
                 setTrackMuted(track, nextMuted, false);
+            }
+        });
+    }
+    
+    // Load track volumes from state
+    if (Array.isArray(data.trackVolumes)) {
+        data.trackVolumes.forEach((volume, track) => {
+            if (track < 8) {
+                updateTrackVolume(track, volume);
             }
         });
     }
@@ -2945,3 +2978,117 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export to window
 window.applyFilterPreset = applyFilterPreset;
+
+// ============= TRACK VOLUME MENU =============
+let activeVolumeMenu = null;
+let trackVolumes = new Array(8).fill(100); // Default 100%
+
+function showVolumeMenu(track, button) {
+    // Cerrar menú activo si existe
+    if (activeVolumeMenu) {
+        activeVolumeMenu.remove();
+        if (activeVolumeMenu.dataset.track === track.toString()) {
+            activeVolumeMenu = null;
+            return; // Toggle off
+        }
+    }
+    
+    // Crear menú
+    const menu = document.createElement('div');
+    menu.className = 'volume-menu';
+    menu.dataset.track = track;
+    
+    // Valor actual
+    const valueDisplay = document.createElement('div');
+    valueDisplay.className = 'volume-value';
+    valueDisplay.textContent = trackVolumes[track] + '%';
+    
+    // Slider vertical
+    const sliderContainer = document.createElement('div');
+    sliderContainer.className = 'volume-slider-container';
+    
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'volume-slider';
+    slider.min = '0';
+    slider.max = '100';
+    slider.value = trackVolumes[track];
+    slider.orient = 'vertical'; // Para navegadores antiguos
+    
+    slider.addEventListener('input', (e) => {
+        const volume = parseInt(e.target.value);
+        trackVolumes[track] = volume;
+        valueDisplay.textContent = volume + '%';
+        
+        // Enviar a ESP32
+        sendWebSocket({
+            cmd: 'setTrackVolume',
+            track: track,
+            volume: volume
+        });
+    });
+    
+    sliderContainer.appendChild(slider);
+    menu.appendChild(valueDisplay);
+    menu.appendChild(sliderContainer);
+    
+    // Posicionar menú
+    document.body.appendChild(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = (rect.bottom + 5) + 'px';
+    
+    activeVolumeMenu = menu;
+    
+    // Cerrar al hacer click fuera
+    setTimeout(() => {
+        document.addEventListener('click', closeVolumeMenuOnClickOutside);
+    }, 10);
+}
+
+function closeVolumeMenuOnClickOutside(e) {
+    if (activeVolumeMenu && !activeVolumeMenu.contains(e.target) && 
+        !e.target.classList.contains('volume-btn')) {
+        activeVolumeMenu.remove();
+        activeVolumeMenu = null;
+        document.removeEventListener('click', closeVolumeMenuOnClickOutside);
+    }
+}
+
+function updateTrackVolume(track, volume) {
+    if (track >= 0 && track < 8) {
+        trackVolumes[track] = volume;
+        // Actualizar display si el menú está abierto para este track
+        if (activeVolumeMenu && activeVolumeMenu.dataset.track === track.toString()) {
+            const valueDisplay = activeVolumeMenu.querySelector('.volume-value');
+            const slider = activeVolumeMenu.querySelector('.volume-slider');
+            if (valueDisplay) valueDisplay.textContent = volume + '%';
+            if (slider) slider.value = volume;
+        }
+        
+        // Update track label background alpha based on volume
+        const trackLabel = document.querySelector(`.track-label[data-track="${track}"]`);
+        if (trackLabel) {
+            updateTrackLabelBackground(trackLabel, track, volume);
+        }
+    }
+}
+
+function updateTrackLabelBackground(label, track, volume) {
+    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const color = trackColors[track];
+    
+    // Convert hex to RGB
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    
+    // Calculate alpha based on volume (0-100 -> 0.1-0.7)
+    // Min alpha 0.1 for low volume, max 0.7 for full volume (más vivo)
+    const alpha = 0.1 + (volume / 100) * 0.6;
+    
+    label.style.background = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+window.showVolumeMenu = showVolumeMenu;
+window.updateTrackVolume = updateTrackVolume;

@@ -117,19 +117,48 @@
 
 ### 4. CONTROL DE VOLUMEN
 
-#### Volumen maestro (0-100)
+#### Volumen maestro (0-150)
 ```json
 {"cmd":"setVolume","value":80}
 ```
 
-#### Volumen del sequencer (0-100)
+#### Volumen del sequencer (0-150)
 ```json
 {"cmd":"setSequencerVolume","value":70}
 ```
 
-#### Volumen de live pads (0-100)
+#### Volumen de live pads (0-150)
 ```json
 {"cmd":"setLiveVolume","value":90}
+```
+
+#### **NUEVO: Volumen por track (0-100)**
+```json
+{"cmd":"setTrackVolume","track":0,"volume":75}
+```
+- `track`: 0-7 (pista del sequencer)
+- `volume`: 0-100 (0% a 100%, default=100)
+
+**Nota**: El volumen final del track es: `sequencerVolume * trackVolume / 100`
+
+#### **NUEVO: Obtener volumen de un track**
+```json
+{"cmd":"getTrackVolume","track":0}
+```
+
+**Respuesta del MASTER**:
+```json
+{"type":"trackVolume","track":0,"volume":75}
+```
+
+#### **NUEVO: Obtener todos los volúmenes de tracks**
+```json
+{"cmd":"getTrackVolumes"}
+```
+
+**Respuesta del MASTER**:
+```json
+{"type":"trackVolumes","volumes":[100,75,90,100,80,100,100,100]}
 ```
 
 ---
@@ -424,6 +453,43 @@ MASTER → SLAVE: {"status":"ok"} o {"status":"error","msg":"..."}
 SLAVE → MASTER: {"cmd":"get_pattern","pattern":0}
 MASTER → SLAVE: {"cmd":"pattern_sync","pattern":0,"data":[[...],[...],...]}
 ```
+
+---
+
+## Tabla Resumen de Comandos UDP
+
+| Categoría | Comando | Parámetros | Descripción |
+|-----------|---------|------------|-------------|
+| **Sequencer** | `start` | - | Iniciar secuenciador |
+| | `stop` | - | Detener secuenciador |
+| | `tempo` | `value` (60-200) | Cambiar BPM |
+| | `selectPattern` | `index` (0-15) | Cambiar patrón activo |
+| **Pattern** | `setStep` | `track`, `step`, `active` | Activar/desactivar step |
+| | `mute` | `track`, `value` | Silenciar/activar track |
+| | `toggleLoop` | `track` | Toggle loop en track |
+| | `pauseLoop` | `track` | Pausar loop |
+| | `setStepVelocity` | `track`, `step`, `velocity` | Establecer velocity de step (0-127) |
+| | `getStepVelocity` | `track`, `step` | Obtener velocity de step |
+| **Pads** | `trigger` | `pad`, `vel` (opcional) | Trigger pad con velocity |
+| **Volumen** | `setVolume` | `value` (0-150) | Volumen maestro |
+| | `setSequencerVolume` | `value` (0-150) | Volumen del sequencer |
+| | `setLiveVolume` | `value` (0-150) | Volumen de live pads |
+| | **`setTrackVolume`** | **`track`, `volume` (0-100)** | **Volumen por track (NUEVO)** |
+| | **`getTrackVolume`** | **`track`** | **Obtener volumen de track (NUEVO)** |
+| | **`getTrackVolumes`** | **-** | **Obtener todos los volúmenes (NUEVO)** |
+| **FX** | `setFilter` | `type` (0-9) | Tipo de filtro global |
+| | `setFilterCutoff` | `value` (20-20000) | Frecuencia de corte (Hz) |
+| | `setFilterResonance` | `value` (0.1-10.0) | Resonancia del filtro |
+| | `setBitCrush` | `value` (1-16) | Bit depth |
+| | `setDistortion` | `value` (0.0-1.0) | Distorsión |
+| | `setSampleRate` | `value` (1000-44100) | Sample rate reduction |
+| | `setTrackFilter` | `track`, `filterType`, `cutoff`, `resonance`, `gain` | Filtro por track |
+| | `clearTrackFilter` | `track` | Eliminar filtro de track |
+| | `setPadFilter` | `pad`, `filterType`, `cutoff`, `resonance`, `gain` | Filtro por pad |
+| | `clearPadFilter` | `pad` | Eliminar filtro de pad |
+| **Samples** | `loadSample` | `family`, `filename`, `pad` | Cargar sample en pad |
+| **LED** | `setLedMonoMode` | `value` (bool) | Modo mono LED |
+| **Sync** | `get_pattern` | `pattern` (opcional) | Solicitar patrón |
 
 ---
 

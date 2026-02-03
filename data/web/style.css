@@ -1614,6 +1614,14 @@ body:not(.mono-mode) .pad.tremolo-active {
     text-align: center;
     position: relative;
     flex-direction: column;
+    transition: background 0.3s ease;
+    backdrop-filter: blur(2px);
+}
+
+.track-label > span {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.6);
+    position: relative;
+    z-index: 1;
 }
 
 .track-label.muted {
@@ -1667,6 +1675,102 @@ body:not(.mono-mode) .pad.tremolo-active {
     z-index: 2;
 }
 
+/* Volume button replaces mute button */
+.volume-btn {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 2px solid;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.volume-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: #000;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+    transform: scale(1.15);
+}
+
+/* Volume menu popup */
+.volume-menu {
+    position: fixed;
+    background: rgba(20, 20, 20, 0.95);
+    border: 2px solid #4caf50;
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(76, 175, 80, 0.3);
+    z-index: 10000;
+    min-width: 50px;
+    backdrop-filter: blur(10px);
+}
+
+.volume-value {
+    color: #4caf50;
+    font-weight: bold;
+    font-size: 13px;
+    text-align: center;
+    min-width: 40px;
+}
+
+.volume-slider-container {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.volume-slider {
+    -webkit-appearance: slider-vertical;
+    width: 8px;
+    height: 120px;
+    writing-mode: bt-lr; /* IE */
+    -webkit-appearance: slider-vertical; /* WebKit */
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #4caf50;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #4caf50;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
 .track-filter-btn {
     position: absolute;
     bottom: 2px;
@@ -1674,10 +1778,10 @@ body:not(.mono-mode) .pad.tremolo-active {
     width: 20px;
     height: 20px;
     padding: 0;
-    border: 1px solid rgba(138, 43, 226, 0.5);
+    border: 2px solid;
     border-radius: 6px;
-    background: rgba(138, 43, 226, 0.15);
-    color: #8a2be2;
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
     font-size: 10px;
     font-weight: bold;
     cursor: pointer;
@@ -1687,14 +1791,14 @@ body:not(.mono-mode) .pad.tremolo-active {
     justify-content: center;
     line-height: 1;
     z-index: 2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .track-filter-btn:hover {
-    background: rgba(138, 43, 226, 0.35);
-    border-color: #8a2be2;
-    color: #fff;
-    box-shadow: 0 0 8px rgba(138, 43, 226, 0.5);
-    transform: scale(1.1);
+    background: rgba(255, 255, 255, 1);
+    color: #000;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+    transform: scale(1.15);
 }
 
 .mute-btn::before {

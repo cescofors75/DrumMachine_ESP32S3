@@ -104,7 +104,7 @@ public:
   
   // Playback control
   void triggerSample(int padIndex, uint8_t velocity);
-  void triggerSampleSequencer(int padIndex, uint8_t velocity);
+  void triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume = 100);
   void triggerSampleLive(int padIndex, uint8_t velocity);
   void stopSample(int padIndex);
   void stopAll();
