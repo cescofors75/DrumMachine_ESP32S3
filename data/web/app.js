@@ -87,8 +87,8 @@ const FILTER_TYPES = [
 window.FILTER_TYPES = FILTER_TYPES;
 
 const instrumentPalette = [
-    '#ff6b6b', '#f7b731', '#26de81', '#45aaf2',
-    '#a55eea', '#fd9644', '#2bcbba', '#778ca3'
+    '#ff0000', '#ffa500', '#ffff00', '#00ffff',
+    '#ff00ff', '#00ff00', '#38ceff', '#484dff'
 ];
 
 const padSampleMetadata = new Array(8).fill(null);
@@ -524,8 +524,12 @@ function createPads() {
         const uploadBtn = pad.querySelector('.pad-upload-btn');
         if (uploadBtn) {
             uploadBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            });
+            uploadBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                showUploadDialog(i);
             });
             uploadBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -538,8 +542,12 @@ function createPads() {
         const filterBtn = pad.querySelector('.pad-filter-btn');
         if (filterBtn) {
             filterBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            });
+            filterBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                showPadFilterSelector(i, pad);
             });
             filterBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -552,21 +560,18 @@ function createPads() {
         const loopBtn = pad.querySelector('.loop-btn');
         if (loopBtn) {
             loopBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            });
+            loopBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                console.log(`[Loop Button] Touch pad ${i}`);
+                togglePadLoop(i);
             });
             loopBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 console.log(`[Loop Button] Clicked pad ${i}`);
-                togglePadLoop(i);
-            });
-            
-            // También prevenir eventos touch
-            loopBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log(`[Loop Button] Touch pad ${i}`);
                 togglePadLoop(i);
             });
         }
@@ -1078,7 +1083,7 @@ function createSequencer() {
     const grid = document.getElementById('sequencerGrid');
     const indicator = document.getElementById('stepIndicator');
     const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
-    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
 
     stepDots = [];
     stepColumns = Array.from({ length: 16 }, () => []);
@@ -1310,7 +1315,7 @@ function initCircularSequencer() {
     const trackLabelsContainer = document.getElementById('circularTrackLabels');
     trackLabelsContainer.innerHTML = '';
     const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
-    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
     
     trackNames.forEach((name, index) => {
         const label = document.createElement('div');
@@ -1405,7 +1410,7 @@ function renderCircularSequencer() {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, height);
     
-    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
     const maxRadius = Math.min(centerX, centerY) * 0.85;
     const minRadius = maxRadius * 0.25;
     const ringWidth = (maxRadius - minRadius) / 8;
@@ -1416,8 +1421,10 @@ function renderCircularSequencer() {
         const outerRadius = innerRadius + ringWidth;
         const midRadius = (innerRadius + outerRadius) / 2;
         
+        const isMuted = trackMutedState[track];
+        
         // Draw ring outline
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeStyle = isMuted ? 'rgba(100, 100, 100, 0.2)' : 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
@@ -1438,30 +1445,38 @@ function renderCircularSequencer() {
             ctx.closePath();
             
             if (isActive) {
-                ctx.fillStyle = trackColors[track];
-                ctx.globalAlpha = isCurrent ? 1.0 : 0.7;
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-                
-                // Add glow effect for active steps
-                ctx.shadowBlur = isCurrent ? 20 : 10;
-                ctx.shadowColor = trackColors[track];
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                if (isMuted) {
+                    // Muted: gray color with low opacity
+                    ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+                    ctx.globalAlpha = isCurrent ? 0.5 : 0.3;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                } else {
+                    ctx.fillStyle = trackColors[track];
+                    ctx.globalAlpha = isCurrent ? 1.0 : 0.7;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                    
+                    // Add glow effect for active steps
+                    ctx.shadowBlur = isCurrent ? 20 : 10;
+                    ctx.shadowColor = trackColors[track];
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
             } else if (isCurrent) {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.fillStyle = isMuted ? 'rgba(80, 80, 80, 0.1)' : 'rgba(255, 255, 255, 0.15)';
                 ctx.fill();
             } else {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+                ctx.fillStyle = isMuted ? 'rgba(60, 60, 60, 0.02)' : 'rgba(255, 255, 255, 0.03)';
                 ctx.fill();
             }
             
             // Draw step separator
             if (step % 4 === 0) {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.strokeStyle = isMuted ? 'rgba(100, 100, 100, 0.15)' : 'rgba(255, 255, 255, 0.2)';
                 ctx.lineWidth = 2;
             } else {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.strokeStyle = isMuted ? 'rgba(100, 100, 100, 0.05)' : 'rgba(255, 255, 255, 0.05)';
                 ctx.lineWidth = 1;
             }
             ctx.beginPath();
@@ -3496,7 +3511,7 @@ function updateTrackVolume(track, volume) {
 }
 
 function updateTrackLabelBackground(label, track, volume) {
-    const trackColors = ['#ff6b6b', '#f7b731', '#26de81', '#45aaf2', '#a55eea', '#fd9644', '#2bcbba', '#778ca3'];
+    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
     const color = trackColors[track];
     
     // Convert hex to RGB
@@ -3538,7 +3553,7 @@ function updateVolumeBar(track, volume) {
     
     if (volumeBar) {
         const percentage = Math.min(Math.max(volume, 0), 150);
-        volumeBar.style.width = `${percentage}%`;
+        volumeBar.style.height = `${percentage}%`;
     }
     
     if (volumeValue) {

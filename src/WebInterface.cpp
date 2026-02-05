@@ -234,9 +234,9 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   WiFi.mode(WIFI_AP);
   delay(200);
   
-  // Potencia reducida (11dBm) para mayor estabilidad
-  Serial.println("  Configurando potencia TX reducida (11dBm)...");
-  WiFi.setTxPower(WIFI_POWER_11dBm);
+  // Potencia aumentada (17dBm) para mejor alcance y velocidad
+  Serial.println("  Configurando potencia TX optimizada (17dBm)...");
+  WiFi.setTxPower(WIFI_POWER_17dBm);
   delay(100);
   
   // IP fija para evitar conflictos
@@ -246,8 +246,8 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   WiFi.softAPConfig(local_IP, gateway, subnet);
   
   Serial.println("  Iniciando SoftAP...");
-  // Canal 6, no oculto, max 4 conexiones (3 WebSockets + 1 reserva)
-  WiFi.softAP(ssid, password, 6, 0, 4);
+  // Canal 1 (menos interferencias), no oculto, max 4 conexiones
+  WiFi.softAP(ssid, password, 1, 0, 4);
   delay(500);
   
   IPAddress IP = WiFi.softAPIP();
@@ -266,17 +266,17 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   
   server->addHandler(ws);
   
-  // Servir página de administración con cache
+  // Servir página de administración con cache optimizado
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/admin.html", "text/html");
-    response->addHeader("Cache-Control", "max-age=3600");  // Cache 1h
+    response->addHeader("Cache-Control", "max-age=600");  // Cache 10min
     request->send(response);
   });
   
-  // Servir archivos estáticos desde LittleFS con cache agresivo
+  // Servir archivos estáticos desde LittleFS con cache balanceado
   server->serveStatic("/", LittleFS, "/web/")
     .setDefaultFile("index.html")
-    .setCacheControl("max-age=86400");  // Cache 24h para velocidad
+    .setCacheControl("max-age=3600");  // Cache 1h para balance velocidad/actualización
   
   // API REST
   server->on("/api/trigger", HTTP_POST, [](AsyncWebServerRequest *request){

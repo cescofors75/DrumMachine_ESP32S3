@@ -26,16 +26,16 @@ WebInterface webInterface;
 MIDIController midiController;
 Adafruit_NeoPixel rgbLed(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Colores por instrumento - Colores AKAI APC mini profesionales en formato GRB (8 tracks)
+// Colores por instrumento - Colores RGB565 profesionales en formato GRB (8 tracks)
 const uint32_t instrumentColors[8] = {
-    0xFFC800,  // 0: BD - Verde lima (RGB: 200,255,0 → GRB: 0xFF,0xC8,0x00)
-    0xFFFF00,  // 1: SD - Amarillo (RGB: 255,255,0 → GRB: 0xFF,0xFF,0x00)
-    0xE500FF,  // 2: CH - Cian claro (RGB: 0,229,255 → GRB: 0xE5,0x00,0xFF)
-    0xFF00CC,  // 3: OH - Turquesa (RGB: 0,255,204 → GRB: 0xFF,0x00,0xCC)
-    0xAAFF66,  // 4: CP - Naranja (RGB: 255,170,102 → GRB: 0xAA,0xFF,0x66)
-    0x55AAFF,  // 5: RS - Púrpura (RGB: 170,85,255 → GRB: 0x55,0xAA,0xFF)
-    0x00FF88,  // 6: CL - Rosa magenta (RGB: 255,0,136 → GRB: 0x00,0xFF,0x88)
-    0xAAFFCC   // 7: CY - Rosa claro (RGB: 255,170,204 → GRB: 0xAA,0xFF,0xCC)
+    0x00FF00,  // 0: BD (KICK) - Rojo brillante (RGB: 255,0,0 → GRB: 0x00,0xFF,0x00)
+    0xA5FF00,  // 1: SD (SNARE) - Naranja (RGB: 255,165,0 → GRB: 0xA5,0xFF,0x00)
+    0xFFFF00,  // 2: CH (CL-HAT) - Amarillo (RGB: 255,255,0 → GRB: 0xFF,0xFF,0x00)
+    0xFF00FF,  // 3: OH (OP-HAT) - Cian (RGB: 0,255,255 → GRB: 0xFF,0x00,0xFF)
+    0x00FFFF,  // 4: CL (CLAP) - Magenta (RGB: 255,0,255 → GRB: 0x00,0xFF,0xFF)
+    0xFF0000,  // 5: T1 (TOM-LO) - Verde (RGB: 0,255,0 → GRB: 0xFF,0x00,0x00)
+    0xCE38FF,  // 6: T2 (TOM-HI) - Verde agua (RGB: 56,206,255 → GRB: 0xCE,0x38,0xFF)
+    0x4D48FF   // 7: CY (CYMBAL) - Azul claro (RGB: 72,77,255 → GRB: 0x4D,0x48,0xFF)
 };
 
 // Utility to detect supported audio sample files (.raw or .wav)
