@@ -119,12 +119,20 @@ void systemTask(void *pvParameters) {
     Serial.flush();
     
     uint32_t lastLedUpdate = 0;
+    uint32_t loopCount = 0;
     
     while (true) {
         sequencer.update();
+        yield(); // Feed watchdog después de sequencer
+        
         webInterface.update(); // WiFi activado
+        yield(); // Feed watchdog después de webInterface
+        
         webInterface.handleUdp(); // Manejar comandos UDP
+        yield(); // Feed watchdog después de UDP
+        
         midiController.update(); // Procesar eventos MIDI USB
+        yield(); // Feed watchdog después de MIDI
         
         // Fade out del LED después de trigger
         if (ledFading && millis() - lastLedUpdate > 20) {  // Más lento (cada 20ms)
@@ -141,7 +149,9 @@ void systemTask(void *pvParameters) {
             }
         }
         
-        vTaskDelay(5); // 200Hz update rate - Balance perfecto entre CPU y responsividad
+        loopCount++;
+        // Delay adaptativo: más tiempo si hay múltiples clientes
+        vTaskDelay(10); // 100Hz - Más tiempo para prevenir watchdog timeout
     }
 }
 
@@ -514,7 +524,7 @@ void setup() {
     xTaskCreatePinnedToCore(
         systemTask,
         "SystemTask",
-        12288,  // 12KB stack - WiFi + WebServer necesita espacio
+        16384,  // 16KB stack - WiFi + WebServer + JSON necesita más espacio
         NULL,
         5,      // Prioridad media - No interferir con audio
         NULL,

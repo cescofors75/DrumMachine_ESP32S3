@@ -133,32 +133,16 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-        console.log('✅ WebSocket Connected');
         isConnected = true;
         updateStatus(true);
         syncLedMonoMode();
         
-        // Solicitar inicialización completa de forma controlada
-        console.log('[WS] Requesting initialization...');
-        setTimeout(() => {
-            sendWebSocket({ cmd: 'init' });
-        }, 100);
-        
-        // Solicitar patrón después de init (ahora no se envía automáticamente)
-        setTimeout(() => {
-            console.log('[WS] Requesting pattern...');
-            sendWebSocket({ cmd: 'getPattern' });
-        }, 300);
-        
-        // Solicitar samples de forma lazy (no bloquea UI)
-        setTimeout(() => {
-            console.log('[WS] Requesting sample counts (lazy)...');
-            requestSampleCounts();
-        }, 1000);
+        setTimeout(() => { sendWebSocket({ cmd: 'init' }); }, 100);
+        setTimeout(() => { sendWebSocket({ cmd: 'getPattern' }); }, 300);
+        setTimeout(() => { requestSampleCounts(); }, 1000);
     };
     
     ws.onclose = () => {
-        console.log('WebSocket Disconnected');
         isConnected = false;
         updateStatus(false);
         setTimeout(initWebSocket, 3000);
@@ -267,14 +251,12 @@ function handleWebSocketMessage(data) {
                     }
                 }
             }
-            console.log(`Track ${data.track} filter set, active filters: ${data.activeFilters}`);
             break;
         case 'trackFilterCleared':
             if (window.showToast) {
                 const trackName = padNames[data.track] || `Track ${data.track + 1}`;
                 window.showToast(`🔄 Filtro eliminado de ${trackName}`, window.TOAST_TYPES.INFO, 1500);
             }
-            console.log(`Track ${data.track} filter cleared, active filters: ${data.activeFilters}`);
             
             // Remove ALL badges from track label
             const trackLabel = document.querySelector(`.track-label[data-track="${data.track}"]`);
@@ -287,14 +269,12 @@ function handleWebSocketMessage(data) {
                 const padName = padNames[data.pad] || `Pad ${data.pad + 1}`;
                 window.showToast(`✅ Filtro aplicado a ${padName}`, window.TOAST_TYPES.SUCCESS, 1500);
             }
-            console.log(`Pad ${data.pad} filter set, active filters: ${data.activeFilters}`);
             break;
         case 'padFilterCleared':
             if (window.showToast) {
                 const padName = padNames[data.pad] || `Pad ${data.pad + 1}`;
                 window.showToast(`🔄 Filtro eliminado de ${padName}`, window.TOAST_TYPES.INFO, 1500);
             }
-            console.log(`Pad ${data.pad} filter cleared, active filters: ${data.activeFilters}`);
             // Remove badge from pad element
             const padElement = document.querySelector(`.pad[data-pad="${data.pad}"]`);
             if (padElement) {
@@ -308,24 +288,20 @@ function handleWebSocketMessage(data) {
             if (stepEl) {
                 stepEl.dataset.velocity = data.velocity;
             }
-            console.log(`Step velocity set: Track ${data.track}, Step ${data.step}, Velocity ${data.velocity}`);
             break;
         case 'stepVelocity':
             // Response to getStepVelocity query
-            console.log(`Step velocity: Track ${data.track}, Step ${data.step} = ${data.velocity}`);
             break;
         case 'filterPresets':
             // Store filter presets for future use
             if (data.presets) {
                 window.filterPresets = data.presets;
-                console.log(`Received ${data.presets.length} filter presets`);
             }
             break;
         case 'trackVolumeSet':
             // Update track volume
             if (data.track !== undefined && data.volume !== undefined) {
                 updateTrackVolume(data.track, data.volume);
-                console.log(`Track ${data.track} volume set to ${data.volume}%`);
             }
             break;
         case 'trackVolumes':
@@ -336,7 +312,12 @@ function handleWebSocketMessage(data) {
                         updateTrackVolume(track, volume);
                     }
                 });
-                console.log('Track volumes loaded:', data.volumes);
+            }
+            break;
+        case 'trackMuted':
+            // Sync mute state from server (for multi-client sync)
+            if (data.track !== undefined && data.muted !== undefined) {
+                setTrackMuted(data.track, data.muted, false); // false = don't send back to server
             }
             break;
         case 'midiDevice':
@@ -1539,14 +1520,14 @@ function renderCircularSequencer() {
 
 // Controls
 function setupControls() {
-    // Play/Stop
+    // Play/Stop - Use togglePlayPause for proper state management
     document.getElementById('playBtn').addEventListener('click', () => {
-        sendWebSocket({ cmd: 'start' });
-        updateSequencerStatusMeter();
+        togglePlayPause();
     });
     
     document.getElementById('stopBtn').addEventListener('click', () => {
         sendWebSocket({ cmd: 'stop' });
+        isPlaying = false;
         updateSequencerStatusMeter();
     });
     
@@ -1862,9 +1843,10 @@ function updateSequencerVolumeMeter(value) {
     const slider = document.getElementById('sequencerVolumeSlider');
     if (!display || !bar || !slider) return;
     display.textContent = `${Math.round(value)}%`;
-    const min = parseInt(slider.min, 10) || 0;
-    const max = parseInt(slider.max, 10) || 100;
-    bar.style.width = `${getNormalizedPercentage(value, min, max).toFixed(1)}%`;
+    // Calculate percentage based on 150 as max (100% bar width)
+    // 0 = 0%, 100 = 66.6%, 150 = 100%
+    const percentage = (value / 150) * 100;
+    bar.style.width = `${Math.min(percentage, 100).toFixed(1)}%`;
     if (bar.parentElement) {
         bar.parentElement.classList.add('active');
     }
@@ -1877,9 +1859,10 @@ function updateLiveVolumeMeter(value) {
     const slider = document.getElementById('liveVolumeSlider');
     if (!display || !bar || !slider) return;
     display.textContent = `${Math.round(value)}%`;
-    const min = parseInt(slider.min, 10) || 0;
-    const max = parseInt(slider.max, 10) || 100;
-    bar.style.width = `${getNormalizedPercentage(value, min, max).toFixed(1)}%`;
+    // Calculate percentage based on 150 as max (100% bar width)
+    // 0 = 0%, 100 = 66.6%, 150 = 100%
+    const percentage = (value / 150) * 100;
+    bar.style.width = `${Math.min(percentage, 100).toFixed(1)}%`;
     if (bar.parentElement) {
         bar.parentElement.classList.add('active');
     }
@@ -2168,12 +2151,10 @@ function togglePlayPause() {
         // Pause
         sendWebSocket({ cmd: 'stop' });
         isPlaying = false;
-        console.log('Paused');
     } else {
         // Play
         sendWebSocket({ cmd: 'start' });
         isPlaying = true;
-        console.log('Playing');
     }
     updateSequencerStatusMeter();
     return isPlaying;
