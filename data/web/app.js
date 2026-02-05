@@ -3550,10 +3550,31 @@ function updateVolumeBar(track, volume) {
     
     const volumeBar = document.getElementById(`trackVolumeBar${track}`);
     const volumeValue = document.getElementById(`trackVolumeValue${track}`);
+    const volumeCard = document.querySelector(`.track-volume-card[data-track="${track}"]`);
     
     if (volumeBar) {
-        const percentage = Math.min(Math.max(volume, 0), 150);
-        volumeBar.style.height = `${percentage}%`;
+        const clampedVolume = Math.min(Math.max(volume, 0), 150);
+        
+        // Contenedor siempre es 330px (para 150%)
+        // Al 100%: barra debe ocupar 220px (66.67% del contenedor)
+        // Al 150%: barra debe ocupar 330px (100% del contenedor)
+        // Fórmula: heightPercentage = (volume / 150) * 100
+        const heightPercentage = (clampedVolume / 150) * 100;
+        
+        volumeBar.style.height = `${heightPercentage}%`;
+        
+        // Agregar clases overboost si supera 100%
+        if (volume > 100) {
+            volumeBar.classList.add('overboost');
+            if (volumeCard) {
+                volumeCard.classList.add('overboost-container');
+            }
+        } else {
+            volumeBar.classList.remove('overboost');
+            if (volumeCard) {
+                volumeCard.classList.remove('overboost-container');
+            }
+        }
     }
     
     if (volumeValue) {
@@ -3564,6 +3585,8 @@ function updateVolumeBar(track, volume) {
 function updateVolumeMutedState(track, isMuted) {
     if (track < 0 || track >= 8) return;
     
+    console.log(`[Volumes] Updating mute state for track ${track}: ${isMuted ? 'MUTED' : 'UNMUTED'}`);
+    
     const volumeCard = document.querySelector(`.track-volume-card[data-track="${track}"]`);
     
     if (volumeCard) {
@@ -3572,6 +3595,9 @@ function updateVolumeMutedState(track, isMuted) {
         } else {
             volumeCard.classList.remove('muted');
         }
+        console.log(`[Volumes] Track ${track} volume card classes:`, volumeCard.className);
+    } else {
+        console.warn(`[Volumes] Volume card not found for track ${track}`);
     }
 }
 
@@ -3587,6 +3613,13 @@ function updateMasterVolumeDisplays(sequencerVolume, padsVolume) {
     if (barSequencerVolume) {
         const percentage = Math.min(Math.max(sequencerVolume, 0), 150);
         barSequencerVolume.style.width = `${percentage}%`;
+        
+        // Agregar clase overboost si supera 100%
+        if (sequencerVolume > 100) {
+            barSequencerVolume.classList.add('overboost');
+        } else {
+            barSequencerVolume.classList.remove('overboost');
+        }
     }
     
     // Update Pads Volume
@@ -3600,6 +3633,13 @@ function updateMasterVolumeDisplays(sequencerVolume, padsVolume) {
     if (barPadsVolume) {
         const percentage = Math.min(Math.max(padsVolume, 0), 150);
         barPadsVolume.style.width = `${percentage}%`;
+        
+        // Agregar clase overboost si supera 100%
+        if (padsVolume > 100) {
+            barPadsVolume.classList.add('overboost');
+        } else {
+            barPadsVolume.classList.remove('overboost');
+        }
     }
 }
 

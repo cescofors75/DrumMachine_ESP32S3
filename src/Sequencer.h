@@ -52,7 +52,7 @@ public:
   void muteTrack(int track, bool muted);
   bool isTrackMuted(int track);
   
-  // Track volumes (0-100)
+  // Track volumes (0-150)
   void setTrackVolume(int track, uint8_t volume);
   uint8_t getTrackVolume(int track);
   
@@ -84,7 +84,7 @@ private:
   uint32_t lastStepTime;
   uint32_t stepInterval; // microseconds
   bool trackMuted[MAX_TRACKS];
-  uint8_t trackVolume[MAX_TRACKS]; // Volume per track (0-100)
+  uint8_t trackVolume[MAX_TRACKS]; // Volume per track (0-150)
   
   StepCallback stepCallback;
   StepChangeCallback stepChangeCallback;

@@ -322,7 +322,7 @@ bool Sequencer::isTrackMuted(int track) {
 
 void Sequencer::setTrackVolume(int track, uint8_t volume) {
   if (track >= 0 && track < MAX_TRACKS) {
-    trackVolume[track] = constrain(volume, 0, 100);
+    trackVolume[track] = constrain(volume, 0, 150);
     Serial.printf("Track %d volume set to %d%%\n", track, trackVolume[track]);
   }
 }

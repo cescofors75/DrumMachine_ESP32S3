@@ -146,8 +146,12 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t
   voices[voiceIndex].length = sampleLengths[padIndex];
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
-  // Apply sequencerVolume and trackVolume (both 0-100)
-  voices[voiceIndex].volume = (sequencerVolume * trackVolume) / 100;
+  // Apply sequencerVolume (0-150) and trackVolume (0-150)
+  // Normalizar: cada uno se divide por 100 para obtener un multiplicador
+  // Resultado: volume = (sequencerVolume/100) * (trackVolume/100) * 100
+  // Capear a 150 para evitar distorsión excesiva
+  voices[voiceIndex].volume = constrain((sequencerVolume * trackVolume) / 100, 0, 150);
+  // Ejemplo: seq=150, track=150 -> (150*150)/100 = 225 -> capped to 150
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
