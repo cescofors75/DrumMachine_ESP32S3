@@ -96,49 +96,31 @@ void setLedMonoMode(bool enabled) {
 
 // --- TASKS (CORE PINNING) ---
 // CORE 1: Audio Processing (Máxima Prioridad)
-// - Procesamiento de audio en tiempo real
-// - Mezcla de samples y aplicación de filtros
-// - Salida I2S al DAC externo
-// - NO interrumpir NUNCA para evitar glitches
 void audioTask(void *pvParameters) {
-    Serial.println("[Task] Audio Task iniciada en Core 1 (Prioridad: 24)");
+    Serial.println("[Task] Audio Task en Core 1 (Prioridad: 24)");
     while (true) {
         audioEngine.process();
-        taskYIELD(); // Ceder solo si hay otra tarea de igual prioridad
+        // No yield needed - I2S write blocks naturally via DMA
     }
 }
 
 // CORE 0: System, WiFi, Web Server (Prioridad Media)
-// - Secuenciador de patrones MIDI-style
-// - WiFi Access Point + WebServer
-// - Comandos UDP para control remoto
-// - Actualización de LED RGB con fade
-// - Todas las operaciones de red y UI
 void systemTask(void *pvParameters) {
-    Serial.println("[Task] System Task iniciada en Core 0 (Prioridad: 5)");
-    Serial.flush();
+    Serial.println("[Task] System Task en Core 0 (Prioridad: 5)");
     
     uint32_t lastLedUpdate = 0;
-    uint32_t loopCount = 0;
     
     while (true) {
         sequencer.update();
-        yield(); // Feed watchdog después de sequencer
-        
-        webInterface.update(); // WiFi activado
-        yield(); // Feed watchdog después de webInterface
-        
-        webInterface.handleUdp(); // Manejar comandos UDP
-        yield(); // Feed watchdog después de UDP
-        
-        midiController.update(); // Procesar eventos MIDI USB
-        yield(); // Feed watchdog después de MIDI
+        webInterface.update();
+        webInterface.handleUdp();
+        midiController.update();
         
         // Fade out del LED después de trigger
-        if (ledFading && millis() - lastLedUpdate > 20) {  // Más lento (cada 20ms)
+        if (ledFading && millis() - lastLedUpdate > 20) {
             lastLedUpdate = millis();
             if (ledBrightness > 10) {
-                ledBrightness -= 8;  // Fade más suave
+                ledBrightness -= 8;
                 rgbLed.setBrightness(ledBrightness);
                 rgbLed.show();
             } else {
@@ -149,9 +131,7 @@ void systemTask(void *pvParameters) {
             }
         }
         
-        loopCount++;
-        // Delay adaptativo: más tiempo si hay múltiples clientes
-        vTaskDelay(10); // 100Hz - Más tiempo para prevenir watchdog timeout
+        vTaskDelay(pdMS_TO_TICKS(8)); // 125Hz system loop - da más tiempo al WiFi stack
     }
 }
 
@@ -164,7 +144,6 @@ void onStepTrigger(int track, uint8_t velocity, uint8_t trackVolume) {
 // Función para triggers manuales desde live pads (web interface)
 // Esta SÍ enciende el LED RGB
 void triggerPadWithLED(int track, uint8_t velocity) {
-    Serial.printf("[PAD TRIGGER] Track: %d, Velocity: %d\n", track, velocity);
     audioEngine.triggerSampleLive(track, velocity);
     
     // Iluminar LED RGB con color del instrumento
@@ -178,100 +157,56 @@ void triggerPadWithLED(int track, uint8_t velocity) {
     }
 }
 
-void listDir(const char * dirname, int levels){
-    Serial.printf("Listing directory: %s\n", dirname);
-    File root = LittleFS.open(dirname);
-    if(!root){
-        Serial.println("- failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println(" - not a directory");
-        return;
-    }
-
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            Serial.printf("  DIR : %s\n", file.name());
-            if(levels){
-                listDir(file.path(), levels -1);
-            }
-        } else {
-            Serial.printf("  FILE: %s  SIZE: %d\n", file.name(), (int)file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
 void setup() {
-    // Inicializar LED RGB PRIMERO - MAGENTA BRILLANTE: BOOT
     rgbLed.begin();
     rgbLed.setBrightness(255);
-    showBootLED(); // Magenta: Sistema iniciando
-    delay(1000); // Mostrar magenta 1 segundo
+    showBootLED();
+    delay(500);
     
     Serial.begin(115200);
     
-    // Esperar hasta que el monitor serial se conecte (máximo 10 segundos)
-    // Durante la espera, el LED sigue en MAGENTA
+    // Esperar serial (máximo 3 segundos)
     int waitCount = 0;
-    while (!Serial && waitCount < 20) {
+    while (!Serial && waitCount < 6) {
         delay(500);
         waitCount++;
     }
     
-    // Mensajes de inicio visibles
-    Serial.println("\n\n\n");
-    Serial.println("=================================");
+    Serial.println("\n=================================");
     Serial.println("    BOOT START - RED808");
     Serial.println("=================================");
-    Serial.println("Serial Monitor Connected!");
     Serial.flush();
     
-    // LED sigue mostrando magenta
-    Serial.println("[STEP 0] RGB LED initialized (MAGENTA - boot starting)");
-    delay(1000); // Mantener magenta visible
-    
-    Serial.println("\n\n=== ESP32-S3 DRUM MACHINE - DIAGNOSTIC MODE ===");
+    Serial.println("\n=== RED808 ESP32-S3 DRUM MACHINE ===");
     Serial.println("[STEP 1] Starting Filesystem...");
     Serial.flush();
     
     // 1. Filesystem
     if (!LittleFS.begin(true)) {
-        Serial.println("❌ LittleFS FAIL");
-        // LED ROJO para error
+        Serial.println("LittleFS FAIL");
         rgbLed.setPixelColor(0, 0xFF0000);
         rgbLed.show();
-        while(1) { delay(1000); } // Detener aquí
+        while(1) { delay(1000); }
     }
-    Serial.println("✓ LittleFS Mounted");
+    Serial.println("LittleFS OK");
 
-    // --- EXPLORACIÓN PROFUNDA ---
-    Serial.println("\n[STEP 2] Explorando contenido:");
-    listDir("/", 2);
-    Serial.println("---------------------------------------\n");
-
-    Serial.println("[STEP 3] Starting Audio Engine...");
+    Serial.println("[STEP 2] Starting Audio Engine...");
     // 2. Audio Engine (I2S External DAC)
     if (!audioEngine.begin(I2S_BCK, I2S_WS, I2S_DOUT)) {
-        Serial.println("❌ AUDIO ENGINE FAIL");
-        // LED ROJO para error
+        Serial.println("AUDIO ENGINE FAIL");
         rgbLed.setPixelColor(0, 0xFF0000);
         rgbLed.show();
-        while(1) { delay(1000); } // Detener aquí
+        while(1) { delay(1000); }
     }
-    Serial.println("✓ Audio Engine (External DAC) OK");
+    Serial.println("Audio Engine OK");
     
 
 
-    Serial.println("[STEP 4] Initializing Sample Manager...");
+    Serial.println("[STEP 3] Initializing Sample Manager...");
     Serial.flush();
     
-    // AMARILLO BRILLANTE: Cargando samples
     showLoadingSamplesLED();
-    Serial.println("✓ LED: YELLOW (Loading samples)");
-    delay(800); // Tiempo para ver el amarillo antes de empezar a cargar
+    delay(300);
     
     // 3. Sample Manager - Cargar todos los samples por familia
     sampleManager.begin();
@@ -447,41 +382,28 @@ void setup() {
     Serial.println("✓ Sequencer: 5 patrones cargados (Hip Hop, Techno, DnB, Breakbeat, House)");
     Serial.println("   Sequencer en PAUSA - presiona PLAY para iniciar");
 
-    // 5. WiFi AP - Inicialización
-    Serial.println("\n[STEP 6] Preparando WiFi...");
+    // 5. WiFi AP
+    Serial.println("\n[STEP 5] Starting WiFi...");
     
-    // AZUL: WiFi iniciando
     showWiFiLED();
-    Serial.println("✓ LED: BLUE (WiFi starting)");
-    delay(1200); // Más tiempo para ver el azul
+    delay(500);
     
-    Serial.println("[WiFi] Iniciando Access Point...");
     if (webInterface.begin("RED808", "red808esp32")) {
-        Serial.println("✓ WiFi AP iniciado");
-        Serial.print("   SSID: RED808\n   IP: ");
+        Serial.print("WiFi AP OK | IP: ");
         Serial.println(webInterface.getIP());
-        
-        // VERDE: Servidor web listo
         showWebServerLED();
-        Serial.println("✓ LED: GREEN (Web server ready)");
-        delay(1200); // Más tiempo para ver el verde
+        delay(500);
     } else {
-        Serial.println("❌ WiFi falló - continuando sin WiFi");
+        Serial.println("WiFi FAIL - continuing");
     }
 
-    // --- INICIALIZAR MIDI USB HOST ---
-    Serial.println("\n[STEP 6.5] Initializing MIDI USB Host...");
-    Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    // --- MIDI USB HOST ---
+    Serial.println("\n[STEP 6] Initializing MIDI USB...");
     if (midiController.begin()) {
-        // Conectar MIDI controller con WebInterface
         webInterface.setMIDIController(&midiController);
         
-        // Callback para mensajes MIDI
         midiController.setMessageCallback([](const MIDIMessage& msg) {
-            // Broadcast a la web
             webInterface.broadcastMIDIMessage(msg);
-            
-            // Mapear MIDI notes a pads usando el mapping configurado
             if (msg.type == MIDI_NOTE_ON && msg.data2 > 0) {
                 int8_t pad = midiController.getMappedPad(msg.data1);
                 if (pad >= 0 && pad < 8) {
@@ -490,76 +412,51 @@ void setup() {
             }
         });
         
-        // Callback para conexión/desconexión de dispositivos
         midiController.setDeviceCallback([](bool connected, const MIDIDeviceInfo& info) {
             webInterface.broadcastMIDIDeviceStatus(connected, info);
         });
         
-        Serial.println("✅ MIDI USB Host ready on USB OTG port");
-        Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        Serial.println("MIDI USB Host ready");
     } else {
-        Serial.println("⚠️  MIDI USB Host initialization failed");
-        Serial.println("   Continuando sin soporte MIDI USB");
-        Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        Serial.println("MIDI init failed - continuing");
     }
 
-    // --- LANZAMIENTO DE TAREAS OPTIMIZADAS ---
-    Serial.println("\n[STEP 7] Creating optimized dual-core tasks...");
-    Serial.println("ESP32-S3 Dual Core Configuration:");
-    Serial.println("  CORE 1 (240MHz): Audio Engine (Real-time DSP)");
-    Serial.println("  CORE 0 (240MHz): WiFi + WebServer + Sequencer");
+    // --- DUAL-CORE TASKS ---
+    Serial.println("\n[STEP 7] Creating dual-core tasks...");
     
-    // CORE 1: Audio Task - Máxima prioridad (24) y stack grande
+    // CORE 1: Audio Task - Prioridad máxima
     xTaskCreatePinnedToCore(
         audioTask,
         "AudioTask",
-        12288,  // 12KB stack - Audio processing con headroom
+        8192,   // 8KB stack - optimizado
         NULL,
-        24,     // Prioridad máxima - NUNCA interrumpir audio
+        24,     // Prioridad máxima
         NULL,
-        1       // CORE 1: Dedicado a audio DSP
+        1       // CORE 1: Audio DSP
     );
     
-    // CORE 0: System Task - Prioridad media (5) para WiFi/Web
+    // CORE 0: System Task - Prioridad media
     xTaskCreatePinnedToCore(
         systemTask,
         "SystemTask",
-        16384,  // 16KB stack - WiFi + WebServer + JSON necesita más espacio
+        16384,  // 16KB stack - WiFi/JSON
         NULL,
-        5,      // Prioridad media - No interferir con audio
+        5,
         NULL,
-        0       // CORE 0: WiFi, Web, Sequencer, LED
+        0       // CORE 0: WiFi, Web, Sequencer
     );
 
-    Serial.println("\n--- SISTEMA INICIADO ---");
-    
-    // BLANCO BRILLANTE: Sistema completamente listo
     showReadyLED();
-    Serial.println("✓ LED: WHITE (System ready!) - LED will turn off in 2 seconds");
-    
-    Serial.println("\n🎵 RED808 LISTO - Conecta a WiFi y abre 192.168.4.1 🎵\n");
+    Serial.println("\n=== RED808 READY - Connect to WiFi RED808, open 192.168.4.1 ===\n");
 }
 
 void loop() {
-    // DISABLED: Cambio automático de patrones - el usuario controla manualmente
-    // static uint32_t lastPatternChange = 0;
-    // static int currentPatternIndex = 0;
-    // const uint32_t patternDuration = 8800;
-    
-    // if (millis() - lastPatternChange > patternDuration) {
-    //     currentPatternIndex = (currentPatternIndex + 1) % 5;
-    //     sequencer.selectPattern(currentPatternIndex);
-    //     const char* patternNames[] = {"Hip Hop", "Techno", "Drum & Bass", "Breakbeat", "House"};
-    //     Serial.printf("\n>>> Cambiando a Patrón %d: %s <<<\n", currentPatternIndex, patternNames[currentPatternIndex]);
-    //     lastPatternChange = millis();
-    // }
-    
-    // Stats cada 5 segundos
+    // Stats cada 10 segundos (reducido para menos overhead)
     static uint32_t lastStats = 0;
-    if (millis() - lastStats > 5000) {
-        Serial.printf("Uptime: %d s | Free Heap: %d | PSRAM: %d\n", 
+    if (millis() - lastStats > 10000) {
+        Serial.printf("Uptime: %ds | Heap: %d | PSRAM: %d\n", 
                       millis()/1000, ESP.getFreeHeap(), ESP.getFreePsram());
         lastStats = millis();
     }
-    delay(10);
+    vTaskDelay(pdMS_TO_TICKS(100)); // loop() no hace nada crítico
 }

@@ -11,9 +11,7 @@ const MAX_HISTORY = 50;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('RED808 Admin Dashboard initializing...');
   connectWebSocket();
-  startDataPolling();
   initChart();
 });
 
@@ -22,17 +20,14 @@ function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.hostname}/ws`;
   
-  console.log(`Connecting to ${wsUrl}...`);
   ws = new WebSocket(wsUrl);
   
   ws.onopen = () => {
-    console.log('WebSocket connected!');
     updateConnectionStatus(true);
     refreshData();
   };
   
   ws.onclose = () => {
-    console.log('WebSocket disconnected');
     updateConnectionStatus(false);
     scheduleReconnect();
   };
@@ -55,7 +50,6 @@ function connectWebSocket() {
 function scheduleReconnect() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(() => {
-    console.log('Attempting to reconnect...');
     connectWebSocket();
   }, 3000);
 }
@@ -77,13 +71,7 @@ function handleWebSocketMessage(data) {
   }
 }
 
-// Data Polling
-function startDataPolling() {
-  // DISABLED: Poll system info every 2 seconds to avoid errors
-  // setInterval(() => {
-  //   fetchSystemInfo();
-  // }, 2000);
-}
+// Data Polling disabled - using WebSocket state updates
 
 async function fetchSystemInfo() {
   try {
@@ -318,7 +306,6 @@ function formatUptime(ms) {
 
 function refreshData() {
   fetchSystemInfo();
-  console.log('Data refreshed');
 }
 
 function rebootESP() {

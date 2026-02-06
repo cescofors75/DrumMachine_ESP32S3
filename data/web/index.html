@@ -79,16 +79,6 @@
                     <!-- Los pads se generarán dinámicamente -->
                 </div>
             </section>
-
-            <!-- Audio Visualizer Section - DESACTIVADO -->
-            <!-- <section id="section-visualizer" class="visualizer-section" data-section="visualizer" data-title="Audio Visualizer">
-                <div class="visualizer-grid">
-                    <div class="visualizer-panel visualizer-full">
-                        <h3>SPECTRUM ANALYZER</h3>
-                        <canvas id="spectrumCanvas" width="600" height="200"></canvas>
-                    </div>
-                </div>
-            </section> -->
         </div>
 
         <!-- TAB: Sequencer -->
@@ -126,7 +116,7 @@
                 
                 <div class="sequencer-grid-wrapper" id="sequencerContainer">
                     <div class="sequencer-grid" id="sequencerGrid">
-                        <!-- 16 tracks x 16 steps -->
+                        <!-- 8 tracks x 16 steps -->
                     </div>
                     
                     <div class="step-indicator" id="stepIndicator">
@@ -666,7 +656,7 @@
                                     <div class="mapping-item" data-pad="7" data-note="43">
                                         <span class="note-badge editable" contenteditable="false">43</span>
                                         <span class="note-name">G1</span>
-                                        <span class="pad-target">CB</span>
+                                        <span class="pad-target">CY</span>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
                                 </div>
@@ -719,7 +709,7 @@
                     <div class="info-card">
                         <span class="info-label">Sample Format</span>
                         <span class="info-value" id="sampleFormat">44.1kHz Mono 16-bit</span>
-                        <span class="info-sub">Renderer locked @ 16 voices</span>
+                        <span class="info-sub">Renderer locked @ 8 voices</span>
                     </div>
                 </div>
                 <div class="info-grid">
@@ -729,22 +719,22 @@
                     </div>
                     <div class="info-item">
                         <span class="info-label">Polyphony:</span>
-                        <span class="info-value">16 voices</span>
+                        <span class="info-value">8 voices</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Tracks:</span>
-                        <span class="info-value" id="tracksInfo">16 tracks x 16 steps</span>
+                        <span class="info-value" id="tracksInfo">8 tracks x 16 steps</span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Visualizer:</span>
-                        <span class="info-value">32-band spectrum</span>
+                        <span class="info-label">Output:</span>
+                        <span class="info-value">I2S DAC + Internal DAC</span>
                     </div>
                 </div>
             </section>
 
             <!-- Instruments Info Section -->
         <section id="section-instruments" class="device-info" data-section="instruments" data-title="Instrument Map">
-            <div class="info-title">🥁 INSTRUMENT MAP (16 TRACKS)</div>
+            <div class="info-title">🥁 INSTRUMENT MAP (8 TRACKS)</div>
             <div class="instrument-tabs">
                 <button class="instrument-tab active" data-tab="active">ACTIVOS</button>
                 <button class="instrument-tab" data-tab="all">TODOS</button>

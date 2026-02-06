@@ -5,9 +5,7 @@ let isConnected = false;
 let currentStep = 0;
 let tremoloIntervals = {};
 let padLoopState = {};
-let isRecording = false;
-let recordedSteps = [];
-let recordStartTime = 0;
+let isPlaying = false;
 
 // Sequencer caches
 let stepDots = [];
@@ -20,15 +18,6 @@ let circularCanvas = null;
 let circularCtx = null;
 let circularAnimationFrame = null;
 let circularSequencerData = Array.from({ length: 8 }, () => Array(16).fill(false));
-
-// Visualizer data
-let spectrumData = new Array(64).fill(0);
-let waveformData = new Array(128).fill(0);
-let isVisualizerActive = true;
-let visualizerNeedsRedraw = true;
-let lastVisualizerFrameTime = 0;
-const VISUALIZER_MAX_FPS = 30;
-const VISUALIZER_IDLE_FPS = 8;
 
 // Sample counts per family
 let sampleCounts = {};
@@ -63,14 +52,6 @@ const padDescriptions = [
     'Cymbal (Platillo)'
 ];
 
-const filterTypeLabels = {
-    0: 'OFF',
-    1: 'LOW PASS',
-    2: 'HIGH PASS',
-    3: 'BAND PASS',
-    4: 'NOTCH'
-};
-
 // Filter types for track filter panel
 const FILTER_TYPES = [
     { icon: '⭕', name: 'NONE' },
@@ -101,10 +82,8 @@ let sampleBrowserRenderTimer = null;
 let sampleRequestTimers = [];
 let sampleRetryTimer = null;
 
-// Simple notification function
-function showNotification(message) {
-    console.log('[Notification]', message);
-}
+// Simple notification function (stub)
+function showNotification(message) {}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -113,8 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     createSequencer();
     setupControls();
     initHeaderMeters();
-    initVolumesSection(); // Initialize volumes section
-    initVisualizers();
+    initVolumesSection();
     
     // Initialize keyboard system from keyboard-controls.js first
     if (window.initKeyboardControls) {
@@ -168,11 +146,6 @@ function handleWebSocketMessage(data) {
             updatePadLoopVisual(data.track);
             break;
         case 'audioData':
-            // Audio visualization disabled
-            // if (data.spectrum) {
-            //     spectrumData = data.spectrum;
-            //     visualizerNeedsRedraw = true;
-            // }
             break;
         case 'state':
             updateSequencerState(data);
@@ -341,8 +314,6 @@ function handleWebSocketMessage(data) {
 }
 
 function loadPatternData(data) {
-    console.log('loadPatternData called, data keys:', Object.keys(data));
-    
     // Limpiar sequencer
     document.querySelectorAll('.seq-step').forEach(el => {
         el.classList.remove('active');
@@ -366,7 +337,6 @@ function loadPatternData(data) {
                         activatedSteps++;
                         trackSteps++;
                     } else if (track >= 8) {
-                        console.warn(`Step element not found for track ${track}, step ${step}`);
                     }
                     // Update circular data
                     if (circularSequencerData[track]) {
@@ -374,9 +344,7 @@ function loadPatternData(data) {
                     }
                 }
             });
-            if (track >= 8 && trackSteps > 0) {
-                console.log(`Track ${track} (${padNames[track]}): ${trackSteps} steps activated`);
-            }
+
         }
     }
     
@@ -393,10 +361,7 @@ function loadPatternData(data) {
                 });
             }
         }
-        console.log('Velocities loaded from pattern data');
     }
-    
-    console.log(`Total steps activated: ${activatedSteps}`);
 }
 
 function updateStatus(connected) {
@@ -415,7 +380,6 @@ function updateStatus(connected) {
 // Loop button functions (defined before createPads)
 function togglePadLoop(padIndex) {
     if (!isConnected) {
-        console.log('[Loop] Not connected to server');
         return;
     }
     
@@ -423,8 +387,6 @@ function togglePadLoop(padIndex) {
         cmd: 'toggleLoop',
         track: padIndex
     });
-    
-    console.log(`[Loop] Toggle loop for pad ${padIndex}`);
 }
 
 function updateLoopButtonState(padIndex) {
@@ -546,13 +508,11 @@ function createPads() {
             loopBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log(`[Loop Button] Touch pad ${i}`);
                 togglePadLoop(i);
             });
             loopBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log(`[Loop Button] Clicked pad ${i}`);
                 togglePadLoop(i);
             });
         }
@@ -732,7 +692,6 @@ function setPadFilter(padIndex, filterType) {
             filterType: filterType
         };
         ws.send(JSON.stringify(msg));
-        console.log(`[Pad Filter] Set pad ${padIndex} to filter ${FILTER_TYPES[filterType].name}`);
     }
 }
 
@@ -775,7 +734,6 @@ function updateSampleButtons() {
             btn.style.display = 'none';
         }
     });
-    console.log(`Sample buttons updated: ${buttonsShown} buttons shown`);
 }
 
 function handleSampleCountsMessage(payload) {
@@ -789,7 +747,6 @@ function handleSampleCountsMessage(payload) {
     sampleCounts = sanitizedCounts;
     updateSampleButtons();
     updateInstrumentCounts(totalFiles);
-    console.log('Sample counts received:', sanitizedCounts, `Total: ${totalFiles}`);
     scheduleSampleBrowserRender();
 
     // Limpiar timer de reintento
@@ -952,14 +909,6 @@ function triggerPad(padIndex) {
         data[1] = padIndex;
         data[2] = 127;  // Velocity
         ws.send(data);
-    }
-    
-    // Toast removed - too many notifications when playing
-    
-    // Grabar en loop si está activo
-    if (isRecording) {
-        const currentTime = Date.now() - recordStartTime;
-        recordedSteps.push({ pad: padIndex, time: currentTime });
     }
 }
 
@@ -1276,8 +1225,6 @@ function initCircularSequencer() {
     // Set explicit CSS size for iOS
     circularCanvas.style.width = finalSize + 'px';
     circularCanvas.style.height = finalSize + 'px';
-    
-    console.log('Canvas initialized:', finalSize + 'x' + finalSize);
     
     // Handle canvas clicks and touch events
     circularCanvas.addEventListener('click', handleCircularClick);
@@ -1613,7 +1560,6 @@ function setupControls() {
             cmd: 'setSequencerVolume',
             value: volume
         });
-        console.log(`Sequencer volume set to ${volume}%`);
     });
     
     // Live pads volume slider
@@ -1632,7 +1578,6 @@ function setupControls() {
             cmd: 'setLiveVolume',
             value: volume
         });
-        console.log(`Live volume set to ${volume}%`);
     });
     
     // Pattern buttons
@@ -1671,7 +1616,6 @@ function setupControls() {
         } else {
             colorToggle.textContent = '🎨 COLOR MODE';
         }
-        visualizerNeedsRedraw = true;
         syncLedMonoMode();
     });
     
@@ -1679,7 +1623,6 @@ function setupControls() {
     const loadSampleListsBtn = document.getElementById('loadSampleListsBtn');
     if (loadSampleListsBtn) {
         loadSampleListsBtn.addEventListener('click', () => {
-            console.log('=== CARGANDO LISTAS DE SAMPLERS ===');
             const statusEl = document.getElementById('sampleLoadStatus');
             if (statusEl) statusEl.textContent = 'Cargando...';
             
@@ -1687,7 +1630,6 @@ function setupControls() {
             
             setTimeout(() => {
                 const totalLoaded = Object.keys(sampleCatalog).length;
-                console.log(`Total familias cargadas: ${totalLoaded}`);
                 if (statusEl) statusEl.textContent = `${totalLoaded}/8 familias cargadas`;
             }, 5000);
         });
@@ -1713,7 +1655,6 @@ function setupControls() {
     const reloadCountsBtn = document.getElementById('reloadCountsBtn');
     if (reloadCountsBtn) {
         reloadCountsBtn.addEventListener('click', () => {
-            console.log('[reloadCountsBtn] Recargando conteos...');
             requestSampleCounts();
         });
     }
@@ -2026,34 +1967,7 @@ function sendWebSocket(data) {
 // Export to window for keyboard-controls.js
 window.sendWebSocket = sendWebSocket;
 
-// ============= AUDIO VISUALIZERS =============
-
-function hexToRgb(hex) {
-    if (!hex || typeof hex !== 'string') return { r: 255, g: 0, b: 0 };
-    const normalized = hex.replace('#', '');
-    if (normalized.length !== 6) return { r: 255, g: 0, b: 0 };
-    const intVal = parseInt(normalized, 16);
-    return {
-        r: (intVal >> 16) & 255,
-        g: (intVal >> 8) & 255,
-        b: intVal & 255
-    };
-}
-
-function initVisualizers() {
-    // Spectrum visualizer disabled - not used
-    // const spectrumCanvas = document.getElementById('spectrumCanvas');
-    // if (!spectrumCanvas) {
-    //     console.warn('Spectrum canvas not found (disabled)');
-    //     return;
-    // }
-    // Spectrum visualizer disabled - not used
-    return;
-}
-
 // ============= KEYBOARD CONTROLS =============
-
-let isPlaying = false;
 
 function setupKeyboardControls() {
     // Mapeo de teclas a pads (8 pads)
@@ -2063,9 +1977,8 @@ function setupKeyboardControls() {
     }, {});
 
     const codeToPad = {
-        Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4,
-        Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8, Digit0: 9,
-        KeyQ: 10, KeyW: 11, KeyE: 12, KeyR: 13, KeyT: 14, KeyY: 15
+        Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3,
+        Digit5: 4, Digit6: 5, Digit7: 6, Digit8: 7
     };
 
     const getPadIndexFromEvent = (e) => {
@@ -2105,9 +2018,6 @@ function setupKeyboardControls() {
             }
         }
     });
-    
-    console.log('✓ Keyboard controls initialized (8 pads)');
-    console.log('  Keys: 1-8=Pads, SPACE=Play/Pause, [/]=BPM, -/+=Volume');
     
     // Export functions for keyboard-controls.js
     window.togglePlayPause = togglePlayPause;
@@ -2186,8 +2096,6 @@ function adjustBPM(change) {
         // Actualizar animación del BPM
         const beatDuration = 60 / newTempo;
         tempoValue.style.animationDuration = `${beatDuration}s`;
-        
-        console.log(`BPM: ${newTempo}`);
     }
 }
 
@@ -2211,8 +2119,6 @@ function adjustVolume(change) {
             cmd: 'setLiveVolume',
             value: newVolume
         });
-        
-        console.log(`Live Volume: ${newVolume}%`);
     }
 }
 
@@ -2236,8 +2142,6 @@ function adjustSequencerVolume(change) {
             cmd: 'setSequencerVolume',
             value: newVolume
         });
-        
-        console.log(`Sequencer Volume: ${newVolume}%`);
     }
 }
 
@@ -2289,18 +2193,11 @@ function switchTab(tabId) {
     
     // Guardar preferencia
     localStorage.setItem('currentTab', tabId);
-    
-    // Actualizar visualizador si estamos en performance
-    if (tabId === 'performance') {
-        isVisualizerActive = true;
-        visualizerNeedsRedraw = true;
-    }
 }
 
 // Sample Selector Functions
 function showSampleSelector(padIndex, family) {
     sampleSelectorContext = { padIndex, family };
-    console.log(`[showSampleSelector] Requesting samples for ${family}...`);
     // Solicitar lista de samples bajo demanda
     sendWebSocket({
         cmd: 'getSamples',
@@ -2499,7 +2396,6 @@ function setSampleFilter(family) {
 }
 
 function requestSampleCounts() {
-    console.log('[requestSampleCounts] Requesting sample counts from ESP32');
     sendWebSocket({
         cmd: 'getSampleCounts'
     });
@@ -2646,7 +2542,6 @@ function loadSampleToPad(padIndex, family, filename, autoPlay = false) {
         filename: filename,
         pad: padIndex
     });
-    console.log(`Loading ${family}/${filename} to pad ${padIndex}`);
 }
 
 function updatePadInfo(data) {
@@ -2681,12 +2576,10 @@ function applyFilterPreset(filterType, cutoffFreq) {
     const filterNames = ['NONE', 'LOW PASS', 'HIGH PASS', 'BAND PASS', 'NOTCH', 
                         'LOW SHELF', 'HIGH SHELF', 'PEAK', 'ALL PASS', 'RESONANT'];
     
-    console.log(`Applying filter preset: ${filterNames[filterType]} @ ${cutoffFreq}Hz`);
-    
     // Check if track is selected
     if (window.selectedTrack !== null && window.selectedTrack !== undefined) {
         const track = window.selectedTrack;
-        const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
+        const trackNames = padNames;
         
         sendWebSocket({
             cmd: 'setTrackFilter',
@@ -2812,8 +2705,6 @@ function handleMIDIDeviceMessage(data) {
         midiConnectTimestamp = Date.now();
         if (midiUptimeInterval) clearInterval(midiUptimeInterval);
         midiUptimeInterval = setInterval(updateMidiUptime, 1000);
-        
-        console.log('[MIDI] Device connected:', data.deviceName);
     } else {
         // Device disconnected
         badge.classList.remove('connected');
@@ -2830,8 +2721,6 @@ function handleMIDIDeviceMessage(data) {
             midiUptimeInterval = null;
         }
         document.getElementById('midiUptime').textContent = '00:00';
-        
-        console.log('[MIDI] Device disconnected');
     }
 }
 
@@ -2879,8 +2768,6 @@ function handleMIDIMessage(data) {
     
     // Update monitor display
     updateMIDIMonitorDisplay();
-    
-    console.log(`[MIDI] ${data.messageType} Ch:${data.channel} Data1:${data.data1} Data2:${data.data2}`);
 }
 
 function animateNoteVelocity(note, velocity) {
@@ -3100,8 +2987,6 @@ function uploadSample(padIndex, file) {
     currentUploadPad = padIndex;
     const padName = padNames[padIndex];
     
-    console.log(`[Upload] Starting upload: ${file.name} to pad ${padIndex} (${padName})`);
-    
     // Mostrar toast de inicio
     if (window.showToast) {
         window.showToast(`📤 Subiendo ${file.name} a ${padName}...`, window.TOAST_TYPES.INFO, 2000);
@@ -3125,7 +3010,6 @@ function uploadSample(padIndex, file) {
     })
     .then(response => response.json())
     .then(data => {
-        console.log('[Upload] Response:', data);
     })
     .catch(error => {
         console.error('[Upload] Error:', error);
@@ -3145,8 +3029,6 @@ function uploadSample(padIndex, file) {
 function handleUploadProgress(data) {
     if (data.pad !== currentUploadPad) return;
     
-    console.log(`[Upload] Progress: ${data.percent}%`);
-    
     const btn = document.querySelector(`.pad-upload-btn[data-pad="${data.pad}"]`);
     if (btn) {
         btn.textContent = `${data.percent}%`;
@@ -3154,8 +3036,6 @@ function handleUploadProgress(data) {
 }
 
 function handleUploadComplete(data) {
-    console.log(`[Upload] Complete:`, data);
-    
     const btn = document.querySelector(`.pad-upload-btn[data-pad="${data.pad}"]`);
     if (btn) {
         btn.disabled = false;
@@ -3215,7 +3095,6 @@ async function loadMIDIMapping() {
                 }
             });
             
-            console.log('[MIDI Mapping] Loaded:', data.mappings);
         }
     } catch (error) {
         console.error('[MIDI Mapping] Error loading:', error);
@@ -3325,8 +3204,6 @@ async function saveMIDIMapping() {
         if (window.showToast) {
             window.showToast('✅ Mapeo MIDI guardado correctamente', window.TOAST_TYPES.SUCCESS, 3000);
         }
-        
-        console.log('[MIDI Mapping] Saved:', mappings);
     } catch (error) {
         console.error('[MIDI Mapping] Error saving:', error);
         if (window.showToast) {
@@ -3359,8 +3236,6 @@ async function resetMIDIMapping() {
             if (window.showToast) {
                 window.showToast('🔄 Mapeo MIDI reseteado a valores por defecto', window.TOAST_TYPES.SUCCESS, 3000);
             }
-            
-            console.log('[MIDI Mapping] Reset to default');
         } else {
             throw new Error('Reset failed');
         }
@@ -3515,15 +3390,11 @@ window.updateTrackVolume = updateTrackVolume;
 // ============================================
 
 function initVolumesSection() {
-    console.log('[Volumes] Initializing volumes section...');
-    
     // Initialize all track volumes to default
     for (let track = 0; track < 8; track++) {
         updateVolumeBar(track, trackVolumes[track]);
         updateVolumeMutedState(track, trackMutedState[track]);
     }
-    
-    console.log('[Volumes] Section initialized');
 }
 
 function updateVolumeBar(track, volume) {
@@ -3566,8 +3437,6 @@ function updateVolumeBar(track, volume) {
 function updateVolumeMutedState(track, isMuted) {
     if (track < 0 || track >= 8) return;
     
-    console.log(`[Volumes] Updating mute state for track ${track}: ${isMuted ? 'MUTED' : 'UNMUTED'}`);
-    
     const volumeCard = document.querySelector(`.track-volume-card[data-track="${track}"]`);
     
     if (volumeCard) {
@@ -3576,9 +3445,6 @@ function updateVolumeMutedState(track, isMuted) {
         } else {
             volumeCard.classList.remove('muted');
         }
-        console.log(`[Volumes] Track ${track} volume card classes:`, volumeCard.className);
-    } else {
-        console.warn(`[Volumes] Volume card not found for track ${track}`);
     }
 }
 

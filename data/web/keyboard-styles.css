@@ -388,100 +388,6 @@
   font-size: 10px;
 }
 
-/* ============= FILTER PANEL ============= */
-
-.filter-panel {
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #ff00ff;
-  border-radius: 10px;
-  padding: 20px;
-  margin: 20px 0;
-  max-width: 400px;
-}
-
-.filter-panel h3 {
-  color: #ff00ff;
-  margin-top: 0;
-  font-size: 18px;
-  border-bottom: 1px solid #ff00ff;
-  padding-bottom: 10px;
-}
-
-.filter-panel select {
-  width: 100%;
-  background: #222;
-  border: 1px solid #ff00ff;
-  color: #ff00ff;
-  padding: 8px;
-  border-radius: 5px;
-  margin-bottom: 15px;
-  font-size: 14px;
-}
-
-.filter-panel label {
-  color: #ff00ff;
-  display: block;
-  margin-bottom: 5px;
-  font-size: 12px;
-}
-
-.filter-panel label span {
-  float: right;
-  color: white;
-  font-weight: bold;
-}
-
-.filter-panel input[type="range"] {
-  width: 100%;
-  margin-bottom: 15px;
-  height: 6px;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background: rgba(255, 0, 255, 0.3);
-  border-radius: 3px;
-}
-
-.filter-panel input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #ff00ff;
-  cursor: pointer;
-  border-radius: 50%;
-}
-
-.filter-panel button {
-  background: rgba(255, 0, 255, 0.2);
-  border: 1px solid #ff00ff;
-  color: #ff00ff;
-  padding: 10px 15px;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-right: 5px;
-  margin-bottom: 10px;
-  transition: all 0.2s;
-  font-size: 12px;
-}
-
-.filter-panel button:hover {
-  background: rgba(255, 0, 255, 0.4);
-  transform: translateY(-2px);
-}
-
-.filter-panel button:active {
-  background: #ff00ff;
-  color: black;
-}
-
-.filter-status {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #444;
-  color: #aaa;
-  font-size: 11px;
-}
-
 /* ============= NOTIFICATIONS ============= */
 
 #notification {
@@ -614,17 +520,9 @@
 .track-row[data-track="2"] { --track-color: #ffff00; } /* CH - Yellow */
 .track-row[data-track="3"] { --track-color: #ccff33; } /* OH - Yellow-Green */
 .track-row[data-track="4"] { --track-color: #66ff66; } /* CP - Green */
-.track-row[data-track="5"] { --track-color: #33ffcc; } /* CB - Cyan */
-.track-row[data-track="6"] { --track-color: #33ccff; } /* RS - Light Blue */
-.track-row[data-track="7"] { --track-color: #3366ff; } /* CL - Blue */
-.track-row[data-track="8"] { --track-color: #9933ff; } /* MA - Purple */
-.track-row[data-track="9"] { --track-color: #ff33ff; } /* CY - Magenta */
-.track-row[data-track="10"] { --track-color: #ff66cc; } /* HT - Pink */
-.track-row[data-track="11"] { --track-color: #ff99cc; } /* LT - Light Pink */
-.track-row[data-track="12"] { --track-color: #ffcccc; } /* MC - Pale Pink */
-.track-row[data-track="13"] { --track-color: #ccccff; } /* MT - Lavender */
-.track-row[data-track="14"] { --track-color: #ccffff; } /* HC - Light Cyan */
-.track-row[data-track="15"] { --track-color: #ffffcc; } /* LC - Light Yellow */
+.track-row[data-track="5"] { --track-color: #33ffcc; } /* RS - Cyan */
+.track-row[data-track="6"] { --track-color: #33ccff; } /* CL - Light Blue */
+.track-row[data-track="7"] { --track-color: #3366ff; } /* CY - Blue */
 
 /* Apply track color to steps */
 .step.active {
@@ -639,11 +537,6 @@
     right: 10px;
     width: auto;
     min-width: 0;
-  }
-  
-  .filter-panel {
-    max-width: 100%;
-    margin: 10px;
   }
   
   .help-content {
@@ -676,8 +569,7 @@ input:focus-visible {
     border: 2px solid white;
   }
   
-  .velocity-editor,
-  .filter-panel {
+  .velocity-editor {
     border-width: 3px;
   }
 }

@@ -6,7 +6,8 @@
 #include "AudioEngine.h"
 
 AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
-                             processCount(0), lastCpuCheck(0), cpuLoad(0.0f) {
+                             processCount(0), lastCpuCheck(0), cpuLoad(0.0f),
+                             voiceAge(0) {
   // Initialize voices
   for (int i = 0; i < MAX_VOICES; i++) {
     resetVoice(i);
@@ -43,7 +44,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackFilterActive[i] = false;
   }
   
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < MAX_PADS; i++) {
     padFilters[i].filterType = FILTER_NONE;
     padFilters[i].cutoff = 1000.0f;
     padFilters[i].resonance = 1.0f;
@@ -54,13 +55,12 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
   }
   
   // Initialize volume
-  masterVolume = 100; // Master stays at 100% by default
-  sequencerVolume = 10; // Start at 10% to avoid loud startup
-  liveVolume = 80; // Live pads at 80% for better balance
+  masterVolume = 100;
+  sequencerVolume = 10;
+  liveVolume = 80;
   
-  // Initialize visualization
-  captureIndex = 0;
-  memset(captureBuffer, 0, sizeof(captureBuffer));
+  // Clear mix accumulator
+  memset(mixAcc, 0, sizeof(mixAcc));
 }
 
 AudioEngine::~AudioEngine() {
@@ -78,7 +78,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = DMA_BUF_COUNT,
     .dma_buf_len = DMA_BUF_LEN,
-    .use_apll = false,
+    .use_apll = true,           // APLL = better audio clock accuracy
     .tx_desc_auto_clear = true,
     .fixed_mclk = 0
   };
@@ -128,74 +128,41 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
 }
 
 void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume) {
-  if (padIndex < 0 || padIndex >= 8) {
-    Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
-    return;
-  }
-  if (sampleBuffers[padIndex] == nullptr) {
-    Serial.printf("[AudioEngine] ERROR: No sample buffer for pad %d\n", padIndex);
-    return;
-  }
+  if (padIndex < 0 || padIndex >= 8 || sampleBuffers[padIndex] == nullptr) return;
+  
   int voiceIndex = findFreeVoice();
-  if (voiceIndex < 0) {
-    voiceIndex = 0;
-    Serial.println("[AudioEngine] No free voice, stealing voice 0");
-  }
+  if (voiceIndex < 0) return; // Voice stealing handled inside findFreeVoice
+  
   voices[voiceIndex].buffer = sampleBuffers[padIndex];
   voices[voiceIndex].position = 0;
   voices[voiceIndex].length = sampleLengths[padIndex];
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
-  // Apply sequencerVolume (0-150) and trackVolume (0-150)
-  // Normalizar: cada uno se divide por 100 para obtener un multiplicador
-  // Resultado: volume = (sequencerVolume/100) * (trackVolume/100) * 100
-  // Capear a 150 para evitar distorsión excesiva
   voices[voiceIndex].volume = constrain((sequencerVolume * trackVolume) / 100, 0, 150);
-  // Ejemplo: seq=150, track=150 -> (150*150)/100 = 225 -> capped to 150
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = false;
-  
-  const char* filterStatus = trackFilterActive[padIndex] ? "FILTER ON" : "no filter";
-  Serial.printf("[AudioEngine] *** SEQ TRACK %d -> Voice %d, Length: %d, Vel: %d, Vol: %d%% (Seq:%d%% x Track:%d%%), %s ***\n",
-                padIndex, voiceIndex, sampleLengths[padIndex], velocity, voices[voiceIndex].volume,
-                sequencerVolume, trackVolume, filterStatus);
+  voices[voiceIndex].startAge = ++voiceAge;
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
-  if (padIndex < 0 || padIndex >= 8) {
-    Serial.printf("[AudioEngine] ERROR: Invalid pad index %d\n", padIndex);
-    return;
-  }
-  if (sampleBuffers[padIndex] == nullptr) {
-    Serial.printf("[AudioEngine] ERROR: No sample buffer for pad %d\n", padIndex);
-    return;
-  }
+  if (padIndex < 0 || padIndex >= 8 || sampleBuffers[padIndex] == nullptr) return;
   
-  // Find free voice
   int voiceIndex = findFreeVoice();
-  if (voiceIndex < 0) {
-    // No free voice, steal oldest
-    voiceIndex = 0;
-    Serial.println("[AudioEngine] No free voice, stealing voice 0");
-  }
+  if (voiceIndex < 0) return;
   
-  // Setup voice
   voices[voiceIndex].buffer = sampleBuffers[padIndex];
   voices[voiceIndex].position = 0;
   voices[voiceIndex].length = sampleLengths[padIndex];
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
-  // Apply 20% boost to livepads so they sound louder than sequencer at same volume setting
-  voices[voiceIndex].volume = (liveVolume * 120) / 100;
+  voices[voiceIndex].volume = constrain((liveVolume * 120) / 100, 0, 180);
   voices[voiceIndex].pitchShift = 1.0f;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = true;
-  
-  Serial.printf("[AudioEngine] *** LIVE PAD %d -> Voice %d, Length: %d samples, Velocity: %d ***\n",
-                padIndex, voiceIndex, sampleLengths[padIndex], velocity);
+  voices[voiceIndex].startAge = ++voiceAge;
 }
 
 void AudioEngine::stopSample(int padIndex) {
@@ -226,10 +193,7 @@ void AudioEngine::setLoop(int voiceIndex, bool loop, uint32_t start, uint32_t en
   voices[voiceIndex].loopEnd = end > 0 ? end : voices[voiceIndex].length;
 }
 
-void AudioEngine::process() {
-  static uint32_t logCounter = 0;
-  static uint32_t lastLogTime = 0;
-  
+void IRAM_ATTR AudioEngine::process() {
   // Fill mix buffer
   fillBuffer(mixBuffer, DMA_BUF_LEN);
   
@@ -237,20 +201,7 @@ void AudioEngine::process() {
   size_t bytes_written;
   i2s_write(i2sPort, mixBuffer, DMA_BUF_LEN * 4, &bytes_written, portMAX_DELAY);
   
-  // Log every 5 seconds
-  logCounter++;
-  if (millis() - lastLogTime > 5000) {
-    int activeVoices = 0;
-    for (int i = 0; i < MAX_VOICES; i++) {
-      if (voices[i].active) activeVoices++;
-    }
-    Serial.printf("[AudioEngine] Process loop running OK, active voices: %d, calls: %d/5sec\n", 
-                  activeVoices, logCounter);
-    lastLogTime = millis();
-    logCounter = 0;
-  }
-  
-  // Update CPU load calculation
+  // Update CPU load calculation (lightweight, no serial)
   processCount++;
   uint32_t now = millis();
   if (now - lastCpuCheck > 1000) {
@@ -260,13 +211,10 @@ void AudioEngine::process() {
   }
 }
 
-void AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
-  // Clear output buffer
+void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
+  // Clear output buffer and accumulator
   memset(buffer, 0, samples * sizeof(int16_t) * 2);
-
-  // Usar un acumulador de 32 bits para evitar distorsión/clipping durante el mix
-  static int32_t mixAcc[DMA_BUF_LEN * 2];
-  memset(mixAcc, 0, sizeof(mixAcc));
+  memset(mixAcc, 0, samples * sizeof(int32_t) * 2);
   
   // Mix all active voices
   for (int v = 0; v < MAX_VOICES; v++) {
@@ -284,64 +232,59 @@ void AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
         }
       }
       
-      // Get sample
-      int16_t sample = voice.buffer[voice.position];
-      
-      // Apply velocity and per-source volume
-      int32_t scaled = ((int32_t)sample * voice.velocity) / 127;
-      scaled = (scaled * voice.volume) / 100;
+      // Get sample and apply velocity + volume in one step
+      int32_t scaled = ((int32_t)voice.buffer[voice.position] * voice.velocity * voice.volume) / 12700;
       
       // Apply per-pad or per-track filter if active
       int16_t filtered = (int16_t)constrain(scaled, -32768, 32767);
       if (voice.padIndex >= 0 && voice.padIndex < MAX_PADS) {
-        // Check if pad has filter (for live pads)
         if (voice.isLivePad && padFilterActive[voice.padIndex]) {
           filtered = applyFilter(filtered, padFilters[voice.padIndex]);
-        }
-        // Check if track has filter (for sequencer tracks)
-        else if (!voice.isLivePad && voice.padIndex < MAX_AUDIO_TRACKS && trackFilterActive[voice.padIndex]) {
+        } else if (!voice.isLivePad && voice.padIndex < MAX_AUDIO_TRACKS && trackFilterActive[voice.padIndex]) {
           filtered = applyFilter(filtered, trackFilters[voice.padIndex]);
-          // Debug: print only once per voice activation
-          if (voice.position == 0) {
-            Serial.printf("[FILTER APPLIED] Track %d, Type: %d\n", voice.padIndex, trackFilters[voice.padIndex].filterType);
-          }
         }
       }
       
-      // Mix to accumulator
-      mixAcc[i * 2] += filtered;      // Left
-      mixAcc[i * 2 + 1] += filtered;  // Right
+      // Mix to accumulator (stereo)
+      mixAcc[i * 2] += filtered;
+      mixAcc[i * 2 + 1] += filtered;
       
       voice.position++;
     }
   }
   
-  // Soft clipping and conversion to 16bit with FX and volume
+  // Apply master volume, soft clip, and FX chain
+  const bool hasFX = (fx.distortion > 0.1f) || (fx.filterType != FILTER_NONE) || 
+                     (fx.sampleRate < SAMPLE_RATE) || (fx.bitDepth < 16);
+  
   for (size_t i = 0; i < samples * 2; i++) {
-    int32_t val = mixAcc[i];
+    int32_t val = (mixAcc[i] * masterVolume) / 100;
     
-    // Apply master volume (0-100)
-    val = (val * masterVolume) / 100;
-    
+    // Soft clipping
     if (val > 32767) val = 32767;
     else if (val < -32768) val = -32768;
     
-    // Apply FX chain
-    buffer[i] = processFX((int16_t)val);
-    
-    // Capture for visualization (every 2 samples for decimation)
-    if ((i % 2 == 0) && (captureIndex < 256)) {
-      captureBuffer[captureIndex++] = buffer[i];
-      if (captureIndex >= 256) captureIndex = 0;
-    }
+    // Apply FX chain only if active (avoid function call overhead)
+    buffer[i] = hasFX ? processFX((int16_t)val) : (int16_t)val;
   }
 }
 
 int AudioEngine::findFreeVoice() {
+  // 1. Look for inactive voice
   for (int i = 0; i < MAX_VOICES; i++) {
     if (!voices[i].active) return i;
   }
-  return -1;
+  
+  // 2. Steal oldest voice (lowest startAge)
+  int oldest = 0;
+  uint32_t oldestAge = voices[0].startAge;
+  for (int i = 1; i < MAX_VOICES; i++) {
+    if (voices[i].startAge < oldestAge) {
+      oldestAge = voices[i].startAge;
+      oldest = i;
+    }
+  }
+  return oldest;
 }
 
 void AudioEngine::resetVoice(int voiceIndex) {
@@ -357,6 +300,7 @@ void AudioEngine::resetVoice(int voiceIndex) {
   voices[voiceIndex].loopEnd = 0;
   voices[voiceIndex].padIndex = -1;
   voices[voiceIndex].isLivePad = false;
+  voices[voiceIndex].startAge = 0;
 }
 
 // ============= FX IMPLEMENTATION =============
@@ -392,7 +336,6 @@ void AudioEngine::setSampleRateReduction(uint32_t rate) {
 // Volume Control
 void AudioEngine::setMasterVolume(uint8_t volume) {
   masterVolume = constrain(volume, 0, 150);
-  Serial.printf("[AudioEngine] Master volume: %d%%\n", masterVolume);
 }
 
 uint8_t AudioEngine::getMasterVolume() {
@@ -401,7 +344,6 @@ uint8_t AudioEngine::getMasterVolume() {
 
 void AudioEngine::setSequencerVolume(uint8_t volume) {
   sequencerVolume = constrain(volume, 0, 150);
-  Serial.printf("[AudioEngine] Sequencer volume: %d%%\n", sequencerVolume);
 }
 
 uint8_t AudioEngine::getSequencerVolume() {
@@ -410,7 +352,6 @@ uint8_t AudioEngine::getSequencerVolume() {
 
 void AudioEngine::setLiveVolume(uint8_t volume) {
   liveVolume = constrain(volume, 0, 150);
-  Serial.printf("[AudioEngine] Live volume: %d%%\n", liveVolume);
 }
 
 uint8_t AudioEngine::getLiveVolume() {
@@ -557,43 +498,6 @@ int AudioEngine::getActiveVoices() {
 
 float AudioEngine::getCpuLoad() {
   return cpuLoad * 100.0f;
-}
-
-// ============= AUDIO VISUALIZATION =============
-
-void AudioEngine::captureAudioData(uint8_t* spectrum, uint8_t* waveform) {
-  // Copiar del mixBuffer si está disponible, si no usar captureBuffer
-  int16_t* sourceBuffer = captureBuffer;
-  int sourceSize = 256;
-  
-  // Simple FFT-like spectrum approximation using band filtering
-  // Split captured buffer into 64 frequency bands
-  
-  for (int band = 0; band < 64; band++) {
-    float sum = 0.0f;
-    int startIdx = (band * sourceSize) / 64;
-    int endIdx = ((band + 1) * sourceSize) / 64;
-    
-    // Calculate RMS for this band
-    for (int i = startIdx; i < endIdx; i++) {
-      float sample = sourceBuffer[i] / 32768.0f;
-      sum += sample * sample;
-    }
-    
-    float rms = sqrtf(sum / (endIdx - startIdx));
-    // Amplify significantly for better visibility
-    rms = fminf(rms * 10.0f, 1.0f);
-    spectrum[band] = (uint8_t)(rms * 255.0f);
-  }
-  
-  // Waveform: decimate captured buffer to 128 samples
-  for (int i = 0; i < 128; i++) {
-    int idx = (i * sourceSize) / 128;
-    // Keep the waveform centered at 128 (middle of 0-255 range)
-    float sample = sourceBuffer[idx] / 32768.0f; // -1.0 to +1.0
-    float normalized = (sample * 0.5f) + 0.5f;    // 0.0 to 1.0
-    waveform[i] = (uint8_t)(constrain(normalized * 255.0f, 0.0f, 255.0f));
-  }
 }
 
 // ============= PER-TRACK FILTER MANAGEMENT =============

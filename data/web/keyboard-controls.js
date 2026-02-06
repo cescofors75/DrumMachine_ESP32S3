@@ -9,8 +9,6 @@ let selectedTrack = null; // number (0-15)
 
 // Initialize keyboard system - call from app.js after DOM ready
 function initKeyboardControls() {
-  console.log('🎹 Initializing keyboard controls...');
-  
   // Single keyboard listener (no capture phase to avoid blocking)
   document.addEventListener('keydown', function(e) {
     const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
@@ -25,8 +23,6 @@ function initKeyboardControls() {
       // NO stopPropagation - let other handlers see it
     }
   });
-  
-  console.log('✅ Keyboard controls ready');
 }
 
 function handleKeyboardShortcut(e) {
@@ -539,8 +535,8 @@ function applyPadFilter(pad, filter) {
   
   // Show toast notification for filter changes
   const filterName = filter.name || (filter.type === 0 ? 'Filter cleared' : 'Filter applied');
-  const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
-  showToast(`${padNames[pad]}: ${filterName}`, filter.type === 0 ? TOAST_TYPES.INFO : TOAST_TYPES.SUCCESS, 2500);
+  const names = window.padNames || ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+  showToast(`${names[pad]}: ${filterName}`, filter.type === 0 ? TOAST_TYPES.INFO : TOAST_TYPES.SUCCESS, 2500);
 }
 
 // ============= UI SELECTION =============
@@ -609,8 +605,8 @@ function showTrackFilterPanel(track) {
     panel = createTrackFilterPanel();
   }
   
-  const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'CB', 'RS', 'CL', 'MA', 'CY', 'HT', 'LT', 'MC', 'MT', 'HC', 'LC'];
-  panel.querySelector('#track-filter-title').textContent = `Filtro Track ${track + 1} (${trackNames[track]})`;
+  const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+  panel.querySelector('#track-filter-title').textContent = `Filtro Track ${track + 1} (${trackNames[track] || '?'})`;
   panel.style.display = 'block';
   
   // Position near track label
@@ -1065,74 +1061,6 @@ function showKeyboardHelp() {
   toggleKeyboardSidebar();
 }
 
-function oldShowKeyboardHelp() {
-  const help = document.createElement('div');
-  help.id = 'keyboard-help';
-  help.innerHTML = `
-    <div class="help-overlay">
-      <div class="help-content">
-        <h2>⌨️ RED808 Keyboard Shortcuts</h2>
-        
-        <h3>🎚️ Transport & Global</h3>
-        <ul>
-          <li><kbd>Space</kbd> - Play/Pause</li>
-          <li><kbd>N</kbd> - Next Pattern</li>
-          <li><kbd>B</kbd> - Previous Pattern</li>
-          <li><kbd>[</kbd> - BPM -5</li>
-          <li><kbd>]</kbd> - BPM +5</li>
-          <li><kbd>M</kbd> - Toggle Color Mode</li>
-          <li><kbd>A</kbd> - Sequencer Vol -5</li>
-          <li><kbd>S</kbd> - Sequencer Vol +5</li>
-          <li><kbd>-</kbd> - Master Vol -5</li>
-          <li><kbd>+</kbd> - Master Vol +5</li>
-        </ul>
-        
-        <h3>🎹 Live Pads</h3>
-        <ul>
-          <li><kbd>1</kbd>-<kbd>0</kbd>, <kbd>Q</kbd>-<kbd>Y</kbd> - Trigger pads (hold for tremolo)</li>
-          <li><kbd>Shift</kbd> + pad key - Mute/unmute track</li>
-        </ul>
-        
-        <h3>🎵 Velocity Editing (click step first)</h3>
-        <ul>
-          <li><kbd>Z</kbd> - Ghost note (40)</li>
-          <li><kbd>X</kbd> - Soft (70)</li>
-          <li><kbd>C</kbd> - Medium (100)</li>
-          <li><kbd>V</kbd> - Accent (127)</li>
-        </ul>
-        
-        <h3>🎛️ Filters (click track/pad first)</h3>
-        <ul>
-          <li><kbd>F1</kbd> - Low Pass 300Hz Q5</li>
-          <li><kbd>F2</kbd> - High Pass 3kHz Q5</li>
-          <li><kbd>F3</kbd> - Band Pass 800Hz Q8</li>
-          <li><kbd>F4</kbd> - Resonant 500Hz Q15</li>
-          <li><kbd>F5</kbd> - Low Shelf +10dB</li>
-          <li><kbd>F6</kbd> - High Shelf +10dB</li>
-          <li><kbd>F7</kbd> - Peaking 1.5kHz +10dB</li>
-          <li><kbd>F8</kbd> - Notch 800Hz Q10</li>
-          <li><kbd>F9</kbd> - Low Pass 150Hz Q10</li>
-          <li><kbd>F10</kbd> - Clear Filter</li>
-          <li><kbd>Shift</kbd> + <kbd>F1</kbd>-<kbd>F10</kbd> - Apply to Pad</li>
-        </ul>
-        
-        <h3>🧭 Navigation (when step selected)</h3>
-        <ul>
-          <li><kbd>,</kbd> - Previous step</li>
-          <li><kbd>.</kbd> - Next step</li>
-          <li><kbd>Shift</kbd> + <kbd>-</kbd> - Previous track</li>
-          <li><kbd>Shift</kbd> + <kbd>+</kbd> - Next track</li>
-          <li><kbd>Esc</kbd> - Deselect</li>
-        </ul>
-        
-        <button onclick="closeKeyboardHelp()">Close (Esc)</button>
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(help);
-}
-
 function closeKeyboardHelp() {
   const help = document.getElementById('keyboard-help');
   if (help) {
@@ -1220,13 +1148,3 @@ function showToast(message, type = TOAST_TYPES.INFO, duration = 3000) {
 // Export toast function
 window.showToast = showToast;
 window.TOAST_TYPES = TOAST_TYPES;
-
-console.log('✅ RED808 Unified Keyboard Controls Loaded');
-console.log('   📋 Shortcuts:');
-console.log('   • SPACE=Play/Pause, N/B=Pattern, [/]=BPM, -/+=Vol');
-console.log('   • 1-0,Q-Y=Pads, Shift+pad=Mute');
-console.log('   • Z/X/C/V=Velocity (when step selected)');
-console.log('   • F1-F10=Filters, Shift+F=Pad Filter');
-console.log('   • ,/.=Navigate steps, Shift±=Navigate tracks');
-console.log('   💡 Press H for keyboard shortcuts sidebar');
-console.log('   🎨 Toast notifications enabled');

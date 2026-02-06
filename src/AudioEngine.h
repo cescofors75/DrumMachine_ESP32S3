@@ -13,7 +13,7 @@
 
 #define MAX_VOICES 8
 #define SAMPLE_RATE 44100
-#define DMA_BUF_COUNT 4
+#define DMA_BUF_COUNT 6
 #define DMA_BUF_LEN 128
 
 // Constants for filter management
@@ -89,6 +89,7 @@ struct Voice {
   uint32_t loopEnd;       // Loop end point
   int padIndex;           // Which pad is playing (-1 if none)
   bool isLivePad;         // True if triggered from live pad, false if from sequencer
+  uint32_t startAge;      // Voice age counter for smart stealing
 };
 
 class AudioEngine {
@@ -152,9 +153,6 @@ public:
   int getActiveVoices();
   float getCpuLoad();
   
-  // Audio data capture for visualization
-  void captureAudioData(uint8_t* spectrum, uint8_t* waveform);
-  
 private:
   Voice voices[MAX_VOICES];
   int16_t* sampleBuffers[16];  // Pointers to PSRAM sample data
@@ -162,10 +160,12 @@ private:
   
   i2s_port_t i2sPort;
   int16_t mixBuffer[DMA_BUF_LEN * 2]; // Stereo buffer
+  int32_t mixAcc[DMA_BUF_LEN * 2];    // 32-bit accumulator (avoids stack alloc)
   
   uint32_t processCount;
   uint32_t lastCpuCheck;
   float cpuLoad;
+  uint32_t voiceAge;  // Global counter for voice stealing
   
   FXParams fx;
   uint8_t masterVolume; // 0-100
@@ -177,10 +177,6 @@ private:
   bool trackFilterActive[MAX_AUDIO_TRACKS];
   FXParams padFilters[MAX_PADS];            // Filters for live pads
   bool padFilterActive[MAX_PADS];
-  
-  // Visualization buffers
-  int16_t captureBuffer[256];
-  uint8_t captureIndex;
   
   void fillBuffer(int16_t* buffer, size_t samples);
   int findFreeVoice();

@@ -14,112 +14,22 @@ Sequencer::Sequencer() :
   stepCallback(nullptr),
   stepChangeCallback(nullptr) {
   
-  // Initialize all patterns
+  // Initialize all patterns to clean state
+  memset(steps, 0, sizeof(steps));
   for (int p = 0; p < MAX_PATTERNS; p++) {
     for (int t = 0; t < MAX_TRACKS; t++) {
       for (int s = 0; s < STEPS_PER_PATTERN; s++) {
-        steps[p][t][s] = false;
         velocities[p][t][s] = 127;
       }
-      if (p == 0) {
-        trackMuted[t] = false;
-        trackVolume[t] = 100; // Default volume 100%
-        loopActive[t] = false;
-        loopPaused[t] = false;
-      }
     }
   }
   
-  // Patrón 0: Ritmo básico 808 con dinámicas variadas
-  // BD (0): Kick en 1,5,9,13 - acentos en 1 y 9
-  steps[0][0][0] = true; velocities[0][0][0] = 127;  // Acento fuerte
-  steps[0][0][4] = true; velocities[0][0][4] = 100;  // Medio
-  steps[0][0][8] = true; velocities[0][0][8] = 127;  // Acento fuerte
-  steps[0][0][12] = true; velocities[0][0][12] = 90;  // Suave
-  
-  // SD (1): Snare en 4,12 - ghost notes en 6,14
-  steps[0][1][4] = true; velocities[0][1][4] = 127;   // Acento fuerte
-  steps[0][1][6] = true; velocities[0][1][6] = 60;    // Ghost note
-  steps[0][1][12] = true; velocities[0][1][12] = 127; // Acento fuerte
-  steps[0][1][14] = true; velocities[0][1][14] = 70;  // Ghost note suave
-  
-  // CH (2): Hi-hat 16ths con swing y acentos
-  for (int s = 0; s < 16; s++) {
-    steps[0][2][s] = true;
-    if (s % 4 == 0) velocities[0][2][s] = 110;      // Tiempo fuerte
-    else if (s % 2 == 0) velocities[0][2][s] = 85;  // Off-beat
-    else velocities[0][2][s] = 65;                  // 16ths suaves
+  for (int t = 0; t < MAX_TRACKS; t++) {
+    trackMuted[t] = false;
+    trackVolume[t] = 100;
+    loopActive[t] = false;
+    loopPaused[t] = false;
   }
-  
-  // OH (3): Open hat en off-beats asincopados
-  steps[0][3][2] = true; velocities[0][3][2] = 90;
-  steps[0][3][6] = true; velocities[0][3][6] = 100;
-  steps[0][3][10] = true; velocities[0][3][10] = 80;
-  steps[0][3][14] = true; velocities[0][3][14] = 95;
-  
-  // CP (4): Clap en 4,12 con doble tap
-  steps[0][4][4] = true; velocities[0][4][4] = 110;
-  steps[0][4][12] = true; velocities[0][4][12] = 110;
-  
-  // RS (5): Rimshot asincopado
-  steps[0][5][3] = true; velocities[0][5][3] = 80;
-  steps[0][5][7] = true; velocities[0][5][7] = 70;
-  steps[0][5][11] = true; velocities[0][5][11] = 90;
-  steps[0][5][15] = true; velocities[0][5][15] = 75;
-  
-  // Patrón 1: Ritmo Afro-Cuban / Tresillo
-  // BD: Patrón 3-3-2
-  steps[1][0][0] = true; velocities[1][0][0] = 127;
-  steps[1][0][3] = true; velocities[1][0][3] = 100;
-  steps[1][0][6] = true; velocities[1][0][6] = 120;
-  steps[1][0][8] = true; velocities[1][0][8] = 110;
-  steps[1][0][11] = true; velocities[1][0][11] = 95;
-  steps[1][0][14] = true; velocities[1][0][14] = 115;
-  
-  // SD: Clave pattern
-  steps[1][1][0] = true; velocities[1][1][0] = 110;
-  steps[1][1][3] = true; velocities[1][1][3] = 100;
-  steps[1][1][6] = true; velocities[1][1][6] = 90;
-  steps[1][1][10] = true; velocities[1][1][10] = 105;
-  steps[1][1][12] = true; velocities[1][1][12] = 95;
-  
-  // CH: Patrón sincopado
-  for (int s = 0; s < 16; s++) {
-    if (s % 3 == 0) {
-      steps[1][2][s] = true;
-      velocities[1][2][s] = (s % 6 == 0) ? 100 : 75;
-    }
-  }
-  
-  // Patrón 2: Breakbeat con shuffle
-  // BD: Groovy pattern
-  steps[2][0][0] = true; velocities[2][0][0] = 127;
-  steps[2][0][2] = true; velocities[2][0][2] = 70;   // Ghost
-  steps[2][0][5] = true; velocities[2][0][5] = 95;
-  steps[2][0][7] = true; velocities[2][0][7] = 85;
-  steps[2][0][10] = true; velocities[2][0][10] = 100;
-  steps[2][0][13] = true; velocities[2][0][13] = 75;
-  steps[2][0][15] = true; velocities[2][0][15] = 90;
-  
-  // SD: Backbeat con flams
-  steps[2][1][3] = true; velocities[2][1][3] = 60;   // Flam ghost
-  steps[2][1][4] = true; velocities[2][1][4] = 127;  // Backbeat
-  steps[2][1][11] = true; velocities[2][1][11] = 65; // Flam ghost
-  steps[2][1][12] = true; velocities[2][1][12] = 127;// Backbeat
-  
-  // CH: Shuffle pattern (swing)
-  for (int s = 0; s < 16; s += 2) {
-    steps[2][2][s] = true;
-    velocities[2][2][s] = (s % 4 == 0) ? 100 : 70;
-    if (s < 15) {
-      steps[2][2][s+1] = true;
-      velocities[2][2][s+1] = 50; // Shuffle note suave
-    }
-  }
-  
-  // OH: Acentos en off-beats
-  steps[2][3][6] = true; velocities[2][3][6] = 95;
-  steps[2][3][14] = true; velocities[2][3][14] = 100;
   
   calculateStepInterval();
 }
@@ -150,11 +60,8 @@ bool Sequencer::isPlaying() {
 void Sequencer::setTempo(float bpm) {
   if (bpm < 40.0f) bpm = 40.0f;
   if (bpm > 300.0f) bpm = 300.0f;
-  
   tempo = bpm;
   calculateStepInterval();
-  
-  Serial.printf("Tempo set to %.1f BPM\n", tempo);
 }
 
 float Sequencer::getTempo() {
@@ -268,20 +175,14 @@ void Sequencer::clearTrack(int track) {
 void Sequencer::setStepVelocity(int track, int step, uint8_t velocity) {
   if (track < 0 || track >= MAX_TRACKS) return;
   if (step < 0 || step >= STEPS_PER_PATTERN) return;
-  
   velocities[currentPattern][track][step] = constrain(velocity, 1, 127);
-  Serial.printf("Pattern %d, Track %d, Step %d velocity set to %d\n", 
-                currentPattern, track, step, velocity);
 }
 
 void Sequencer::setStepVelocity(int pattern, int track, int step, uint8_t velocity) {
   if (pattern < 0 || pattern >= MAX_PATTERNS) return;
   if (track < 0 || track >= MAX_TRACKS) return;
   if (step < 0 || step >= STEPS_PER_PATTERN) return;
-  
   velocities[pattern][track][step] = constrain(velocity, 1, 127);
-  Serial.printf("Pattern %d, Track %d, Step %d velocity set to %d\n", 
-                pattern, track, step, velocity);
 }
 
 uint8_t Sequencer::getStepVelocity(int track, int step) {
@@ -309,7 +210,6 @@ void Sequencer::selectPattern(int pattern) {
 void Sequencer::muteTrack(int track, bool muted) {
   if (track >= 0 && track < MAX_TRACKS) {
     trackMuted[track] = muted;
-    Serial.printf("Track %d %s\n", track, muted ? "MUTED" : "UNMUTED");
   }
 }
 
@@ -323,7 +223,6 @@ bool Sequencer::isTrackMuted(int track) {
 void Sequencer::setTrackVolume(int track, uint8_t volume) {
   if (track >= 0 && track < MAX_TRACKS) {
     trackVolume[track] = constrain(volume, 0, 150);
-    Serial.printf("Track %d volume set to %d%%\n", track, trackVolume[track]);
   }
 }
 

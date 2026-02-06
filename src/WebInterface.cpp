@@ -231,34 +231,30 @@ WebInterface::~WebInterface() {
 }
 
 bool WebInterface::begin(const char* ssid, const char* password) {
-  // Inicio del WiFi con configuración estable
   Serial.println("  Configurando WiFi...");
   
-  // Desactivar ahorro de energía WiFi
+  // Desactivar ahorro de energía WiFi para mínima latencia
   WiFi.setSleep(false);
   
   WiFi.mode(WIFI_OFF);
-  delay(200);
-  
-  Serial.println("  Activando modo AP...");
-  WiFi.mode(WIFI_AP);
-  delay(200);
-  
-  // Potencia aumentada (17dBm) para mejor alcance y velocidad
-  Serial.println("  Configurando potencia TX optimizada (17dBm)...");
-  WiFi.setTxPower(WIFI_POWER_17dBm);
   delay(100);
   
-  // IP fija para evitar conflictos
+  WiFi.mode(WIFI_AP);
+  delay(100);
+  
+  // Potencia TX moderada - 19.5dBm puede causar inestabilidad por consumo
+  WiFi.setTxPower(WIFI_POWER_17dBm);
+  delay(50);
+  
+  // IP fija
   IPAddress local_IP(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
   WiFi.softAPConfig(local_IP, gateway, subnet);
   
-  Serial.println("  Iniciando SoftAP...");
-  // Canal 1 (menos interferencias), no oculto, max 4 conexiones
-  WiFi.softAP(ssid, password, 1, 0, 4);
-  delay(500);
+  // Canal 6, SSID visible, max 4 conexiones
+  WiFi.softAP(ssid, password, 6, 0, 4);
+  delay(500);  // Más tiempo para estabilizar AP
   
   IPAddress IP = WiFi.softAPIP();
   Serial.print("RED808 AP IP: ");
@@ -700,55 +696,31 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
 }
 
 void WebInterface::broadcastSequencerState() {
-  if (!initialized || !ws) return;
+  if (!initialized || !ws || ws->count() == 0) return;
   
-  // RATE LIMITING AGRESIVO para prevenir watchdog timeouts
+  // Rate limiting - 5 per second max
   static unsigned long lastBroadcast = 0;
   unsigned long now = millis();
-  
-  // Mínimo 200ms entre broadcasts (5 por segundo máximo)
-  if (now - lastBroadcast < 200) {
-    return;
-  }
+  if (now - lastBroadcast < 200) return;
   lastBroadcast = now;
   
-  yield(); // Feed watchdog antes
-  
   StaticJsonDocument<6144> doc;
-  populateStateDocument(doc); // Ya tiene yields internos
-  
-  yield(); // Feed watchdog después de construir JSON
+  populateStateDocument(doc);
   
   String output;
   serializeJson(doc, output);
-  
-  yield(); // Feed watchdog antes de enviar
-  
   ws->textAll(output);
-  
-  yield(); // Feed watchdog después de enviar
 }
 
 void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
-  if (!initialized || !ws || !isClientReady(client)) {
-    return;
-  }
-  
-  yield(); // Feed watchdog antes
+  if (!initialized || !ws || !isClientReady(client)) return;
   
   StaticJsonDocument<6144> doc;
-  populateStateDocument(doc); // Ya tiene yields internos
-  
-  yield(); // Feed watchdog después de construir JSON
+  populateStateDocument(doc);
   
   String output;
   serializeJson(doc, output);
-  
-  yield(); // Feed watchdog antes de enviar
-  
   client->text(output);
-  
-  yield(); // Feed watchdog después de enviar
 }
 
 void WebInterface::broadcastPadTrigger(int pad) {
@@ -769,40 +741,43 @@ void WebInterface::broadcastPadTrigger(int pad) {
 }
 
 void WebInterface::broadcastStep(int step) {
-  if (!initialized || !ws) return;
-  // Mensaje ultra-compacto para mínima latencia
-  StaticJsonDocument<64> doc;
-  doc["type"] = "step";
-  doc["step"] = step;
-  doc["t"] = millis(); // timestamp para sincronización
-  
-  String output;
-  serializeJson(doc, output);
-  ws->textAll(output);
+  if (!initialized || !ws || ws->count() == 0) return;
+  // Ultra-compact step message for minimum latency
+  char buf[32];
+  int len = snprintf(buf, sizeof(buf), "{\"type\":\"step\",\"step\":%d}", step);
+  ws->textAll(buf, len);
 }
 
 void WebInterface::update() {
-  // Proteger contra llamadas antes de inicialización
   if (!initialized || !ws || !server) return;
   
-  // DESACTIVADO: cleanupClients() causa crashes con clientes recién conectados
-  // La librería maneja la limpieza automáticamente en segundo plano
-  // ws->cleanupClients();
+  unsigned long now = millis();
   
-  // Limpiar clientes UDP inactivos cada 10 segundos
-  static unsigned long lastCleanup = 0;
-  if (millis() - lastCleanup > 10000) {
-    cleanupStaleUdpClients();
-    lastCleanup = millis();
+  // Limpiar WebSocket clients desconectados cada 2 segundos
+  static unsigned long lastWsCleanup = 0;
+  if (now - lastWsCleanup > 2000) {
+    ws->cleanupClients(2);  // Max 2 clients
+    lastWsCleanup = now;
   }
   
-  // DESACTIVADO: Visualización ralentiza el sistema
-  // // Broadcast audio visualization data every 200ms (~5fps)
-  // static uint32_t lastVisUpdate = 0;
-  // if (millis() - lastVisUpdate > 200) {
-  //   broadcastVisualizationData();
-  //   lastVisUpdate = millis();
-  // }
+  // Limpiar clientes UDP inactivos cada 30 segundos
+  static unsigned long lastCleanup = 0;
+  if (now - lastCleanup > 30000) {
+    cleanupStaleUdpClients();
+    lastCleanup = now;
+  }
+  
+  // WiFi health check cada 10 segundos
+  static unsigned long lastWifiCheck = 0;
+  if (now - lastWifiCheck > 10000) {
+    lastWifiCheck = now;
+    if (WiFi.getMode() != WIFI_AP) {
+      Serial.println("[WiFi] AP mode lost! Restarting AP...");
+      WiFi.mode(WIFI_AP);
+      delay(100);
+      WiFi.softAP(WiFi.softAPSSID().c_str(), nullptr, 6, 0, 4);
+    }
+  }
 }
 
 String WebInterface::getIP() {
@@ -810,30 +785,8 @@ String WebInterface::getIP() {
 }
 
 void WebInterface::broadcastVisualizationData() {
-  // DESACTIVADO: No enviar datos de visualización para evitar saturación
+  // Disabled - removed for performance
   return;
-  
-  // if (!initialized || !ws) return;
-  // // Capture audio data
-  // uint8_t spectrum[64];
-  // uint8_t waveform[128];
-  // audioEngine.captureAudioData(spectrum, waveform);
-  // 
-  // // Build JSON message - reducido a 512 bytes y eliminado waveform
-  // StaticJsonDocument<512> doc;
-  // doc["type"] = "audioData";
-  // 
-  // // Solo spectrum, reducido a 32 bandas para evitar heap corruption
-  // JsonArray spectrumArray = doc.createNestedArray("spectrum");
-  // for (int i = 0; i < 32; i++) {
-  //   // Promediar cada 2 bandas para reducir de 64 a 32
-  //   int avg = (spectrum[i*2] + spectrum[i*2+1]) / 2;
-  //   spectrumArray.add(avg);
-  // }
-  // 
-  // String output;
-  // serializeJson(doc, output);
-  // ws->textAll(output);
 }
 
 // Procesar comandos JSON (compartido entre WebSocket y UDP)
@@ -841,96 +794,38 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   String cmd = doc["cmd"];
   
   if (cmd == "trigger") {
-    // Rate limiting: máximo 20 triggers/segundo con múltiples clientes
-    unsigned long now = millis();
-    if (ws && ws->count() > 1) {
-      if (now - lastTriggerTime < 50) {
-        return; // Ignorar trigger si es demasiado frecuente
-      }
-      lastTriggerTime = now;
-    }
-    
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 8) {
-      // Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad); // Comentado
-      return;
-    }
+    if (pad < 0 || pad >= 8) return;
     int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
-    
-    // Yield para evitar watchdog reset cuando sequencer está corriendo
-    yield();
-    
     triggerPadWithLED(pad, velocity);
-    broadcastPadTrigger(pad);
-    
-    // Yield adicional para dar tiempo al sistema
-    yield();
   }
   else if (cmd == "setStep") {
-    // Rate limiting: máximo 30 cambios/segundo con múltiples clientes
-    unsigned long now = millis();
-    if (ws && ws->count() > 1) {
-      if (now - lastStepChangeTime < 33) {
-        return; // Ignorar si es demasiado frecuente
-      }
-      lastStepChangeTime = now;
-    }
-    
     int track = doc["track"];
     int step = doc["step"];
-    if (track < 0 || track >= 8 || step < 0 || step >= 16) {
-      // Serial.printf("[WS] Invalid track %d or step %d\n", track, step); // Comentado
-      return;
-    }
-    
-    yield(); // Yield antes de modificar sequencer
-    
+    if (track < 0 || track >= 8 || step < 0 || step >= 16) return;
     bool active = doc["active"];
     sequencer.setStep(track, step, active);
-    
-    yield(); // Yield después de modificar
   }
   else if (cmd == "start") {
-    yield();
     sequencer.start();
-    yield();
-    // NO broadcast aquí - el sequencer ya hace callback que actualiza
-    // broadcastSequencerState(); // ELIMINADO para prevenir watchdog timeout
   }
   else if (cmd == "stop") {
-    yield();
     sequencer.stop();
-    yield();
-    // NO broadcast aquí - el sequencer ya hace callback que actualiza
-    // broadcastSequencerState(); // ELIMINADO para prevenir watchdog timeout
   }
   else if (cmd == "tempo") {
-    yield();
     float tempo = doc["value"];
     sequencer.setTempo(tempo);
-    yield();
   }
   else if (cmd == "selectPattern") {
-    yield();
-    
     int pattern = doc["index"];
     sequencer.selectPattern(pattern);
-    
-    // Delay mayor con múltiples clientes
-    if (ws && ws->count() > 1) {
-      delay(100);
-    } else {
-      delay(50);
-    }
     
     yield();
     
     // Enviar estado actualizado
     broadcastSequencerState();
     
-    yield();
-    
-    // Enviar datos del patrón (matriz de steps) - Solo 8 tracks activos
+    // Enviar datos del patrón (matriz de steps)
     StaticJsonDocument<3072> patternDoc;
     patternDoc["type"] = "pattern";
     patternDoc["index"] = pattern;
@@ -941,8 +836,6 @@ void WebInterface::processCommand(const JsonDocument& doc) {
         trackSteps.add(sequencer.getStep(track, step));
       }
     }
-    
-    yield(); // Yield entre operaciones pesadas
     
     JsonObject velocitiesObj = patternDoc.createNestedObject("velocities");
     for (int track = 0; track < 8; track++) {
@@ -955,28 +848,18 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     String patternOutput;
     serializeJson(patternDoc, patternOutput);
     ws->textAll(patternOutput);
-    
-    yield();
   }
   else if (cmd == "loadSample") {
-    yield(); // Yield antes de operación pesada
-    
     const char* family = doc["family"];
     const char* filename = doc["filename"];
     int padIndex = doc["pad"];
-    if (padIndex < 0 || padIndex >= 8) {
-      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", padIndex);
-      return;
-    }
+    if (padIndex < 0 || padIndex >= 8) return;
     
     String fullPath = String("/") + String(family) + String("/") + String(filename);
-    Serial.printf("[loadSample] Loading %s to pad %d\n", fullPath.c_str(), padIndex);
     
-    yield(); // Yield antes de cargar sample
+    yield();
     
     if (sampleManager.loadSample(fullPath.c_str(), padIndex)) {
-      yield(); // Yield después de cargar
-      
       StaticJsonDocument<256> responseDoc;
       responseDoc["type"] = "sampleLoaded";
       responseDoc["pad"] = padIndex;
@@ -987,10 +870,6 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       String output;
       serializeJson(responseDoc, output);
       if (ws) ws->textAll(output);
-      
-      // Serial.printf("[loadSample] Success! Size: %d bytes\n", sampleManager.getSampleLength(padIndex) * 2); // Comentado
-      
-      yield(); // Yield final
     }
   }
   else if (cmd == "mute") {
@@ -999,7 +878,6 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     yield();
     bool muted = doc["value"];
     sequencer.muteTrack(track, muted);
-    // Broadcast mute state to all clients for sync
     StaticJsonDocument<128> muteDoc;
     muteDoc["type"] = "trackMuted";
     muteDoc["track"] = track;
@@ -1007,7 +885,6 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     String muteOutput;
     serializeJson(muteDoc, muteOutput);
     if (ws) ws->textAll(muteOutput);
-    yield();
   }
   else if (cmd == "toggleLoop") {
     int track = doc["track"];
@@ -1371,64 +1248,32 @@ void WebInterface::cleanupStaleUdpClients() {
 // Manejar paquetes UDP entrantes
 void WebInterface::handleUdp() {
   int packetSize = udp.parsePacket();
-  if (packetSize > 0) {
-    yield(); // Feed watchdog antes de procesar
-    
-    char incomingPacket[512];
-    int len = udp.read(incomingPacket, 511);
-    if (len > 0) {
-      incomingPacket[len] = 0;
-      
-      // Serial.printf("[UDP] Received %d bytes from %s:%d\n",  // Comentado para performance
-      //               len, udp.remoteIP().toString().c_str(), udp.remotePort());
-      // Serial.printf("[UDP] Data: %s\n", incomingPacket); // Comentado
-      
-      // Registrar cliente UDP
-      updateUdpClient(udp.remoteIP(), udp.remotePort());
-      
-      yield(); // Feed watchdog antes de parsear JSON
-      
-      // Parsear JSON
-      StaticJsonDocument<512> doc;
-      DeserializationError error = deserializeJson(doc, incomingPacket);
-      
-      if (!error) {
-        yield(); // Feed watchdog antes de procesar comando
-        
-        // Procesar comando usando la función común
-        processCommand(doc);
-        
-        yield(); // Feed watchdog después de procesar
-        
-        // Enviar respuesta OK al cliente UDP
-        StaticJsonDocument<64> responseDoc;
-        responseDoc["status"] = "ok";
-        String response;
-        serializeJson(responseDoc, response);
-        
-        udp.beginPacket(udp.remoteIP(), udp.remotePort());
-        udp.write((const uint8_t*)response.c_str(), response.length());
-        udp.endPacket();
-        
-        yield(); // Feed watchdog después de enviar respuesta
-      } else {
-        // Serial.printf("[UDP] JSON parse error: %s\n", error.c_str()); // Comentado
-        
-        // Enviar error al cliente
-        udp.beginPacket(udp.remoteIP(), udp.remotePort());
-        udp.print("{\"status\":\"error\",\"msg\":\"Invalid JSON\"}");
-        udp.endPacket();
-      }
-    }
-    
-    yield(); // Feed watchdog al final
-  }
+  if (packetSize <= 0) return;
   
-  // Cleanup cada 30 segundos en lugar de cada llamada
-  static unsigned long lastCleanup = 0;
-  if (millis() - lastCleanup > 30000) {
-    cleanupStaleUdpClients();
-    lastCleanup = millis();
+  char incomingPacket[512];
+  int len = udp.read(incomingPacket, 511);
+  if (len <= 0) return;
+  
+  incomingPacket[len] = 0;
+  
+  // Registrar cliente UDP
+  updateUdpClient(udp.remoteIP(), udp.remotePort());
+  
+  // Parsear JSON
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, incomingPacket);
+  
+  if (!error) {
+    processCommand(doc);
+    
+    // Respuesta compacta
+    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+    udp.print("{\"s\":\"ok\"}");
+    udp.endPacket();
+  } else {
+    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+    udp.print("{\"s\":\"err\"}");
+    udp.endPacket();
   }
 }
 
