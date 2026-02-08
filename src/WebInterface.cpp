@@ -68,6 +68,8 @@ static void populateStateDocument(StaticJsonDocument<6144>& doc) {
   doc["samplesLoaded"] = sampleManager.getLoadedSamplesCount();
   doc["memoryUsed"] = sampleManager.getTotalMemoryUsed();
   doc["psramFree"] = sampleManager.getFreePSRAM();
+  doc["songMode"] = sequencer.isSongMode();
+  doc["songLength"] = sequencer.getSongLength();
 
   yield(); // Yield temprano
 
@@ -758,6 +760,16 @@ void WebInterface::broadcastStep(int step) {
   ws->textAll(buf, len);
 }
 
+void WebInterface::broadcastSongPattern(int pattern, int songLength) {
+  if (!initialized || !ws || ws->count() == 0) return;
+  // Notify clients about pattern change in song mode
+  char buf[80];
+  int len = snprintf(buf, sizeof(buf), 
+    "{\"type\":\"songPattern\",\"pattern\":%d,\"songLength\":%d}", 
+    pattern, songLength);
+  ws->textAll(buf, len);
+}
+
 void WebInterface::update() {
   if (!initialized || !ws || !server) return;
   
@@ -814,7 +826,19 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int step = doc["step"];
     if (track < 0 || track >= 8 || step < 0 || step >= 16) return;
     bool active = doc["active"];
-    sequencer.setStep(track, step, active);
+    // Support writing to a specific pattern (for multi-pattern MIDI import)
+    if (doc.containsKey("pattern")) {
+      int pattern = doc["pattern"].as<int>();
+      if (pattern >= 0 && pattern < MAX_PATTERNS) {
+        int savedPattern = sequencer.getCurrentPattern();
+        sequencer.selectPattern(pattern);
+        sequencer.setStep(track, step, active);
+        sequencer.selectPattern(savedPattern);
+        yield(); // Prevent watchdog reset during bulk import
+      }
+    } else {
+      sequencer.setStep(track, step, active);
+    }
   }
   else if (cmd == "start") {
     sequencer.start();
@@ -825,7 +849,15 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "clearPattern") {
     int pattern = doc.containsKey("pattern") ? doc["pattern"].as<int>() : sequencer.getCurrentPattern();
     sequencer.clearPattern(pattern);
+    yield(); // Prevent watchdog reset during bulk operations
     Serial.printf("[WS] Pattern %d cleared\n", pattern);
+  }
+  else if (cmd == "setSongMode") {
+    bool enabled = doc["enabled"];
+    int length = doc.containsKey("length") ? doc["length"].as<int>() : 1;
+    sequencer.setSongLength(length);
+    sequencer.setSongMode(enabled);
+    broadcastSequencerState();
   }
   else if (cmd == "tempo") {
     float tempo = doc["value"];
@@ -998,7 +1030,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
       return;
     }
-    int filterType = doc["filterType"];
+    int filterType = doc.containsKey("type") ? doc["type"].as<int>() : doc["filterType"].as<int>();
     float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
     float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
     float gain = doc.containsKey("gain") ? doc["gain"].as<float>() : 0.0f;
@@ -1044,7 +1076,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
       return;
     }
-    int filterType = doc["filterType"];
+    int filterType = doc.containsKey("type") ? doc["type"].as<int>() : doc["filterType"].as<int>();
     float cutoff = doc.containsKey("cutoff") ? doc["cutoff"].as<float>() : 1000.0f;
     float resonance = doc.containsKey("resonance") ? doc["resonance"].as<float>() : 1.0f;
     float gain = doc.containsKey("gain") ? doc["gain"].as<float>() : 0.0f;
@@ -1110,9 +1142,21 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       return;
     }
     
-    sequencer.setStepVelocity(track, step, velocity);
+    // Support writing to a specific pattern
+    bool isBulkImport = doc.containsKey("pattern");
+    if (isBulkImport) {
+      int pattern = doc["pattern"].as<int>();
+      if (pattern >= 0 && pattern < MAX_PATTERNS) {
+        sequencer.setStepVelocity(pattern, track, step, velocity);
+        yield(); // Prevent watchdog reset during bulk import
+      }
+      // Skip broadcast during bulk import to avoid WebSocket buffer overflow
+      return;
+    } else {
+      sequencer.setStepVelocity(track, step, velocity);
+    }
     
-    // Broadcast to all clients
+    // Broadcast to all clients (only for single-step changes, not bulk import)
     StaticJsonDocument<128> responseDoc;
     responseDoc["type"] = "stepVelocitySet";
     responseDoc["track"] = track;

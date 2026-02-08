@@ -271,6 +271,10 @@ void setup() {
     sequencer.setStepChangeCallback([](int newStep) {
         webInterface.broadcastStep(newStep);
     });
+    // Callback para cambio de patrón en song mode
+    sequencer.setPatternChangeCallback([](int newPattern, int songLength) {
+        webInterface.broadcastSongPattern(newPattern, songLength);
+    });
     sequencer.setTempo(110); // BPM inicial
     
     // === PATRÓN 0: HIP HOP BOOM BAP (8 tracks) ===

@@ -39,6 +39,7 @@ public:
   void sendSequencerStateToClient(AsyncWebSocketClient* client);
   void broadcastPadTrigger(int pad);
   void broadcastStep(int step);
+  void broadcastSongPattern(int pattern, int songLength);
   void broadcastVisualizationData();
   
   // MIDI functions

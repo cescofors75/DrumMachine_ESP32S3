@@ -54,16 +54,16 @@ const padDescriptions = [
 
 // Filter types for track filter panel
 const FILTER_TYPES = [
-    { icon: '⭕', name: 'NONE' },
-    { icon: '🔽', name: 'LOW PASS' },
-    { icon: '🔼', name: 'HIGH PASS' },
-    { icon: '🎯', name: 'BAND PASS' },
-    { icon: '🚫', name: 'NOTCH' },
-    { icon: '📊', name: 'LOW SHELF' },
-    { icon: '📈', name: 'HIGH SHELF' },
-    { icon: '⛰️', name: 'PEAK' },
-    { icon: '🌀', name: 'ALL PASS' },
-    { icon: '💫', name: 'RESONANT' }
+    { icon: '🚫', name: 'OFF' },
+    { icon: '🔥', name: 'LOW PASS' },
+    { icon: '✨', name: 'HIGH PASS' },
+    { icon: '📞', name: 'BAND PASS' },
+    { icon: '🕳️', name: 'NOTCH CUT' },
+    { icon: '🔊', name: 'BASS BOOST' },
+    { icon: '🌟', name: 'TREBLE BOOST' },
+    { icon: '⛰️', name: 'PEAK BOOST' },
+    { icon: '🌀', name: 'PHASE' },
+    { icon: '⚡', name: 'RESONANT' }
 ];
 window.FILTER_TYPES = FILTER_TYPES;
 
@@ -165,6 +165,9 @@ function handleWebSocketMessage(data) {
             break;
         case 'step':
             updateCurrentStep(data.step);
+            break;
+        case 'songPattern':
+            handleSongPatternChange(data.pattern, data.songLength);
             break;
         case 'pad':
             flashPad(data.pad);
@@ -1955,7 +1958,106 @@ function updateSequencerState(data) {
             }, 100);
         }
     }
+    
+    // Update song mode state
+    if (data.songMode !== undefined) {
+        updateSongModeUI(data.songMode, data.songLength || 1, data.pattern || 0);
+    }
 }
+
+// ============= SONG MODE UI =============
+
+let songModeActive = false;
+let songLength = 1;
+let currentSongBar = 0;
+
+function updateSongModeUI(enabled, length, currentPattern) {
+    songModeActive = enabled;
+    songLength = length;
+    currentSongBar = currentPattern;
+    
+    const navigator = document.getElementById('songBarNavigator');
+    if (!navigator) return;
+    
+    if (!enabled) {
+        navigator.style.display = 'none';
+        return;
+    }
+    
+    navigator.style.display = 'block';
+    
+    // Update bar indicator
+    const barLabel = document.getElementById('songCurrentBar');
+    if (barLabel) {
+        barLabel.textContent = `Bar ${currentPattern + 1}/${length}`;
+    }
+    
+    // Generate bar buttons
+    const buttonsContainer = document.getElementById('songBarButtons');
+    if (buttonsContainer) {
+        buttonsContainer.innerHTML = '';
+        for (let i = 0; i < length; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'song-bar-btn' + (i === currentPattern ? ' active' : '');
+            btn.textContent = i + 1;
+            btn.title = `Bar ${i + 1}`;
+            btn.addEventListener('click', () => {
+                sendWebSocket({ cmd: 'selectPattern', index: i });
+                // Update local state immediately
+                updateSongBarHighlight(i);
+                // Request pattern data
+                setTimeout(() => sendWebSocket({ cmd: 'getPattern' }), 50);
+            });
+            buttonsContainer.appendChild(btn);
+        }
+    }
+}
+
+function updateSongBarHighlight(barIndex) {
+    currentSongBar = barIndex;
+    const buttons = document.querySelectorAll('.song-bar-btn');
+    buttons.forEach((btn, i) => {
+        btn.classList.toggle('active', i === barIndex);
+    });
+    const barLabel = document.getElementById('songCurrentBar');
+    if (barLabel) {
+        barLabel.textContent = `Bar ${barIndex + 1}/${songLength}`;
+    }
+}
+
+function handleSongPatternChange(pattern, songLen) {
+    // Called when ESP32 auto-advances pattern in song mode
+    songModeActive = true;
+    songLength = songLen;
+    updateSongBarHighlight(pattern);
+    
+    // Request new pattern data for display
+    sendWebSocket({ cmd: 'getPattern' });
+    
+    // Update pattern button in controls tab
+    document.querySelectorAll('.btn-pattern').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.pattern) === pattern);
+    });
+    
+    // Update pattern name display
+    const patternName = `BAR ${pattern + 1}`;
+    const patternNameEl = document.getElementById('currentPatternName');
+    if (patternNameEl) patternNameEl.textContent = patternName;
+    const circularPatternName = document.getElementById('circularPatternName');
+    if (circularPatternName) circularPatternName.textContent = patternName;
+}
+
+function exitSongMode() {
+    sendWebSocket({ cmd: 'setSongMode', enabled: false, length: 1 });
+    songModeActive = false;
+    const navigator = document.getElementById('songBarNavigator');
+    if (navigator) navigator.style.display = 'none';
+}
+
+// Callback for midi-import.js to trigger song mode UI
+window.onSongModeActivated = function(length) {
+    updateSongModeUI(true, length, 0);
+};
 
 // Send WebSocket message
 function sendWebSocket(data) {
@@ -2030,6 +2132,13 @@ function setupKeyboardControls() {
     window.keyboardPadsActive = keyboardPadsActive;
     window.startKeyboardTremolo = startKeyboardTremolo;
     window.stopKeyboardTremolo = stopKeyboardTremolo;
+    window.exitSongMode = exitSongMode;
+    
+    // Song mode exit button
+    const songExitBtn = document.getElementById('songModeExitBtn');
+    if (songExitBtn) {
+        songExitBtn.addEventListener('click', exitSongMode);
+    }
     
     // Export pad filter functions and state
     window.padFilterState = padFilterState;
@@ -2569,12 +2678,17 @@ function updatePadInfo(data) {
 // ============= FILTER PRESET SYSTEM =============
 
 // Apply filter preset from FX library
-function applyFilterPreset(filterType, cutoffFreq) {
-    // Default resonance for presets
-    const resonance = filterType === 9 ? 10.0 : 1.5; // Resonant filter gets high Q
+// Now accepts optional resonance and gain for more impactful presets
+function applyFilterPreset(filterType, cutoffFreq, customResonance, customGain) {
+    // Use custom values if provided, otherwise sensible defaults per filter type
+    const defaultQ = {0:1, 1:2.0, 2:2.0, 3:3.0, 4:4.0, 5:1.0, 6:1.0, 7:3.0, 8:2.0, 9:10.0};
+    const resonance = customResonance || defaultQ[filterType] || 1.5;
+    const gain = customGain || (filterType >= 5 && filterType <= 7 ? 6.0 : 0.0);
     
-    const filterNames = ['NONE', 'LOW PASS', 'HIGH PASS', 'BAND PASS', 'NOTCH', 
-                        'LOW SHELF', 'HIGH SHELF', 'PEAK', 'ALL PASS', 'RESONANT'];
+    const filterNames = ['OFF', 'LOW PASS', 'HIGH PASS', 'BAND PASS', 'NOTCH CUT', 
+                        'BASS BOOST', 'TREBLE BOOST', 'PEAK BOOST', 'PHASE', 'RESONANT'];
+    const filterIcons = ['🚫', '🔥', '✨', '📞', '🕳️', '🔊', '🌟', '⛰️', '🌀', '⚡'];
+    const filterColors = ['', '#ff6600', '#00ccff', '#ff00ff', '#888888', '#ff4444', '#44ff44', '#ffaa00', '#aa44ff', '#ff0044'];
     
     // Check if track is selected
     if (window.selectedTrack !== null && window.selectedTrack !== undefined) {
@@ -2586,12 +2700,14 @@ function applyFilterPreset(filterType, cutoffFreq) {
             track: track,
             type: filterType,
             cutoff: cutoffFreq,
-            resonance: resonance
+            resonance: resonance,
+            gain: gain
         });
         
         if (window.showToast) {
+            const freqStr = cutoffFreq >= 1000 ? (cutoffFreq/1000).toFixed(1)+'kHz' : cutoffFreq+'Hz';
             window.showToast(
-                `Track ${track + 1} (${trackNames[track]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
+                `${filterIcons[filterType]} Track ${track + 1} (${trackNames[track]}): ${filterNames[filterType]} @ ${freqStr} Q:${resonance.toFixed(1)}`,
                 window.TOAST_TYPES?.SUCCESS || 'success',
                 2500
             );
@@ -2600,18 +2716,19 @@ function applyFilterPreset(filterType, cutoffFreq) {
         // Create or update badge on track label
         const trackLabel = document.querySelector(`.track-label[data-track="${track}"]`);
         if (trackLabel) {
-            // Remove ALL existing badges first to avoid duplicates
             trackLabel.querySelectorAll('.track-filter-badge').forEach(b => b.remove());
             
-            // Only create badge if filter type is NOT 0 (NONE) and is valid
             if (filterType > 0 && filterType < 10) {
-                // Create new badge with icon + initials
                 const badge = document.createElement('div');
                 badge.className = 'track-filter-badge';
-                const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
-                const filterInitials = ['', 'LP', 'HP', 'BP', 'NT', 'LS', 'HS', 'PK', 'AP', 'RS'];
+                const filterInitials = ['', 'LP', 'HP', 'BP', 'NT', 'BS', 'TB', 'PK', 'PH', 'RS'];
                 badge.innerHTML = `${filterIcons[filterType]} <span class="badge-initials">${filterInitials[filterType]}</span>`;
+                badge.style.borderColor = filterColors[filterType];
+                badge.style.boxShadow = `0 0 6px ${filterColors[filterType]}40`;
                 trackLabel.appendChild(badge);
+                // Pulse animation on apply
+                trackLabel.classList.add('filter-applied-pulse');
+                setTimeout(() => trackLabel.classList.remove('filter-applied-pulse'), 600);
             }
         }
         
@@ -2628,12 +2745,14 @@ function applyFilterPreset(filterType, cutoffFreq) {
             pad: pad,
             type: filterType,
             cutoff: cutoffFreq,
-            resonance: resonance
+            resonance: resonance,
+            gain: gain
         });
         
         if (window.showToast) {
+            const freqStr = cutoffFreq >= 1000 ? (cutoffFreq/1000).toFixed(1)+'kHz' : cutoffFreq+'Hz';
             window.showToast(
-                `Pad ${pad + 1} (${names[pad]}): ${filterNames[filterType]} @ ${cutoffFreq}Hz`,
+                `${filterIcons[filterType]} Pad ${pad + 1} (${names[pad]}): ${filterNames[filterType]} @ ${freqStr} Q:${resonance.toFixed(1)}`,
                 window.TOAST_TYPES?.SUCCESS || 'success',
                 2500
             );
@@ -2644,16 +2763,21 @@ function applyFilterPreset(filterType, cutoffFreq) {
         if (padElement) {
             let badge = padElement.querySelector('.pad-filter-badge');
             if (filterType === 0) {
-                // Remove badge if NONE
                 if (badge) badge.remove();
+                padElement.style.boxShadow = '';
             } else {
                 if (!badge) {
                     badge = document.createElement('div');
                     badge.className = 'pad-filter-badge';
                     padElement.appendChild(badge);
                 }
-                const filterIcons = ['⭕', '🔽', '🔼', '🎯', '🚫', '📊', '📈', '⛰️', '🌀', '💫'];
-                badge.innerHTML = `${filterIcons[filterType]} <span class="pad-num">${cutoffFreq}Hz</span>`;
+                badge.innerHTML = `${filterIcons[filterType]} <span class="pad-num">${filterNames[filterType]}</span>`;
+                badge.style.borderColor = filterColors[filterType];
+                // Add glow to pad when filter is active
+                padElement.style.boxShadow = `0 0 12px ${filterColors[filterType]}60, inset 0 0 8px ${filterColors[filterType]}20`;
+                // Pulse animation on apply
+                padElement.classList.add('filter-applied-pulse');
+                setTimeout(() => padElement.classList.remove('filter-applied-pulse'), 600);
             }
         }
         
@@ -2663,7 +2787,7 @@ function applyFilterPreset(filterType, cutoffFreq) {
     // No selection - show info toast
     if (window.showToast) {
         window.showToast(
-            'Selecciona un track (click en nombre) o pad (click en pad LIVE) primero',
+            '⚠️ Selecciona un track (click en nombre) o pad (click en pad LIVE) primero',
             window.TOAST_TYPES?.WARNING || 'warning',
             3000
         );

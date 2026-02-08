@@ -604,15 +604,15 @@ int AudioEngine::getActivePadFiltersCount() {
 const FilterPreset* AudioEngine::getFilterPreset(FilterType type) {
   static const FilterPreset presets[] = {
     {FILTER_NONE, 0.0f, 1.0f, 0.0f, "None"},
-    {FILTER_LOWPASS, 1000.0f, 1.0f, 0.0f, "Low Pass"},
-    {FILTER_HIGHPASS, 1000.0f, 1.0f, 0.0f, "High Pass"},
-    {FILTER_BANDPASS, 1000.0f, 2.0f, 0.0f, "Band Pass"},
-    {FILTER_NOTCH, 1000.0f, 2.0f, 0.0f, "Notch"},
-    {FILTER_ALLPASS, 1000.0f, 1.0f, 0.0f, "All Pass"},
-    {FILTER_PEAKING, 1000.0f, 2.0f, 6.0f, "Peaking EQ"},
-    {FILTER_LOWSHELF, 500.0f, 1.0f, 6.0f, "Low Shelf"},
-    {FILTER_HIGHSHELF, 4000.0f, 1.0f, 6.0f, "High Shelf"},
-    {FILTER_RESONANT, 1000.0f, 10.0f, 0.0f, "Resonant"}
+    {FILTER_LOWPASS, 800.0f, 3.0f, 0.0f, "Low Pass"},
+    {FILTER_HIGHPASS, 800.0f, 3.0f, 0.0f, "High Pass"},
+    {FILTER_BANDPASS, 1200.0f, 4.0f, 0.0f, "Band Pass"},
+    {FILTER_NOTCH, 1000.0f, 5.0f, 0.0f, "Notch"},
+    {FILTER_ALLPASS, 1000.0f, 3.0f, 0.0f, "All Pass"},
+    {FILTER_PEAKING, 1000.0f, 3.0f, 9.0f, "Peaking EQ"},
+    {FILTER_LOWSHELF, 200.0f, 1.0f, 9.0f, "Low Shelf"},
+    {FILTER_HIGHSHELF, 5000.0f, 1.0f, 8.0f, "High Shelf"},
+    {FILTER_RESONANT, 800.0f, 12.0f, 0.0f, "Resonant"}
   };
   
   if (type >= FILTER_NONE && type <= FILTER_RESONANT) {

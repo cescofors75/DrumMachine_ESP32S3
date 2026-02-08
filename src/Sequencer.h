@@ -56,6 +56,12 @@ public:
   void setTrackVolume(int track, uint8_t volume);
   uint8_t getTrackVolume(int track);
   
+  // Song mode (auto-chain patterns)
+  void setSongMode(bool enabled);
+  bool isSongMode();
+  void setSongLength(int length);
+  int getSongLength();
+  
   // Playback
   int getCurrentStep();
   
@@ -69,8 +75,10 @@ public:
   // Callbacks
   typedef void (*StepCallback)(int track, uint8_t velocity, uint8_t trackVolume);
   typedef void (*StepChangeCallback)(int newStep);
+  typedef void (*PatternChangeCallback)(int newPattern, int songLength);
   void setStepCallback(StepCallback callback);
   void setStepChangeCallback(StepChangeCallback callback);
+  void setPatternChangeCallback(PatternChangeCallback callback);
   
 private:
   // Pattern data: [pattern][track][step]
@@ -88,6 +96,11 @@ private:
   
   StepCallback stepCallback;
   StepChangeCallback stepChangeCallback;
+  PatternChangeCallback patternChangeCallback;
+  
+  // Song mode
+  bool songMode;
+  int songLength; // 1-16 pattern count for song
   
   // Loop system
   bool loopActive[MAX_TRACKS];

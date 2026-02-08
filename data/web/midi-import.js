@@ -423,6 +423,8 @@ function gmDrumName(note) {
 let parsedMidiData = null;
 let currentImportBar = 0;
 let currentImportChannel = -1; // -1 = auto detect
+let importAllBars = true; // Default: import all bars (song mode)
+let lastMidiFileName = ''; // Store MIDI file name for progress display
 
 function showMidiImportDialog() {
     // Remove existing dialog
@@ -460,12 +462,23 @@ function showMidiImportDialog() {
                         </select>
                     </div>
                     <div class="import-option-row">
-                        <label>Compás a importar:</label>
+                        <label>Modo importación:</label>
+                        <div class="import-mode-toggle">
+                            <button id="importModeAll" class="import-mode-btn active" onclick="setImportMode(true)">🎵 Canción completa</button>
+                            <button id="importModeSingle" class="import-mode-btn" onclick="setImportMode(false)">1️⃣ Un compás</button>
+                        </div>
+                    </div>
+                    <div class="import-option-row" id="barSelectorRow">
+                        <label>Compás a previsualizar:</label>
                         <div class="bar-selector">
                             <button class="bar-nav-btn" onclick="changeImportBar(-1)">◀</button>
                             <span id="barDisplay">1 / 1</span>
                             <button class="bar-nav-btn" onclick="changeImportBar(1)">▶</button>
                         </div>
+                    </div>
+                    <div id="songInfoRow" class="import-option-row song-info-row">
+                        <label>📋 Song Mode:</label>
+                        <span id="songModeInfo" class="song-mode-info">Se importarán X compases → Patterns 1-X</span>
                     </div>
                     <div class="import-option-row">
                         <label>Usar tempo del MIDI:</label>
@@ -483,7 +496,7 @@ function showMidiImportDialog() {
                 </div>
                 <div id="midiImportActions" class="midi-import-actions" style="display:none">
                     <button class="btn-import-cancel" onclick="closeMidiImportDialog()">Cancelar</button>
-                    <button class="btn-import-confirm" onclick="confirmMidiImport()">✅ Importar al Sequencer</button>
+                    <button class="btn-import-confirm" id="btnImportConfirm" onclick="confirmMidiImport()">🎵 Importar Canción</button>
                 </div>
             </div>
         </div>
@@ -535,8 +548,37 @@ function closeMidiImportDialog() {
     const dialog = document.getElementById('midiImportDialog');
     if (dialog) dialog.remove();
     parsedMidiData = null;
+    importAllBars = true;
     // Resume background animations
     document.body.classList.remove('midi-dialog-open');
+}
+
+function setImportMode(allBars) {
+    importAllBars = allBars;
+    document.getElementById('importModeAll').classList.toggle('active', allBars);
+    document.getElementById('importModeSingle').classList.toggle('active', !allBars);
+    
+    const songInfoRow = document.getElementById('songInfoRow');
+    const btnConfirm = document.getElementById('btnImportConfirm');
+    
+    if (allBars) {
+        songInfoRow.style.display = 'flex';
+        btnConfirm.textContent = '🎵 Importar Canción';
+        updateSongModeInfo();
+    } else {
+        songInfoRow.style.display = 'none';
+        btnConfirm.textContent = '✅ Importar Compás';
+    }
+}
+
+function updateSongModeInfo() {
+    if (!parsedMidiData) return;
+    const totalBars = getMidiTotalBars(parsedMidiData);
+    const barsToImport = Math.min(totalBars, 16); // Max 16 patterns
+    const infoEl = document.getElementById('songModeInfo');
+    if (infoEl) {
+        infoEl.textContent = `${barsToImport} compases → Patterns 1-${barsToImport}${totalBars > 16 ? ` (máx 16 de ${totalBars})` : ''}`;
+    }
 }
 
 function handleMidiFile(file) {
@@ -545,6 +587,7 @@ function handleMidiFile(file) {
         return;
     }
 
+    lastMidiFileName = file.name;
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -643,6 +686,10 @@ function showMidiFileInfo(file, midiData) {
     document.getElementById('midiImportOptions').style.display = 'block';
     document.getElementById('midiImportActions').style.display = 'flex';
 
+    // Set default import mode and show song info
+    setImportMode(true);
+    updateSongModeInfo();
+
     // Hide dropzone
     document.getElementById('midiDropzone').style.display = 'none';
 }
@@ -732,64 +779,250 @@ function updateMidiPreview() {
     document.getElementById('midiPreview').style.display = 'block';
 }
 
+// ============= IMPORT PROGRESS BAR =============
+
+function showImportProgress(fileName, totalBars) {
+    // Remove existing progress overlay if any
+    const existing = document.getElementById('midiProgressOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'midiProgressOverlay';
+    overlay.className = 'midi-progress-overlay';
+    overlay.innerHTML = `
+        <div class="midi-progress-card">
+            <div class="midi-progress-header">
+                <span class="midi-progress-icon">🎵</span>
+                <span class="midi-progress-title">Importando MIDI</span>
+            </div>
+            <div class="midi-progress-filename">${fileName}</div>
+            <div class="midi-progress-bar-container">
+                <div class="midi-progress-bar-fill" id="midiProgressFill"></div>
+            </div>
+            <div class="midi-progress-info">
+                <span id="midiProgressPercent">0%</span>
+                <span id="midiProgressBars">Compás 0 / ${totalBars}</span>
+            </div>
+            <div class="midi-progress-status" id="midiProgressStatus">Enviando patrones al secuenciador...</div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    
+    // Animate in
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+}
+
+function updateImportProgress(percent, currentBar, totalBars) {
+    const fill = document.getElementById('midiProgressFill');
+    const percentEl = document.getElementById('midiProgressPercent');
+    const barsEl = document.getElementById('midiProgressBars');
+    const statusEl = document.getElementById('midiProgressStatus');
+
+    if (fill) fill.style.width = percent + '%';
+    if (percentEl) percentEl.textContent = percent + '%';
+    if (barsEl) barsEl.textContent = `Compás ${currentBar} / ${totalBars}`;
+    
+    if (statusEl) {
+        if (percent < 30) {
+            statusEl.textContent = 'Enviando patrones al secuenciador...';
+        } else if (percent < 70) {
+            statusEl.textContent = 'Cargando notas y velocidades...';
+        } else if (percent < 95) {
+            statusEl.textContent = 'Casi listo...';
+        } else {
+            statusEl.textContent = 'Finalizando...';
+        }
+    }
+}
+
+function completeImportProgress(fileName, totalBars, totalNotes) {
+    const fill = document.getElementById('midiProgressFill');
+    const percentEl = document.getElementById('midiProgressPercent');
+    const barsEl = document.getElementById('midiProgressBars');
+    const statusEl = document.getElementById('midiProgressStatus');
+    const icon = document.querySelector('.midi-progress-icon');
+    const title = document.querySelector('.midi-progress-title');
+    const card = document.querySelector('.midi-progress-card');
+
+    if (fill) {
+        fill.style.width = '100%';
+        fill.classList.add('complete');
+    }
+    if (percentEl) percentEl.textContent = '100%';
+    if (barsEl) barsEl.textContent = `${totalBars} compases importados`;
+    if (statusEl) statusEl.textContent = `✅ ${totalNotes} notas mapeadas correctamente`;
+    if (icon) icon.textContent = '✅';
+    if (title) title.textContent = 'Importación Completa';
+    if (card) card.classList.add('complete');
+
+    // Auto close after 2.5 seconds
+    setTimeout(() => {
+        const overlay = document.getElementById('midiProgressOverlay');
+        if (overlay) {
+            overlay.classList.remove('visible');
+            setTimeout(() => overlay.remove(), 400);
+        }
+    }, 2500);
+}
+
 function confirmMidiImport() {
     if (!parsedMidiData) return;
 
-    const result = midiToPattern(parsedMidiData, {
-        bars: 1,
-        startBar: currentImportBar,
-        channel: currentImportChannel,
-        quantize: true
-    });
-
     // Apply tempo if checkbox is checked
     const useTempo = document.getElementById('useTempoCheckbox').checked;
-    if (useTempo && result.tempo > 0) {
-        sendWebSocket({ cmd: 'tempo', value: result.tempo });
+    if (useTempo && parsedMidiData.tempo > 0) {
+        sendWebSocket({ cmd: 'tempo', value: parsedMidiData.tempo });
         const tempoSlider = document.getElementById('tempoSlider');
         if (tempoSlider) {
-            tempoSlider.value = result.tempo;
+            tempoSlider.value = parsedMidiData.tempo;
             const tempoVal = document.getElementById('tempoValue');
-            if (tempoVal) tempoVal.textContent = result.tempo;
+            if (tempoVal) tempoVal.textContent = parsedMidiData.tempo;
         }
     }
 
-    // Clear current pattern first
-    sendWebSocket({ cmd: 'clearPattern' });
+    if (importAllBars) {
+        // === SONG MODE: Import all bars into sequential patterns ===
+        const totalBars = getMidiTotalBars(parsedMidiData);
+        const barsToImport = Math.min(totalBars, 16); // Max 16 patterns
+        let totalMapped = 0;
+        const midiFileName = lastMidiFileName || 'MIDI';
 
-    // Set each step
-    for (let track = 0; track < 8; track++) {
-        for (let step = 0; step < 16; step++) {
-            if (result.pattern[track][step]) {
-                sendWebSocket({
-                    cmd: 'setStep',
-                    track: track,
-                    step: step,
-                    active: true
-                });
-                // Set velocity
-                if (result.velocities[track][step] !== 127) {
-                    sendWebSocket({
-                        cmd: 'setStepVelocity',
-                        track: track,
-                        step: step,
-                        velocity: result.velocities[track][step]
-                    });
+        console.log(`[MIDI Import] Starting song import: ${barsToImport} bars`);
+
+        // Show progress overlay
+        showImportProgress(midiFileName, barsToImport);
+
+        // Queue commands with small delays to avoid flooding WebSocket
+        let cmdQueue = [];
+        // Mark bar boundaries for progress tracking
+        let barBoundaries = []; // index in cmdQueue where each bar starts
+
+        // Clear all patterns that will be used
+        for (let bar = 0; bar < barsToImport; bar++) {
+            cmdQueue.push({ cmd: 'clearPattern', pattern: bar });
+        }
+
+        // Generate patterns for all bars
+        for (let bar = 0; bar < barsToImport; bar++) {
+            barBoundaries.push(cmdQueue.length);
+            const result = midiToPattern(parsedMidiData, {
+                bars: 1,
+                startBar: bar,
+                channel: currentImportChannel,
+                quantize: true
+            });
+
+            totalMapped += result.mappedNotes;
+
+            for (let track = 0; track < 8; track++) {
+                for (let step = 0; step < 16; step++) {
+                    if (result.pattern[track][step]) {
+                        cmdQueue.push({
+                            cmd: 'setStep',
+                            pattern: bar,
+                            track: track,
+                            step: step,
+                            active: true
+                        });
+                        if (result.velocities[track][step] !== 127) {
+                            cmdQueue.push({
+                                cmd: 'setStepVelocity',
+                                pattern: bar,
+                                track: track,
+                                step: step,
+                                velocity: result.velocities[track][step]
+                            });
+                        }
+                    }
                 }
             }
         }
+
+        // Enable song mode
+        cmdQueue.push({ cmd: 'setSongMode', enabled: true, length: barsToImport });
+        // Select first pattern
+        cmdQueue.push({ cmd: 'selectPattern', index: 0 });
+
+        // Send commands in small batches with generous delays to avoid ESP32 crash
+        const BATCH_SIZE = 8; // Smaller batches to prevent WebSocket buffer overflow
+        let batchIndex = 0;
+
+        function sendBatch() {
+            const end = Math.min(batchIndex + BATCH_SIZE, cmdQueue.length);
+            for (let i = batchIndex; i < end; i++) {
+                sendWebSocket(cmdQueue[i]);
+            }
+            batchIndex = end;
+
+            // Update progress bar
+            const percent = Math.round((batchIndex / cmdQueue.length) * 100);
+            // Find which bar we're at
+            let currentBar = 0;
+            for (let b = barBoundaries.length - 1; b >= 0; b--) {
+                if (batchIndex >= barBoundaries[b]) { currentBar = b + 1; break; }
+            }
+            updateImportProgress(percent, currentBar, barsToImport);
+
+            if (batchIndex < cmdQueue.length) {
+                setTimeout(sendBatch, 120); // 120ms between batches (safer for ESP32)
+            } else {
+                // All sent - refresh pattern display after a delay
+                setTimeout(() => {
+                    sendWebSocket({ cmd: 'getPattern' });
+                    // Notify app.js about song mode
+                    if (typeof window.onSongModeActivated === 'function') {
+                        window.onSongModeActivated(barsToImport);
+                    }
+                    completeImportProgress(midiFileName, barsToImport, totalMapped);
+                }, 500);
+                console.log(`[MIDI Import] Song imported: ${barsToImport} bars, ${totalMapped} total notes, ${cmdQueue.length} commands sent`);
+            }
+        }
+
+        sendBatch();
+    } else {
+        // === SINGLE BAR MODE: Import one bar into current pattern ===
+        const result = midiToPattern(parsedMidiData, {
+            bars: 1,
+            startBar: currentImportBar,
+            channel: currentImportChannel,
+            quantize: true
+        });
+
+        // Clear current pattern first
+        sendWebSocket({ cmd: 'clearPattern' });
+
+        // Set each step
+        for (let track = 0; track < 8; track++) {
+            for (let step = 0; step < 16; step++) {
+                if (result.pattern[track][step]) {
+                    sendWebSocket({
+                        cmd: 'setStep',
+                        track: track,
+                        step: step,
+                        active: true
+                    });
+                    if (result.velocities[track][step] !== 127) {
+                        sendWebSocket({
+                            cmd: 'setStepVelocity',
+                            track: track,
+                            step: step,
+                            velocity: result.velocities[track][step]
+                        });
+                    }
+                }
+            }
+        }
+
+        // Request pattern refresh
+        setTimeout(() => {
+            sendWebSocket({ cmd: 'getPattern' });
+        }, 200);
+
+        console.log(`[MIDI Import] Single bar imported: bar ${currentImportBar + 1}, ${result.mappedNotes} notes mapped`);
     }
 
-    // Request pattern refresh
-    setTimeout(() => {
-        sendWebSocket({ cmd: 'getPattern' });
-    }, 200);
-
     closeMidiImportDialog();
-
-    // Show notification
-    const barNum = currentImportBar + 1;
-    console.log(`MIDI imported: bar ${barNum}, ${result.mappedNotes} notes mapped`);
 }
 
 // Export functions
@@ -797,3 +1030,5 @@ window.showMidiImportDialog = showMidiImportDialog;
 window.closeMidiImportDialog = closeMidiImportDialog;
 window.changeImportBar = changeImportBar;
 window.confirmMidiImport = confirmMidiImport;
+window.setImportMode = setImportMode;
+window.updateMidiPreview = updateMidiPreview;

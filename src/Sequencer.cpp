@@ -12,7 +12,10 @@ Sequencer::Sequencer() :
   tempo(120.0f),
   lastStepTime(0),
   stepCallback(nullptr),
-  stepChangeCallback(nullptr) {
+  stepChangeCallback(nullptr),
+  patternChangeCallback(nullptr),
+  songMode(false),
+  songLength(1) {
   
   // Initialize all patterns to clean state
   memset(steps, 0, sizeof(steps));
@@ -98,6 +101,19 @@ void Sequencer::update() {
     currentStep++;
     if (currentStep >= STEPS_PER_PATTERN) {
       currentStep = 0;
+      
+      // Song mode: auto-advance to next pattern
+      if (songMode && songLength > 1) {
+        int nextPattern = currentPattern + 1;
+        if (nextPattern >= songLength) {
+          nextPattern = 0; // Loop back to start
+        }
+        currentPattern = nextPattern;
+        Serial.printf("[Song] Advanced to pattern %d/%d\n", currentPattern + 1, songLength);
+        if (patternChangeCallback != nullptr) {
+          patternChangeCallback(currentPattern, songLength);
+        }
+      }
     }
   }
 }
@@ -261,6 +277,38 @@ void Sequencer::setStepCallback(StepCallback callback) {
 
 void Sequencer::setStepChangeCallback(StepChangeCallback callback) {
   stepChangeCallback = callback;
+}
+
+void Sequencer::setPatternChangeCallback(PatternChangeCallback callback) {
+  patternChangeCallback = callback;
+}
+
+// ============= SONG MODE =============
+
+void Sequencer::setSongMode(bool enabled) {
+  songMode = enabled;
+  if (songMode) {
+    // When entering song mode, start from pattern 0
+    currentPattern = 0;
+    Serial.printf("[Song] Song mode ON, length=%d patterns\n", songLength);
+  } else {
+    Serial.println("[Song] Song mode OFF");
+  }
+}
+
+bool Sequencer::isSongMode() {
+  return songMode;
+}
+
+void Sequencer::setSongLength(int length) {
+  if (length < 1) length = 1;
+  if (length > MAX_PATTERNS) length = MAX_PATTERNS;
+  songLength = length;
+  Serial.printf("[Song] Song length set to %d patterns\n", songLength);
+}
+
+int Sequencer::getSongLength() {
+  return songLength;
 }
 
 // ============= LOOP SYSTEM =============

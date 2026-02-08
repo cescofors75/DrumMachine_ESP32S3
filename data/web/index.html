@@ -120,6 +120,19 @@
                 </div>
                 
                 <div class="sequencer-grid-wrapper" id="sequencerContainer">
+                    <!-- Song Mode Bar Navigator -->
+                    <div class="song-bar-navigator" id="songBarNavigator" style="display:none">
+                        <div class="song-nav-header">
+                            <span class="song-nav-icon">🎵</span>
+                            <span class="song-nav-title">SONG MODE</span>
+                            <span class="song-nav-bar" id="songCurrentBar">Bar 1/1</span>
+                            <button class="song-nav-exit" id="songModeExitBtn" title="Desactivar Song Mode">✕</button>
+                        </div>
+                        <div class="song-bar-buttons" id="songBarButtons">
+                            <!-- Bar buttons generated dynamically -->
+                        </div>
+                    </div>
+                    
                     <div class="sequencer-grid" id="sequencerGrid">
                         <!-- 8 tracks x 16 steps -->
                     </div>
@@ -327,151 +340,151 @@
                 <!-- Filter Library with presets -->
                 <div class="filter-library">
                     <h3>📚 BIBLIOTECA DE FILTROS</h3>
-                    <p class="filter-description">Selecciona un filtro para track o pad. Usa F1-F10 (track) o Shift+F1-F10 (pad).</p>
+                    <p class="filter-description">Selecciona un track o pad primero, luego aplica un filtro. ¡Los presets tienen valores optimizados para que se noten!</p>
                     
                     <div class="filters-grid">
                         <!-- 0: NONE -->
-                        <div class="filter-card" data-filter="0">
+                        <div class="filter-card filter-card-none" data-filter="0">
                             <div class="filter-header">
-                                <span class="filter-icon">⭕</span>
-                                <span class="filter-title">NONE</span>
+                                <span class="filter-icon">🚫</span>
+                                <span class="filter-title">OFF</span>
                                 <span class="filter-key">F1</span>
                             </div>
-                            <p class="filter-desc">Sin filtro. Sonido original sin procesamiento.</p>
+                            <p class="filter-desc">Quitar filtro. Restaura sonido original.</p>
                         </div>
                         
-                        <!-- 1: LOW PASS -->
-                        <div class="filter-card" data-filter="1">
+                        <!-- 1: LOW PASS - Most famous, DJ style -->
+                        <div class="filter-card filter-card-warm" data-filter="1">
                             <div class="filter-header">
-                                <span class="filter-icon">🔽</span>
+                                <span class="filter-icon">🔥</span>
                                 <span class="filter-title">LOW PASS</span>
                                 <span class="filter-key">F2</span>
                             </div>
-                            <p class="filter-desc">Elimina frecuencias altas. Sonido más suave y oscuro.</p>
+                            <p class="filter-desc">El filtro más famoso. Quita agudos = sonido oscuro, profundo, tipo DJ.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(1, 500)" class="preset-btn">Dark (500Hz)</button>
-                                <button onclick="applyFilterPreset(1, 1500)" class="preset-btn">Warm (1.5kHz)</button>
-                                <button onclick="applyFilterPreset(1, 5000)" class="preset-btn">Natural (5kHz)</button>
+                                <button onclick="applyFilterPreset(1, 300, 4.0)" class="preset-btn preset-extreme">🌑 Muffled</button>
+                                <button onclick="applyFilterPreset(1, 800, 3.0)" class="preset-btn preset-warm">🔥 Warm</button>
+                                <button onclick="applyFilterPreset(1, 2500, 2.0)" class="preset-btn preset-subtle">☁️ Soft</button>
                             </div>
                         </div>
                         
                         <!-- 2: HIGH PASS -->
-                        <div class="filter-card" data-filter="2">
+                        <div class="filter-card filter-card-bright" data-filter="2">
                             <div class="filter-header">
-                                <span class="filter-icon">🔼</span>
+                                <span class="filter-icon">✨</span>
                                 <span class="filter-title">HIGH PASS</span>
                                 <span class="filter-key">F3</span>
                             </div>
-                            <p class="filter-desc">Elimina frecuencias bajas. Sonido más brillante y delgado.</p>
+                            <p class="filter-desc">Quita graves. Sonido fino, aéreo. Perfecto para hi-hats y snares.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(2, 100)" class="preset-btn">Subtle (100Hz)</button>
-                                <button onclick="applyFilterPreset(2, 400)" class="preset-btn">Thin (400Hz)</button>
-                                <button onclick="applyFilterPreset(2, 1000)" class="preset-btn">Air (1kHz)</button>
+                                <button onclick="applyFilterPreset(2, 200, 2.0)" class="preset-btn preset-subtle">🎵 Clean</button>
+                                <button onclick="applyFilterPreset(2, 800, 3.0)" class="preset-btn preset-warm">📻 Radio</button>
+                                <button onclick="applyFilterPreset(2, 2000, 4.0)" class="preset-btn preset-extreme">💎 Thin</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 9: RESONANT - The acid/synth filter -->
+                        <div class="filter-card filter-card-acid" data-filter="9">
+                            <div class="filter-header">
+                                <span class="filter-icon">⚡</span>
+                                <span class="filter-title">RESONANT</span>
+                                <span class="filter-key">F10</span>
+                            </div>
+                            <p class="filter-desc">¡Filtro ácido tipo TB-303! Resonancia extrema. El más dramático.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(9, 300, 15.0)" class="preset-btn preset-extreme">🧪 Acid</button>
+                                <button onclick="applyFilterPreset(9, 1000, 12.0)" class="preset-btn preset-warm">⚡ Electro</button>
+                                <button onclick="applyFilterPreset(9, 3000, 8.0)" class="preset-btn preset-subtle">💫 Laser</button>
                             </div>
                         </div>
                         
                         <!-- 3: BAND PASS -->
-                        <div class="filter-card" data-filter="3">
+                        <div class="filter-card filter-card-creative" data-filter="3">
                             <div class="filter-header">
-                                <span class="filter-icon">🎯</span>
+                                <span class="filter-icon">📞</span>
                                 <span class="filter-title">BAND PASS</span>
                                 <span class="filter-key">F4</span>
                             </div>
-                            <p class="filter-desc">Solo deja pasar un rango de frecuencias. Efecto "teléfono".</p>
+                            <p class="filter-desc">Solo un rango pasa. Efecto teléfono, walkie-talkie, lo-fi vintage.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(3, 800)" class="preset-btn">Lo-Fi (800Hz)</button>
-                                <button onclick="applyFilterPreset(3, 2000)" class="preset-btn">Radio (2kHz)</button>
-                                <button onclick="applyFilterPreset(3, 4000)" class="preset-btn">Vocal (4kHz)</button>
+                                <button onclick="applyFilterPreset(3, 600, 5.0)" class="preset-btn preset-extreme">📱 Phone</button>
+                                <button onclick="applyFilterPreset(3, 1500, 4.0)" class="preset-btn preset-warm">📻 Lo-Fi</button>
+                                <button onclick="applyFilterPreset(3, 4000, 3.0)" class="preset-btn preset-subtle">🎙️ Nasal</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 7: PEAKING EQ -->
+                        <div class="filter-card filter-card-boost" data-filter="7">
+                            <div class="filter-header">
+                                <span class="filter-icon">⛰️</span>
+                                <span class="filter-title">PEAK BOOST</span>
+                                <span class="filter-key">F8</span>
+                            </div>
+                            <p class="filter-desc">Realza una frecuencia. Da punch, presencia o brillo al sonido.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyFilterPreset(7, 100, 3.0, 10)" class="preset-btn preset-extreme">💥 Sub Punch</button>
+                                <button onclick="applyFilterPreset(7, 2500, 4.0, 9)" class="preset-btn preset-warm">👊 Attack</button>
+                                <button onclick="applyFilterPreset(7, 8000, 3.0, 8)" class="preset-btn preset-subtle">🔔 Bright</button>
                             </div>
                         </div>
                         
                         <!-- 4: NOTCH -->
-                        <div class="filter-card" data-filter="4">
+                        <div class="filter-card filter-card-cut" data-filter="4">
                             <div class="filter-header">
-                                <span class="filter-icon">🚫</span>
-                                <span class="filter-title">NOTCH</span>
+                                <span class="filter-icon">🕳️</span>
+                                <span class="filter-title">NOTCH CUT</span>
                                 <span class="filter-key">F5</span>
                             </div>
-                            <p class="filter-desc">Elimina frecuencias específicas. Útil para remover resonancias.</p>
+                            <p class="filter-desc">Elimina una frecuencia. Crea huecos en el sonido, efecto phaser.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(4, 1000)" class="preset-btn">Cut 1kHz</button>
-                                <button onclick="applyFilterPreset(4, 3000)" class="preset-btn">Cut 3kHz</button>
-                                <button onclick="applyFilterPreset(4, 8000)" class="preset-btn">Cut 8kHz</button>
+                                <button onclick="applyFilterPreset(4, 400, 6.0)" class="preset-btn preset-extreme">🎭 Hollow</button>
+                                <button onclick="applyFilterPreset(4, 1200, 4.0)" class="preset-btn preset-warm">🕳️ Scoop</button>
+                                <button onclick="applyFilterPreset(4, 5000, 5.0)" class="preset-btn preset-subtle">✂️ De-Ess</button>
                             </div>
                         </div>
                         
-                        <!-- 5: LOW SHELF -->
-                        <div class="filter-card" data-filter="5">
+                        <!-- 5: LOW SHELF (was 6) -->
+                        <div class="filter-card filter-card-boost" data-filter="5">
                             <div class="filter-header">
-                                <span class="filter-icon">📊</span>
-                                <span class="filter-title">LOW SHELF</span>
+                                <span class="filter-icon">🔊</span>
+                                <span class="filter-title">BASS BOOST</span>
                                 <span class="filter-key">F6</span>
                             </div>
-                            <p class="filter-desc">Aumenta o reduce graves por debajo de frecuencia. EQ de bajos.</p>
+                            <p class="filter-desc">Sube los graves. Más pegada en bombo y bajo. EQ estilo 808.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(5, 100)" class="preset-btn">Bass (100Hz)</button>
-                                <button onclick="applyFilterPreset(5, 300)" class="preset-btn">Low-Mid (300Hz)</button>
-                                <button onclick="applyFilterPreset(5, 800)" class="preset-btn">Body (800Hz)</button>
+                                <button onclick="applyFilterPreset(5, 80, 1.5, 10)" class="preset-btn preset-extreme">💣 808 Sub</button>
+                                <button onclick="applyFilterPreset(5, 200, 1.0, 8)" class="preset-btn preset-warm">🔊 Boom</button>
+                                <button onclick="applyFilterPreset(5, 500, 1.0, 6)" class="preset-btn preset-subtle">🥁 Body</button>
                             </div>
                         </div>
                         
-                        <!-- 6: HIGH SHELF -->
-                        <div class="filter-card" data-filter="6">
+                        <!-- 6: HIGH SHELF (was 7) -->
+                        <div class="filter-card filter-card-bright" data-filter="6">
                             <div class="filter-header">
-                                <span class="filter-icon">📈</span>
-                                <span class="filter-title">HIGH SHELF</span>
+                                <span class="filter-icon">🌟</span>
+                                <span class="filter-title">TREBLE BOOST</span>
                                 <span class="filter-key">F7</span>
                             </div>
-                            <p class="filter-desc">Aumenta o reduce agudos por encima de frecuencia. EQ de altos.</p>
+                            <p class="filter-desc">Sube los agudos. Más brillo, presencia y aire en el mix.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(6, 5000)" class="preset-btn">Presence (5kHz)</button>
-                                <button onclick="applyFilterPreset(6, 8000)" class="preset-btn">Bright (8kHz)</button>
-                                <button onclick="applyFilterPreset(6, 12000)" class="preset-btn">Air (12kHz)</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 7: PEAK -->
-                        <div class="filter-card" data-filter="7">
-                            <div class="filter-header">
-                                <span class="filter-icon">⛰️</span>
-                                <span class="filter-title">PEAK</span>
-                                <span class="filter-key">F8</span>
-                            </div>
-                            <p class="filter-desc">Realza frecuencia específica. Perfecto para resonancia y carácter.</p>
-                            <div class="filter-presets">
-                                <button onclick="applyFilterPreset(7, 1000)" class="preset-btn">Punch (1kHz)</button>
-                                <button onclick="applyFilterPreset(7, 3000)" class="preset-btn">Snappy (3kHz)</button>
-                                <button onclick="applyFilterPreset(7, 6000)" class="preset-btn">Crispy (6kHz)</button>
+                                <button onclick="applyFilterPreset(6, 3000, 1.0, 9)" class="preset-btn preset-extreme">🌟 Sizzle</button>
+                                <button onclick="applyFilterPreset(6, 6000, 1.0, 7)" class="preset-btn preset-warm">✨ Bright</button>
+                                <button onclick="applyFilterPreset(6, 10000, 1.0, 5)" class="preset-btn preset-subtle">🎐 Air</button>
                             </div>
                         </div>
                         
                         <!-- 8: ALL PASS -->
-                        <div class="filter-card" data-filter="8">
+                        <div class="filter-card filter-card-creative" data-filter="8">
                             <div class="filter-header">
                                 <span class="filter-icon">🌀</span>
-                                <span class="filter-title">ALL PASS</span>
+                                <span class="filter-title">PHASE</span>
                                 <span class="filter-key">F9</span>
                             </div>
-                            <p class="filter-desc">Cambia fase sin alterar volumen. Efecto phaser/comb.</p>
+                            <p class="filter-desc">Cambia la fase. Efecto phaser sutil. Interesante con otros filtros.</p>
                             <div class="filter-presets">
-                                <button onclick="applyFilterPreset(8, 500)" class="preset-btn">Phaser (500Hz)</button>
-                                <button onclick="applyFilterPreset(8, 2000)" class="preset-btn">Comb (2kHz)</button>
-                                <button onclick="applyFilterPreset(8, 8000)" class="preset-btn">Subtle (8kHz)</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 9: RESONANT -->
-                        <div class="filter-card" data-filter="9">
-                            <div class="filter-header">
-                                <span class="filter-icon">💫</span>
-                                <span class="filter-title">RESONANT</span>
-                                <span class="filter-key">F10</span>
-                            </div>
-                            <p class="filter-desc">Filtro con resonancia extrema. Sonido sintético y metálico.</p>
-                            <div class="filter-presets">
-                                <button onclick="applyFilterPreset(9, 400)" class="preset-btn">Deep (400Hz)</button>
-                                <button onclick="applyFilterPreset(9, 1500)" class="preset-btn">Classic (1.5kHz)</button>
-                                <button onclick="applyFilterPreset(9, 4000)" class="preset-btn">Acid (4kHz)</button>
+                                <button onclick="applyFilterPreset(8, 300, 5.0)" class="preset-btn preset-extreme">🌀 Deep</button>
+                                <button onclick="applyFilterPreset(8, 1500, 3.0)" class="preset-btn preset-warm">🔄 Medium</button>
+                                <button onclick="applyFilterPreset(8, 6000, 2.0)" class="preset-btn preset-subtle">💨 Light</button>
                             </div>
                         </div>
                     </div>
