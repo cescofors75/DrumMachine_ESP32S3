@@ -57,7 +57,7 @@ static bool readWavInfo(File& file, uint32_t& rate, uint16_t& channels, uint16_t
   return true;
 }
 
-static void populateStateDocument(StaticJsonDocument<8192>& doc) {
+static void populateStateDocument(DynamicJsonDocument& doc) {
   doc["type"] = "state";
   doc["playing"] = sequencer.isPlaying();
   doc["tempo"] = sequencer.getTempo();
@@ -334,7 +334,7 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   
   server->on("/api/getPattern", HTTP_GET, [](AsyncWebServerRequest *request){
     int pattern = sequencer.getCurrentPattern();
-    StaticJsonDocument<4096> doc;
+    DynamicJsonDocument doc(4096);
     
     for (int track = 0; track < 16; track++) {
       JsonArray trackSteps = doc.createNestedArray(String(track));
@@ -553,7 +553,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           
           if (cmd == "getPattern") {
             int pattern = sequencer.getCurrentPattern();
-            StaticJsonDocument<8192> responseDoc;
+            DynamicJsonDocument responseDoc(8192);
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
@@ -716,7 +716,7 @@ void WebInterface::broadcastSequencerState() {
   if (now - lastBroadcast < 200) return;
   lastBroadcast = now;
   
-  StaticJsonDocument<8192> doc;
+  DynamicJsonDocument doc(8192);
   populateStateDocument(doc);
   
   String output;
@@ -727,7 +727,7 @@ void WebInterface::broadcastSequencerState() {
 void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
   if (!initialized || !ws || !isClientReady(client)) return;
   
-  StaticJsonDocument<8192> doc;
+  DynamicJsonDocument doc(8192);
   populateStateDocument(doc);
   
   String output;
@@ -873,7 +873,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     broadcastSequencerState();
     
     // Enviar datos del patrón (matriz de steps)
-    StaticJsonDocument<8192> patternDoc;
+    DynamicJsonDocument patternDoc(8192);
     patternDoc["type"] = "pattern";
     patternDoc["index"] = pattern;
     

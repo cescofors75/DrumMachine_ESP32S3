@@ -5,40 +5,63 @@
 // ============================================
 
 // GM Drum Map: MIDI note -> pad index (16 pads)
+// Complete General MIDI Percussion Map (notes 27-87)
 // Pad 0:  BD (Bass Drum)     - Notes: 35, 36
 // Pad 1:  SD (Snare Drum)    - Notes: 38, 40
 // Pad 2:  CH (Closed Hi-Hat) - Notes: 42, 44
 // Pad 3:  OH (Open Hi-Hat)   - Notes: 46
-// Pad 4:  CY (Crash Cymbal)  - Notes: 49, 51, 52, 53, 55, 57, 59
+// Pad 4:  CY (Crash/Ride)    - Notes: 49, 51, 52, 53, 55, 57, 59
 // Pad 5:  CP (Hand Clap)     - Notes: 39
 // Pad 6:  RS (Side Stick)    - Notes: 37
-// Pad 7:  CB (Cowbell)       - Notes: 56
+// Pad 7:  CB (Cowbell/Agogo) - Notes: 56, 67, 68
 // Pad 8:  LT (Low Tom)       - Notes: 41, 43
 // Pad 9:  MT (Mid Tom)       - Notes: 45, 47
 // Pad 10: HT (High Tom)      - Notes: 48, 50
-// Pad 11: MA (Maracas)       - Notes: 70
-// Pad 12: CL (Claves)        - Notes: 75
+// Pad 11: MA (Maracas/Shaker)- Notes: 70, 54, 69, 82
+// Pad 12: CL (Claves/Blocks) - Notes: 75, 76, 77, 80, 81
 // Pad 13: HC (High Conga)    - Notes: 62, 63
-// Pad 14: MC (Mid Conga)     - Notes: 64
-// Pad 15: LC (Low Conga)     - Notes: 61, 60
+// Pad 14: MC (Mid Conga)     - Notes: 64, 66
+// Pad 15: LC (Low Conga/Bongo)- Notes: 61, 60, 65, 58
 
 const GM_DRUM_TO_PAD = {
-    35: 0, 36: 0,               // Bass Drum
-    38: 1, 40: 1,               // Snare
-    42: 2, 44: 2,               // Closed Hi-Hat, Pedal Hi-Hat
-    46: 3,                      // Open Hi-Hat
-    49: 4, 51: 4, 52: 4, 53: 4, 55: 4, 57: 4, 59: 4,  // Cymbals
-    39: 5,                      // Hand Clap
-    37: 6,                      // Side Stick / Rim Shot
-    56: 7,                      // Cowbell
-    41: 8, 43: 8,               // Low Tom, Low Floor Tom
-    45: 9, 47: 9,               // Mid Tom, Low-Mid Tom
-    48: 10, 50: 10,             // High Tom, High Floor Tom
-    70: 11,                     // Maracas
-    75: 12,                     // Claves
-    62: 13, 63: 13,             // High Conga (Mute, Open)
-    64: 14,                     // Mid/Low Conga
-    61: 15, 60: 15              // Low Conga, Hi Bongo
+    // Kicks (Pad 0: BD)
+    35: 0, 36: 0,
+    // Snares (Pad 1: SD)
+    38: 1, 40: 1,
+    // Closed Hi-Hat (Pad 2: CH)
+    42: 2, 44: 2,
+    // Open Hi-Hat (Pad 3: OH)
+    46: 3,
+    // Cymbals - Crash, Ride, Splash, Chinese (Pad 4: CY)
+    49: 4, 51: 4, 52: 4, 53: 4, 55: 4, 57: 4, 59: 4,
+    // Clap (Pad 5: CP)
+    39: 5,
+    // Rim Shot / Side Stick (Pad 6: RS)
+    37: 6,
+    // Cowbell, Agogo bells (Pad 7: CB)
+    56: 7, 67: 7, 68: 7,
+    // Low Tom, Low Floor Tom (Pad 8: LT)
+    41: 8, 43: 8,
+    // Mid Tom, Low-Mid Tom (Pad 9: MT)
+    45: 9, 47: 9,
+    // High Tom, High Floor Tom (Pad 10: HT)
+    48: 10, 50: 10,
+    // Maracas, Tambourine, Cabasa, Shaker (Pad 11: MA)
+    70: 11, 54: 11, 69: 11, 82: 11,
+    // Claves, Wood Blocks, Triangles (Pad 12: CL)
+    75: 12, 76: 12, 77: 12, 80: 12, 81: 12,
+    // High Conga (Mute, Open), High Timbale (Pad 13: HC)
+    62: 13, 63: 13, 66: 13,
+    // Low Conga, Low Timbale (Pad 14: MC)
+    64: 14,
+    // Low Conga, Hi/Lo Bongo, Vibraslap (Pad 15: LC)
+    61: 15, 60: 15, 65: 15, 58: 15,
+    // Whistles → Maracas (shaker-like)
+    71: 11, 72: 11,
+    // Guiro → Claves
+    73: 12, 74: 12,
+    // Cuica → High Conga
+    78: 13, 79: 13
 };
 
 const PAD_NAMES = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
@@ -930,7 +953,7 @@ function confirmMidiImport() {
 
             totalMapped += result.mappedNotes;
 
-            for (let track = 0; track < 8; track++) {
+            for (let track = 0; track < 16; track++) {
                 for (let step = 0; step < 16; step++) {
                     if (result.pattern[track][step]) {
                         cmdQueue.push({
@@ -1009,7 +1032,7 @@ function confirmMidiImport() {
         sendWebSocket({ cmd: 'clearPattern' });
 
         // Set each step
-        for (let track = 0; track < 8; track++) {
+        for (let track = 0; track < 16; track++) {
             for (let step = 0; step < 16; step++) {
                 if (result.pattern[track][step]) {
                     sendWebSocket({

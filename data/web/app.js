@@ -3517,8 +3517,14 @@ function updateTrackVolume(track, volume) {
 }
 
 function updateTrackLabelBackground(label, track, volume) {
-    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
+    const trackColors = [
+        '#ff0000', '#ffa500', '#ffff00', '#00ffff',
+        '#e6194b', '#ff00ff', '#00ff00', '#f58231',
+        '#911eb4', '#46f0f0', '#f032e6', '#bcf60c',
+        '#38ceff', '#fabebe', '#008080', '#484dff'
+    ];
     const color = trackColors[track];
+    if (!color) return;
     
     // Convert hex to RGB
     const r = parseInt(color.slice(1, 3), 16);
