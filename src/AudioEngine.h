@@ -11,14 +11,14 @@
 #include <driver/i2s.h>
 #include <cmath>
 
-#define MAX_VOICES 8
+#define MAX_VOICES 10
 #define SAMPLE_RATE 44100
 #define DMA_BUF_COUNT 6
 #define DMA_BUF_LEN 128
 
 // Constants for filter management
-static constexpr int MAX_AUDIO_TRACKS = 8;  // For per-track filters
-static constexpr int MAX_PADS = 8;           // For per-pad filters
+static constexpr int MAX_AUDIO_TRACKS = 16;  // For per-track filters
+static constexpr int MAX_PADS = 16;           // For per-pad filters
 
 
 
@@ -90,6 +90,7 @@ struct Voice {
   int padIndex;           // Which pad is playing (-1 if none)
   bool isLivePad;         // True if triggered from live pad, false if from sequencer
   uint32_t startAge;      // Voice age counter for smart stealing
+  FilterState filterState; // Per-voice filter state (avoids interleaving corruption)
 };
 
 class AudioEngine {

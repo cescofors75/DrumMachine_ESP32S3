@@ -112,7 +112,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
 }
 
 bool AudioEngine::setSampleBuffer(int padIndex, int16_t* buffer, uint32_t length) {
-  if (padIndex < 0 || padIndex >= 8) return false;
+  if (padIndex < 0 || padIndex >= 16) return false;
   
   sampleBuffers[padIndex] = buffer;
   sampleLengths[padIndex] = length;
@@ -128,7 +128,7 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
 }
 
 void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume) {
-  if (padIndex < 0 || padIndex >= 8 || sampleBuffers[padIndex] == nullptr) return;
+  if (padIndex < 0 || padIndex >= 16 || sampleBuffers[padIndex] == nullptr) return;
   
   int voiceIndex = findFreeVoice();
   if (voiceIndex < 0) return; // Voice stealing handled inside findFreeVoice
@@ -147,7 +147,7 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
-  if (padIndex < 0 || padIndex >= 8 || sampleBuffers[padIndex] == nullptr) return;
+  if (padIndex < 0 || padIndex >= 16 || sampleBuffers[padIndex] == nullptr) return;
   
   int voiceIndex = findFreeVoice();
   if (voiceIndex < 0) return;
@@ -235,13 +235,26 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       // Get sample and apply velocity + volume in one step
       int32_t scaled = ((int32_t)voice.buffer[voice.position] * voice.velocity * voice.volume) / 12700;
       
-      // Apply per-pad or per-track filter if active
+      // Apply per-pad or per-track filter if active (using per-voice state)
       int16_t filtered = (int16_t)constrain(scaled, -32768, 32767);
       if (voice.padIndex >= 0 && voice.padIndex < MAX_PADS) {
         if (voice.isLivePad && padFilterActive[voice.padIndex]) {
-          filtered = applyFilter(filtered, padFilters[voice.padIndex]);
+          // Use voice's own filter state with pad filter coefficients
+          float x = (float)filtered;
+          float y = padFilters[voice.padIndex].coeffs.b0 * x + voice.filterState.x1;
+          voice.filterState.x1 = padFilters[voice.padIndex].coeffs.b1 * x - padFilters[voice.padIndex].coeffs.a1 * y + voice.filterState.x2;
+          voice.filterState.x2 = padFilters[voice.padIndex].coeffs.b2 * x - padFilters[voice.padIndex].coeffs.a2 * y;
+          if (y > 32767.0f) y = 32767.0f;
+          else if (y < -32768.0f) y = -32768.0f;
+          filtered = (int16_t)y;
         } else if (!voice.isLivePad && voice.padIndex < MAX_AUDIO_TRACKS && trackFilterActive[voice.padIndex]) {
-          filtered = applyFilter(filtered, trackFilters[voice.padIndex]);
+          float x = (float)filtered;
+          float y = trackFilters[voice.padIndex].coeffs.b0 * x + voice.filterState.x1;
+          voice.filterState.x1 = trackFilters[voice.padIndex].coeffs.b1 * x - trackFilters[voice.padIndex].coeffs.a1 * y + voice.filterState.x2;
+          voice.filterState.x2 = trackFilters[voice.padIndex].coeffs.b2 * x - trackFilters[voice.padIndex].coeffs.a2 * y;
+          if (y > 32767.0f) y = 32767.0f;
+          else if (y < -32768.0f) y = -32768.0f;
+          filtered = (int16_t)y;
         }
       }
       
@@ -301,6 +314,7 @@ void AudioEngine::resetVoice(int voiceIndex) {
   voices[voiceIndex].padIndex = -1;
   voices[voiceIndex].isLivePad = false;
   voices[voiceIndex].startAge = 0;
+  voices[voiceIndex].filterState = {0.0f, 0.0f, 0.0f, 0.0f};
 }
 
 // ============= FX IMPLEMENTATION =============

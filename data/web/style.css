@@ -23,10 +23,18 @@
     --pad-color-1: 255, 165, 0;    /* SD (SNARE) - Naranja */
     --pad-color-2: 255, 255, 0;    /* CH (CL-HAT) - Amarillo */
     --pad-color-3: 0, 255, 255;    /* OH (OP-HAT) - Cian */
-    --pad-color-4: 255, 0, 255;    /* CL (CLAP) - Magenta */
-    --pad-color-5: 0, 255, 0;      /* T1 (TOM-LO) - Verde */
-    --pad-color-6: 56, 206, 255;   /* T2 (TOM-HI) - Verde agua */
-    --pad-color-7: 72, 77, 255;    /* CY (CYMBAL) - Azul claro */
+    --pad-color-4: 230, 25, 75;    /* CY (CYMBAL) - Rojo carmín */
+    --pad-color-5: 255, 0, 255;    /* CP (CLAP) - Magenta */
+    --pad-color-6: 0, 255, 0;      /* RS (RIMSHOT) - Verde */
+    --pad-color-7: 245, 130, 49;   /* CB (COWBELL) - Naranja oscuro */
+    --pad-color-8: 145, 30, 180;   /* LT (LOW TOM) - Púrpura */
+    --pad-color-9: 70, 240, 240;   /* MT (MID TOM) - Turquesa */
+    --pad-color-10: 240, 50, 230;  /* HT (HIGH TOM) - Rosa */
+    --pad-color-11: 188, 246, 12;  /* MA (MARACAS) - Lima */
+    --pad-color-12: 56, 206, 255;  /* CL (CLAVES) - Azul claro */
+    --pad-color-13: 250, 190, 190; /* HC (HI CONGA) - Rosa pálido */
+    --pad-color-14: 0, 128, 128;   /* MC (MID CONGA) - Teal */
+    --pad-color-15: 72, 77, 255;   /* LC (LOW CONGA) - Azul índigo */
 }
 
 body {
@@ -526,6 +534,14 @@ body:not(.mono-mode) .pad[data-pad="4"] { --pad-rgb: var(--pad-color-4); }
 body:not(.mono-mode) .pad[data-pad="5"] { --pad-rgb: var(--pad-color-5); }
 body:not(.mono-mode) .pad[data-pad="6"] { --pad-rgb: var(--pad-color-6); }
 body:not(.mono-mode) .pad[data-pad="7"] { --pad-rgb: var(--pad-color-7); }
+body:not(.mono-mode) .pad[data-pad="8"] { --pad-rgb: var(--pad-color-8); }
+body:not(.mono-mode) .pad[data-pad="9"] { --pad-rgb: var(--pad-color-9); }
+body:not(.mono-mode) .pad[data-pad="10"] { --pad-rgb: var(--pad-color-10); }
+body:not(.mono-mode) .pad[data-pad="11"] { --pad-rgb: var(--pad-color-11); }
+body:not(.mono-mode) .pad[data-pad="12"] { --pad-rgb: var(--pad-color-12); }
+body:not(.mono-mode) .pad[data-pad="13"] { --pad-rgb: var(--pad-color-13); }
+body:not(.mono-mode) .pad[data-pad="14"] { --pad-rgb: var(--pad-color-14); }
+body:not(.mono-mode) .pad[data-pad="15"] { --pad-rgb: var(--pad-color-15); }
 
 body:not(.mono-mode) .pad[data-pad] {
     border-color: rgba(var(--pad-rgb), 0.9);
@@ -1603,18 +1619,19 @@ body:not(.mono-mode) .pad.tremolo-active {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    font-size: 11px;
+    gap: 2px;
+    font-size: 9px;
     font-weight: bold;
     border: 2px solid;
     border-radius: 4px;
     background: rgba(0,0,0,0.3);
-    padding: 6px 5px 18px;
+    padding: 2px 3px 10px;
     text-align: center;
     position: relative;
     flex-direction: column;
     transition: background 0.3s ease;
     backdrop-filter: blur(2px);
+    height: 22px;
 }
 
 .track-label > span {
@@ -1864,7 +1881,8 @@ body:not(.mono-mode) .pad.tremolo-active {
 }
 
 .seq-step {
-    aspect-ratio: 1;
+    aspect-ratio: auto;
+    height: 22px;
     background: var(--black);
     border: 1px solid var(--gray);
     border-radius: 3px;
@@ -1912,6 +1930,14 @@ body:not(.mono-mode) .seq-step[data-track="4"] { --track-rgb: var(--pad-color-4)
 body:not(.mono-mode) .seq-step[data-track="5"] { --track-rgb: var(--pad-color-5); }
 body:not(.mono-mode) .seq-step[data-track="6"] { --track-rgb: var(--pad-color-6); }
 body:not(.mono-mode) .seq-step[data-track="7"] { --track-rgb: var(--pad-color-7); }
+body:not(.mono-mode) .seq-step[data-track="8"] { --track-rgb: var(--pad-color-8); }
+body:not(.mono-mode) .seq-step[data-track="9"] { --track-rgb: var(--pad-color-9); }
+body:not(.mono-mode) .seq-step[data-track="10"] { --track-rgb: var(--pad-color-10); }
+body:not(.mono-mode) .seq-step[data-track="11"] { --track-rgb: var(--pad-color-11); }
+body:not(.mono-mode) .seq-step[data-track="12"] { --track-rgb: var(--pad-color-12); }
+body:not(.mono-mode) .seq-step[data-track="13"] { --track-rgb: var(--pad-color-13); }
+body:not(.mono-mode) .seq-step[data-track="14"] { --track-rgb: var(--pad-color-14); }
+body:not(.mono-mode) .seq-step[data-track="15"] { --track-rgb: var(--pad-color-15); }
 
 body:not(.mono-mode) .seq-step[data-track] {
     background: rgba(var(--track-rgb), 0.14);
@@ -5792,6 +5818,22 @@ body.midi-dialog-open .midi-import-overlay * {
     padding: 2px 8px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 6px;
+}
+
+.song-nav-filename {
+    color: #ff6b6b;
+    font-size: 0.8em;
+    font-weight: 600;
+    font-family: monospace;
+    background: rgba(255, 0, 0, 0.1);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 0, 0, 0.2);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: none;
 }
 
 .song-nav-exit {

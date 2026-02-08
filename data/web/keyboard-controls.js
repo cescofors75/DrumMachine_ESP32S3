@@ -270,7 +270,7 @@ function handleKeyboardShortcut(e) {
       case '_':
         // Move up (previous track) - but only if Shift is pressed to avoid conflict
         if (e.shiftKey) {
-          newTrack = (track - 1 + 8) % 8;
+          newTrack = (track - 1 + 16) % 16;
           navigate = true;
           showToast('↑ Track ' + (newTrack + 1), TOAST_TYPES.INFO, 1000);
         }
@@ -279,7 +279,7 @@ function handleKeyboardShortcut(e) {
       case '=':
         // Move down (next track) - but only if Shift is pressed to avoid conflict
         if (e.shiftKey) {
-          newTrack = (track + 1) % 8;
+          newTrack = (track + 1) % 16;
           navigate = true;
           showToast('↓ Track ' + (newTrack + 1), TOAST_TYPES.INFO, 1000);
         }
@@ -813,7 +813,7 @@ window.handleKeyboardWebSocketMessage = function(data) {
     window.patternVelocities = data.velocities;
     
     // Update UI for all steps - velocities comes as object with string keys "0", "1", etc.
-    for (let track = 0; track < 8; track++) {
+    for (let track = 0; track < 16; track++) {
       const trackKey = track.toString();
       const trackVels = data.velocities[trackKey];
       if (!trackVels) continue; // Skip if track velocities undefined
@@ -972,16 +972,17 @@ function createKeyboardSidebar() {
       </div>
       
       <div class="key-section">
-        <h3>🎹 Live Pads (8 Instruments)</h3>
+        <h3>🎹 Live Pads (16 Instruments)</h3>
         <div class="key-list compact">
           <div class="key-item"><kbd>1</kbd><span>BD (Bass Drum)</span></div>
           <div class="key-item"><kbd>2</kbd><span>SD (Snare)</span></div>
           <div class="key-item"><kbd>3</kbd><span>CH (Closed HH)</span></div>
           <div class="key-item"><kbd>4</kbd><span>OH (Open HH)</span></div>
-          <div class="key-item"><kbd>5</kbd><span>CP (Clap)</span></div>
-          <div class="key-item"><kbd>6</kbd><span>RS (Rimshot)</span></div>
-          <div class="key-item"><kbd>7</kbd><span>CL (Claves)</span></div>
-          <div class="key-item"><kbd>8</kbd><span>CY (Cymbal)</span></div>
+          <div class="key-item"><kbd>5</kbd><span>CY (Cymbal)</span></div>
+          <div class="key-item"><kbd>6</kbd><span>CP (Clap)</span></div>
+          <div class="key-item"><kbd>7</kbd><span>RS (Rimshot)</span></div>
+          <div class="key-item"><kbd>8</kbd><span>CB (Cowbell)</span></div>
+          <div class="key-item"><span>Pads 9-16: touch only (LT, MT, HT, MA, CL, HC, MC, LC)</span></div>
         </div>
         <div class="key-note">Hold = Tremolo | Shift+Key = Mute Track</div>
         <div class="key-note">Auto-selects pad for Shift+F1-F10 filters</div>

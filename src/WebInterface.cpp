@@ -57,7 +57,7 @@ static bool readWavInfo(File& file, uint32_t& rate, uint16_t& channels, uint16_t
   return true;
 }
 
-static void populateStateDocument(StaticJsonDocument<6144>& doc) {
+static void populateStateDocument(StaticJsonDocument<8192>& doc) {
   doc["type"] = "state";
   doc["playing"] = sequencer.isPlaying();
   doc["tempo"] = sequencer.getTempo();
@@ -112,7 +112,7 @@ static void populateStateDocument(StaticJsonDocument<6144>& doc) {
   
   // Send pad filter states (for live pads)
   JsonArray padFilters = doc.createNestedArray("padFilters");
-  for (int pad = 0; pad < 8; pad++) {
+  for (int pad = 0; pad < 16; pad++) {
     FilterType filterType = audioEngine.getPadFilter(pad);
     padFilters.add((int)filterType);
   }
@@ -334,9 +334,9 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   
   server->on("/api/getPattern", HTTP_GET, [](AsyncWebServerRequest *request){
     int pattern = sequencer.getCurrentPattern();
-    StaticJsonDocument<2048> doc;
+    StaticJsonDocument<4096> doc;
     
-    for (int track = 0; track < 8; track++) {
+    for (int track = 0; track < 16; track++) {
       JsonArray trackSteps = doc.createNestedArray(String(track));
       for (int step = 0; step < 16; step++) {
         trackSteps.add(sequencer.getStep(track, step));
@@ -553,12 +553,12 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           
           if (cmd == "getPattern") {
             int pattern = sequencer.getCurrentPattern();
-            StaticJsonDocument<3072> responseDoc;
+            StaticJsonDocument<8192> responseDoc;
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
-            // Send steps (active/inactive) - Solo 8 tracks activos
-            for (int track = 0; track < 8; track++) {
+            // Send steps (active/inactive) - 16 tracks activos
+            for (int track = 0; track < 16; track++) {
               JsonArray trackSteps = responseDoc.createNestedArray(String(track));
               for (int step = 0; step < 16; step++) {
                 trackSteps.add(sequencer.getStep(track, step));
@@ -567,7 +567,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             
             // Send velocities
             JsonObject velocitiesObj = responseDoc.createNestedObject("velocities");
-            for (int track = 0; track < 8; track++) {
+            for (int track = 0; track < 16; track++) {
               JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
               for (int step = 0; step < 16; step++) {
                 trackVels.add(sequencer.getStepVelocity(track, step));
@@ -716,7 +716,7 @@ void WebInterface::broadcastSequencerState() {
   if (now - lastBroadcast < 200) return;
   lastBroadcast = now;
   
-  StaticJsonDocument<6144> doc;
+  StaticJsonDocument<8192> doc;
   populateStateDocument(doc);
   
   String output;
@@ -727,7 +727,7 @@ void WebInterface::broadcastSequencerState() {
 void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
   if (!initialized || !ws || !isClientReady(client)) return;
   
-  StaticJsonDocument<6144> doc;
+  StaticJsonDocument<8192> doc;
   populateStateDocument(doc);
   
   String output;
@@ -817,14 +817,14 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   
   if (cmd == "trigger") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 8) return;
+    if (pad < 0 || pad >= 16) return;
     int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
     triggerPadWithLED(pad, velocity);
   }
   else if (cmd == "setStep") {
     int track = doc["track"];
     int step = doc["step"];
-    if (track < 0 || track >= 8 || step < 0 || step >= 16) return;
+    if (track < 0 || track >= 16 || step < 0 || step >= 16) return;
     bool active = doc["active"];
     // Support writing to a specific pattern (for multi-pattern MIDI import)
     if (doc.containsKey("pattern")) {
@@ -873,11 +873,11 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     broadcastSequencerState();
     
     // Enviar datos del patrón (matriz de steps)
-    StaticJsonDocument<3072> patternDoc;
+    StaticJsonDocument<8192> patternDoc;
     patternDoc["type"] = "pattern";
     patternDoc["index"] = pattern;
     
-    for (int track = 0; track < 8; track++) {
+    for (int track = 0; track < 16; track++) {
       JsonArray trackSteps = patternDoc.createNestedArray(String(track));
       for (int step = 0; step < 16; step++) {
         trackSteps.add(sequencer.getStep(track, step));
@@ -885,7 +885,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     }
     
     JsonObject velocitiesObj = patternDoc.createNestedObject("velocities");
-    for (int track = 0; track < 8; track++) {
+    for (int track = 0; track < 16; track++) {
       JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
       for (int step = 0; step < 16; step++) {
         trackVels.add(sequencer.getStepVelocity(track, step));
@@ -900,7 +900,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     const char* family = doc["family"];
     const char* filename = doc["filename"];
     int padIndex = doc["pad"];
-    if (padIndex < 0 || padIndex >= 8) return;
+    if (padIndex < 0 || padIndex >= 16) return;
     
     String fullPath = String("/") + String(family) + String("/") + String(filename);
     
@@ -921,7 +921,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "mute") {
     int track = doc["track"];
-    if (track < 0 || track >= 8) return;
+    if (track < 0 || track >= 16) return;
     yield();
     bool muted = doc["value"];
     sequencer.muteTrack(track, muted);
@@ -935,7 +935,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "toggleLoop") {
     int track = doc["track"];
-    if (track < 0 || track >= 8) return; // Comentado el printf
+    if (track < 0 || track >= 16) return;
     yield();
     sequencer.toggleLoop(track);
     
@@ -952,7 +952,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "pauseLoop") {
     int track = doc["track"];
-    if (track < 0 || track >= 8) return; // Comentado el printf
+    if (track < 0 || track >= 16) return;
     sequencer.pauseLoop(track);
     
     StaticJsonDocument<128> responseDoc;
@@ -1026,8 +1026,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   // ============= NEW: Per-Track Filter Commands =============
   else if (cmd == "setTrackFilter") {
     int track = doc["track"];
-    if (track < 0 || track >= 8) {
-      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+    if (track < 0 || track >= 16) {
+      Serial.printf("[WS] Invalid track %d (must be 0-15)\n", track);
       return;
     }
     int filterType = doc.containsKey("type") ? doc["type"].as<int>() : doc["filterType"].as<int>();
@@ -1053,8 +1053,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearTrackFilter") {
     int track = doc["track"];
-    if (track < 0 || track >= 8) {
-      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+    if (track < 0 || track >= 16) {
+      Serial.printf("[WS] Invalid track %d (must be 0-15)\n", track);
       return;
     }
     audioEngine.clearTrackFilter(track);
@@ -1072,8 +1072,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   // ============= NEW: Per-Pad Filter Commands =============
   else if (cmd == "setPadFilter") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 8) {
-      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
+    if (pad < 0 || pad >= 16) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-15)\n", pad);
       return;
     }
     int filterType = doc.containsKey("type") ? doc["type"].as<int>() : doc["filterType"].as<int>();
@@ -1096,8 +1096,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearPadFilter") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 8) {
-      Serial.printf("[WS] Invalid pad %d (must be 0-7)\n", pad);
+    if (pad < 0 || pad >= 16) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-15)\n", pad);
       return;
     }
     audioEngine.clearPadFilter(pad);
@@ -1137,7 +1137,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int track = doc["track"];
     int step = doc["step"];
     int velocity = doc["velocity"];
-    if (track < 0 || track >= 8 || step < 0 || step >= 16) {
+    if (track < 0 || track >= 16 || step < 0 || step >= 16) {
       Serial.printf("[WS] Invalid track %d or step %d\n", track, step);
       return;
     }
@@ -1215,8 +1215,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setTrackVolume") {
     int track = doc["track"];
     int volume = doc["volume"];
-    if (track < 0 || track >= 8) {
-      Serial.printf("[WS] Invalid track %d (must be 0-7)\n", track);
+    if (track < 0 || track >= 16) {
+      Serial.printf("[WS] Invalid track %d (must be 0-15)\n", track);
       return;
     }
     
@@ -1253,7 +1253,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     responseDoc["type"] = "trackVolumes";
     
     JsonArray volumes = responseDoc.createNestedArray("volumes");
-    for (int track = 0; track < 8; track++) {
+    for (int track = 0; track < 16; track++) {
       volumes.add(sequencer.getTrackVolume(track));
     }
     

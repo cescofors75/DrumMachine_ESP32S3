@@ -1,31 +1,47 @@
 // ============================================
 // MIDI File Import for RED808 Sequencer
 // Parses Standard MIDI Files (.mid) and maps
-// drum notes to the 8-pad sequencer grid
+// drum notes to the 16-pad sequencer grid
 // ============================================
 
-// GM Drum Map: MIDI note -> pad index
-// Pad 0: BD (Bass Drum)     - Notes: 35, 36
-// Pad 1: SD (Snare Drum)    - Notes: 38, 40
-// Pad 2: CH (Closed Hi-Hat) - Notes: 42, 44
-// Pad 3: OH (Open Hi-Hat)   - Notes: 46
-// Pad 4: CP (Hand Clap)     - Notes: 39
-// Pad 5: RS (Side Stick)    - Notes: 37, 56 (Cowbell)
-// Pad 6: CL (Claves)        - Notes: 75, 41, 43, 45, 47, 48, 50 (Toms)
-// Pad 7: CY (Crash Cymbal)  - Notes: 49, 51, 52, 53, 55, 57, 59
+// GM Drum Map: MIDI note -> pad index (16 pads)
+// Pad 0:  BD (Bass Drum)     - Notes: 35, 36
+// Pad 1:  SD (Snare Drum)    - Notes: 38, 40
+// Pad 2:  CH (Closed Hi-Hat) - Notes: 42, 44
+// Pad 3:  OH (Open Hi-Hat)   - Notes: 46
+// Pad 4:  CY (Crash Cymbal)  - Notes: 49, 51, 52, 53, 55, 57, 59
+// Pad 5:  CP (Hand Clap)     - Notes: 39
+// Pad 6:  RS (Side Stick)    - Notes: 37
+// Pad 7:  CB (Cowbell)       - Notes: 56
+// Pad 8:  LT (Low Tom)       - Notes: 41, 43
+// Pad 9:  MT (Mid Tom)       - Notes: 45, 47
+// Pad 10: HT (High Tom)      - Notes: 48, 50
+// Pad 11: MA (Maracas)       - Notes: 70
+// Pad 12: CL (Claves)        - Notes: 75
+// Pad 13: HC (High Conga)    - Notes: 62, 63
+// Pad 14: MC (Mid Conga)     - Notes: 64
+// Pad 15: LC (Low Conga)     - Notes: 61, 60
 
 const GM_DRUM_TO_PAD = {
     35: 0, 36: 0,               // Bass Drum
     38: 1, 40: 1,               // Snare
     42: 2, 44: 2,               // Closed Hi-Hat, Pedal Hi-Hat
     46: 3,                      // Open Hi-Hat
-    39: 4,                      // Hand Clap
-    37: 5, 56: 5,               // Side Stick, Cowbell
-    75: 6, 41: 6, 43: 6, 45: 6, 47: 6, 48: 6, 50: 6, // Claves, Toms
-    49: 7, 51: 7, 52: 7, 53: 7, 55: 7, 57: 7, 59: 7  // Cymbals
+    49: 4, 51: 4, 52: 4, 53: 4, 55: 4, 57: 4, 59: 4,  // Cymbals
+    39: 5,                      // Hand Clap
+    37: 6,                      // Side Stick / Rim Shot
+    56: 7,                      // Cowbell
+    41: 8, 43: 8,               // Low Tom, Low Floor Tom
+    45: 9, 47: 9,               // Mid Tom, Low-Mid Tom
+    48: 10, 50: 10,             // High Tom, High Floor Tom
+    70: 11,                     // Maracas
+    75: 12,                     // Claves
+    62: 13, 63: 13,             // High Conga (Mute, Open)
+    64: 14,                     // Mid/Low Conga
+    61: 15, 60: 15              // Low Conga, Hi Bongo
 };
 
-const PAD_NAMES = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+const PAD_NAMES = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
 
 // MIDI File Parser
 class MIDIFileParser {
@@ -273,8 +289,8 @@ function midiToPattern(midiData, options = {}) {
     console.log(`[midiToPattern] Scanned ${totalEventsScanned} noteOns: ${channelFiltered} filtered by channel, ${tickFiltered} filtered by tick range, ${allNotes.length} passed`);
 
     // Create pattern grid [track][step]
-    const pattern = Array.from({ length: 8 }, () => Array(16).fill(false));
-    const velocities = Array.from({ length: 8 }, () => Array(16).fill(127));
+    const pattern = Array.from({ length: 16 }, () => Array(16).fill(false));
+    const velocities = Array.from({ length: 16 }, () => Array(16).fill(127));
     const unmappedNotes = new Set();
     let mappedCount = 0;
 
@@ -716,27 +732,27 @@ function updateMidiPreview() {
     const previewGrid = document.getElementById('previewGrid');
     previewGrid.innerHTML = '';
 
-    for (let track = 0; track < 8; track++) {
+    for (let track = 0; track < 16; track++) {
         const row = document.createElement('div');
         row.className = 'preview-row';
 
         const label = document.createElement('span');
         label.className = 'preview-label';
         label.textContent = PAD_NAMES[track];
-        label.style.color = [
+        const previewColors = [
             '#ff0000', '#ffa500', '#ffff00', '#00ffff',
-            '#ff00ff', '#00ff00', '#38ceff', '#484dff'
-        ][track];
+            '#e6194b', '#ff00ff', '#00ff00', '#f58231',
+            '#911eb4', '#46f0f0', '#f032e6', '#bcf60c',
+            '#38ceff', '#fabebe', '#008080', '#484dff'
+        ];
+        label.style.color = previewColors[track];
         row.appendChild(label);
 
         for (let step = 0; step < 16; step++) {
             const cell = document.createElement('span');
             cell.className = 'preview-step' + (result.pattern[track][step] ? ' active' : '');
             if (result.pattern[track][step]) {
-                cell.style.backgroundColor = [
-                    '#ff0000', '#ffa500', '#ffff00', '#00ffff',
-                    '#ff00ff', '#00ff00', '#38ceff', '#484dff'
-                ][track];
+                cell.style.backgroundColor = previewColors[track];
             }
             row.appendChild(cell);
         }
@@ -971,7 +987,7 @@ function confirmMidiImport() {
                     sendWebSocket({ cmd: 'getPattern' });
                     // Notify app.js about song mode
                     if (typeof window.onSongModeActivated === 'function') {
-                        window.onSongModeActivated(barsToImport);
+                        window.onSongModeActivated(barsToImport, midiFileName);
                     }
                     completeImportProgress(midiFileName, barsToImport, totalMapped);
                 }, 500);

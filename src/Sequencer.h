@@ -11,7 +11,7 @@
 
 #define MAX_PATTERNS 16
 #define STEPS_PER_PATTERN 16
-#define MAX_TRACKS 8
+#define MAX_TRACKS 16
 
 class Sequencer {
 public:

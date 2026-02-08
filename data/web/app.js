@@ -17,7 +17,7 @@ let sequencerViewMode = 'grid'; // 'grid' or 'circular'
 let circularCanvas = null;
 let circularCtx = null;
 let circularAnimationFrame = null;
-let circularSequencerData = Array.from({ length: 8 }, () => Array(16).fill(false));
+let circularSequencerData = Array.from({ length: 16 }, () => Array(16).fill(false));
 
 // Sample counts per family
 let sampleCounts = {};
@@ -29,16 +29,16 @@ let keyboardTremoloState = {};
 
 // Pad hold timers for long press detection
 let padHoldTimers = {};
-let trackMutedState = new Array(8).fill(false);
+let trackMutedState = new Array(16).fill(false);
 
 // Pad filter state (stores active filter type for each pad)
-let padFilterState = new Array(8).fill(0); // 0 = FILTER_NONE
+let padFilterState = new Array(16).fill(0); // 0 = FILTER_NONE
 
-// 8 instrumentos principales
-const padNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
+// 16 instrumentos principales (4x4 grid)
+const padNames = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
 
-// Tecla asociada a cada pad (mostrar en UI y para accesos directos)
-const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8'];
+// Tecla asociada a cada pad (1-8 para pads principales, sin atajo para 9-16)
+const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8', '', '', '', '', '', '', '', ''];
 
 // Descripción completa de cada instrumento
 const padDescriptions = [
@@ -46,10 +46,18 @@ const padDescriptions = [
     'Snare Drum (Caja)',
     'Closed Hi-Hat',
     'Open Hi-Hat',
+    'Cymbal (Platillo)',
     'Hand Clap (Palmas)',
     'Rim Shot (Aro)',
+    'Cowbell (Cencerro)',
+    'Low Tom',
+    'Mid Tom',
+    'High Tom',
+    'Maracas',
     'Claves',
-    'Cymbal (Platillo)'
+    'High Conga',
+    'Mid Conga',
+    'Low Conga'
 ];
 
 // Filter types for track filter panel
@@ -69,10 +77,12 @@ window.FILTER_TYPES = FILTER_TYPES;
 
 const instrumentPalette = [
     '#ff0000', '#ffa500', '#ffff00', '#00ffff',
-    '#ff00ff', '#00ff00', '#38ceff', '#484dff'
+    '#e6194b', '#ff00ff', '#00ff00', '#f58231',
+    '#911eb4', '#46f0f0', '#f032e6', '#bcf60c',
+    '#38ceff', '#fabebe', '#008080', '#484dff'
 ];
 
-const padSampleMetadata = new Array(8).fill(null);
+const padSampleMetadata = new Array(16).fill(null);
 const DEFAULT_SAMPLE_QUALITY = '44.1kHz • 16-bit mono';
 const sampleCatalog = {};
 let sampleSelectorContext = null;
@@ -156,7 +166,7 @@ function handleWebSocketMessage(data) {
             // Load pad filter states
             if (Array.isArray(data.padFilters)) {
                 data.padFilters.forEach((filterType, padIndex) => {
-                    if (padIndex < 8) {
+                    if (padIndex < 16) {
                         padFilterState[padIndex] = filterType;
                         updatePadFilterIndicator(padIndex);
                     }
@@ -284,7 +294,7 @@ function handleWebSocketMessage(data) {
             // Initial track volumes state
             if (Array.isArray(data.volumes)) {
                 data.volumes.forEach((volume, track) => {
-                    if (track < 8) {
+                    if (track < 16) {
                         updateTrackVolume(track, volume);
                     }
                 });
@@ -323,11 +333,11 @@ function loadPatternData(data) {
     });
     
     // Clear circular data
-    circularSequencerData = Array.from({ length: 8 }, () => Array(16).fill(false));
+    circularSequencerData = Array.from({ length: 16 }, () => Array(16).fill(false));
     
-    // Cargar datos del pattern (8 tracks)
+    // Cargar datos del pattern (16 tracks)
     let activatedSteps = 0;
-    for (let track = 0; track < 8; track++) {
+    for (let track = 0; track < 16; track++) {
         // Las keys pueden ser strings o números
         const trackData = data[track] || data[track.toString()];
         if (trackData) {
@@ -353,7 +363,7 @@ function loadPatternData(data) {
     
     // Cargar velocidades si están disponibles
     if (data.velocities) {
-        for (let track = 0; track < 8; track++) {
+        for (let track = 0; track < 16; track++) {
             const velData = data.velocities[track] || data.velocities[track.toString()];
             if (velData && Array.isArray(velData)) {
                 velData.forEach((velocity, step) => {
@@ -415,7 +425,7 @@ function createPads() {
     
     const families = padNames;
     
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
         const padContainer = document.createElement('div');
         padContainer.className = 'pad-container';
         
@@ -1015,15 +1025,20 @@ function updateTrackLoopVisual(trackIndex) {
 function createSequencer() {
     const grid = document.getElementById('sequencerGrid');
     const indicator = document.getElementById('stepIndicator');
-    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CP', 'RS', 'CL', 'CY'];
-    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
+    const trackNames = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
+    const trackColors = [
+        '#ff0000', '#ffa500', '#ffff00', '#00ffff',
+        '#e6194b', '#ff00ff', '#00ff00', '#f58231',
+        '#911eb4', '#46f0f0', '#f032e6', '#bcf60c',
+        '#38ceff', '#fabebe', '#008080', '#484dff'
+    ];
 
     stepDots = [];
     stepColumns = Array.from({ length: 16 }, () => []);
     lastCurrentStep = null;
     
-    // 8 tracks x 16 steps (con labels)
-    for (let track = 0; track < 8; track++) {
+    // 16 tracks x 16 steps (con labels)
+    for (let track = 0; track < 16; track++) {
         // Track label con botón volumen
         const label = document.createElement('div');
         label.className = 'track-label';
@@ -1290,12 +1305,12 @@ function handleCircularClick(event) {
     // Calculate which ring (track) was clicked
     const maxRadius = Math.min(centerX, centerY) * 0.85;
     const minRadius = maxRadius * 0.25;
-    const ringWidth = (maxRadius - minRadius) / 8;
+    const ringWidth = (maxRadius - minRadius) / 16;
     
     if (distance < minRadius || distance > maxRadius) return;
     
     const track = Math.floor((distance - minRadius) / ringWidth);
-    if (track < 0 || track >= 8) return;
+    if (track < 0 || track >= 16) return;
     
     // Calculate which step was clicked
     let angle = Math.atan2(dy, dx);
@@ -1341,13 +1356,18 @@ function renderCircularSequencer() {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, height);
     
-    const trackColors = ['#ff0000', '#ffa500', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#38ceff', '#484dff'];
+    const trackColors = [
+        '#ff0000', '#ffa500', '#ffff00', '#00ffff',
+        '#e6194b', '#ff00ff', '#00ff00', '#f58231',
+        '#911eb4', '#46f0f0', '#f032e6', '#bcf60c',
+        '#38ceff', '#fabebe', '#008080', '#484dff'
+    ];
     const maxRadius = Math.min(centerX, centerY) * 0.85;
     const minRadius = maxRadius * 0.25;
-    const ringWidth = (maxRadius - minRadius) / 8;
+    const ringWidth = (maxRadius - minRadius) / 16;
     
     // Draw circular grid
-    for (let track = 0; track < 8; track++) {
+    for (let track = 0; track < 16; track++) {
         const innerRadius = minRadius + track * ringWidth;
         const outerRadius = innerRadius + ringWidth;
         const midRadius = (innerRadius + outerRadius) / 2;
@@ -1633,7 +1653,7 @@ function setupControls() {
             
             setTimeout(() => {
                 const totalLoaded = Object.keys(sampleCatalog).length;
-                if (statusEl) statusEl.textContent = `${totalLoaded}/8 familias cargadas`;
+                if (statusEl) statusEl.textContent = `${totalLoaded}/16 familias cargadas`;
             }, 5000);
         });
     }
@@ -1926,7 +1946,7 @@ function updateSequencerState(data) {
     // Load track volumes from state
     if (Array.isArray(data.trackVolumes)) {
         data.trackVolumes.forEach((volume, track) => {
-            if (track < 8) {
+            if (track < 16) {
                 updateTrackVolume(track, volume);
             }
         });
@@ -2055,8 +2075,14 @@ function exitSongMode() {
 }
 
 // Callback for midi-import.js to trigger song mode UI
-window.onSongModeActivated = function(length) {
+window.onSongModeActivated = function(length, midiFileName) {
     updateSongModeUI(true, length, 0);
+    // Show MIDI filename in song navigator
+    const filenameEl = document.getElementById('songMidiFilename');
+    if (filenameEl && midiFileName) {
+        filenameEl.textContent = '📄 ' + midiFileName;
+        filenameEl.style.display = 'inline';
+    }
 };
 
 // Send WebSocket message
@@ -2072,9 +2098,9 @@ window.sendWebSocket = sendWebSocket;
 // ============= KEYBOARD CONTROLS =============
 
 function setupKeyboardControls() {
-    // Mapeo de teclas a pads (8 pads)
+    // Mapeo de teclas a pads (pads 0-7 con teclas 1-8)
     const keyToPad = padKeyBindings.reduce((mapping, key, idx) => {
-        mapping[key.toUpperCase()] = idx;
+        if (key) mapping[key.toUpperCase()] = idx;
         return mapping;
     }, {});
 
@@ -3392,7 +3418,7 @@ window.applyFilterPreset = applyFilterPreset;
 
 // ============= TRACK VOLUME MENU =============
 let activeVolumeMenu = null;
-let trackVolumes = new Array(8).fill(100); // Default 100%
+let trackVolumes = new Array(16).fill(100); // Default 100%
 
 function showVolumeMenu(track, button) {
     // Cerrar menú activo si existe
@@ -3467,7 +3493,7 @@ function closeVolumeMenuOnClickOutside(e) {
 }
 
 function updateTrackVolume(track, volume) {
-    if (track >= 0 && track < 8) {
+    if (track >= 0 && track < 16) {
         trackVolumes[track] = volume;
         // Actualizar display si el menú está abierto para este track
         if (activeVolumeMenu && activeVolumeMenu.dataset.track === track.toString()) {
@@ -3515,14 +3541,14 @@ window.updateTrackVolume = updateTrackVolume;
 
 function initVolumesSection() {
     // Initialize all track volumes to default
-    for (let track = 0; track < 8; track++) {
+    for (let track = 0; track < 16; track++) {
         updateVolumeBar(track, trackVolumes[track]);
         updateVolumeMutedState(track, trackMutedState[track]);
     }
 }
 
 function updateVolumeBar(track, volume) {
-    if (track < 0 || track >= 8) return;
+    if (track < 0 || track >= 16) return;
     
     const volumeBar = document.getElementById(`trackVolumeBar${track}`);
     const volumeValue = document.getElementById(`trackVolumeValue${track}`);
@@ -3559,7 +3585,7 @@ function updateVolumeBar(track, volume) {
 }
 
 function updateVolumeMutedState(track, isMuted) {
-    if (track < 0 || track >= 8) return;
+    if (track < 0 || track >= 16) return;
     
     const volumeCard = document.querySelector(`.track-volume-card[data-track="${track}"]`);
     
