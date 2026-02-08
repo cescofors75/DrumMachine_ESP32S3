@@ -590,7 +590,8 @@ function showMidiImportDialog() {
 function closeMidiImportDialog() {
     const dialog = document.getElementById('midiImportDialog');
     if (dialog) dialog.remove();
-    parsedMidiData = null;
+    // Note: parsedMidiData is NOT cleared here - it may still be needed by song mode import
+    // It will be cleared after import completes
     importAllBars = true;
     // Resume background animations
     document.body.classList.remove('midi-dialog-open');
@@ -956,14 +957,20 @@ function completeImportProgress(fileName, totalBars, totalNotes) {
     if (title) title.textContent = 'Importación Completa';
     if (card) card.classList.add('complete');
 
-    // Auto close after 2.5 seconds
+    // Clean up parsed data
+    parsedMidiData = null;
+
+    // Auto close after 2 seconds
     setTimeout(() => {
         const overlay = document.getElementById('midiProgressOverlay');
         if (overlay) {
             overlay.classList.remove('visible');
             setTimeout(() => overlay.remove(), 400);
         }
-    }, 2500);
+        // Also ensure the import dialog is gone
+        const dialog = document.getElementById('midiImportDialog');
+        if (dialog) dialog.remove();
+    }, 2000);
 }
 
 function confirmMidiImport() {
@@ -994,6 +1001,9 @@ function confirmMidiImport() {
 
         console.log(`[MIDI Import] Starting song import: ${barsToImport} bars`);
 
+        // Close the import dialog FIRST, then show progress
+        closeMidiImportDialog();
+        
         // Show progress overlay
         showImportProgress(midiFileName, barsToImport);
 
@@ -1143,6 +1153,7 @@ function confirmMidiImport() {
                 // All sent - refresh pattern display after delay
                 setTimeout(() => {
                     sendWebSocket({ cmd: 'getPattern' });
+                    parsedMidiData = null; // Clean up
                 }, 400);
                 console.log(`[MIDI Import] Single bar imported: bar ${currentImportBar + 1}, ${result.mappedNotes} notes, ${cmdQueue.length} commands sent`);
             }

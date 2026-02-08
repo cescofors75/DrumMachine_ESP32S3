@@ -5,6 +5,8 @@ let isConnected = false;
 let currentStep = 0;
 let tremoloIntervals = {};
 let padLoopState = {};
+let padFxState = new Array(16).fill(null); // Per-pad FX state
+let trackFxState = new Array(16).fill(null); // Per-track FX state
 let isPlaying = false;
 
 // Sequencer caches
@@ -41,8 +43,8 @@ let padSeqSyncEnabled = true;
 // 16 instrumentos principales (4x4 grid)
 const padNames = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
 
-// Tecla asociada a cada pad (1-8 para pads principales, sin atajo para 9-16)
-const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8', '', '', '', '', '', '', '', ''];
+// Tecla asociada a cada pad (1-8 para pads 0-7, 9-0 y U-F para pads 8-15)
+const padKeyBindings = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'U', 'I', 'O', 'P', 'D', 'F'];
 
 // Descripción completa de cada instrumento
 const padDescriptions = [
@@ -75,7 +77,9 @@ const FILTER_TYPES = [
     { icon: '🌟', name: 'TREBLE BOOST' },
     { icon: '⛰️', name: 'PEAK BOOST' },
     { icon: '🌀', name: 'PHASE' },
-    { icon: '⚡', name: 'RESONANT' }
+    { icon: '⚡', name: 'RESONANT' },
+    { icon: '💿', name: 'SCRATCH', padOnly: true },
+    { icon: '🎧', name: 'TURNTABLISM', padOnly: true }
 ];
 window.FILTER_TYPES = FILTER_TYPES;
 
@@ -155,9 +159,35 @@ function handleWebSocketMessage(data) {
         case 'loopState':
             padLoopState[data.track] = {
                 active: data.active,
-                paused: data.paused
+                paused: data.paused,
+                loopType: data.loopType !== undefined ? data.loopType : 0
             };
             updatePadLoopVisual(data.track);
+            break;
+        case 'padFxSet':
+        case 'padFxCleared':
+            if (data.pad !== undefined) {
+                if (data.type === 'padFxCleared') {
+                    padFxState[data.pad] = null;
+                } else {
+                    if (!padFxState[data.pad]) padFxState[data.pad] = {};
+                    if (data.fx === 'distortion') { padFxState[data.pad].distortion = data.amount; padFxState[data.pad].distMode = data.mode; }
+                    if (data.fx === 'bitcrush') padFxState[data.pad].bitcrush = data.value;
+                }
+                updatePadFxIndicator(data.pad);
+            }
+            break;
+        case 'trackFxSet':
+        case 'trackFxCleared':
+            if (data.track !== undefined) {
+                if (data.type === 'trackFxCleared') {
+                    trackFxState[data.track] = null;
+                } else {
+                    if (!trackFxState[data.track]) trackFxState[data.track] = {};
+                    if (data.fx === 'distortion') { trackFxState[data.track].distortion = data.amount; trackFxState[data.track].distMode = data.mode; }
+                    if (data.fx === 'bitcrush') trackFxState[data.track].bitcrush = data.value;
+                }
+            }
             break;
         case 'audioData':
             break;
@@ -394,16 +424,78 @@ function updateStatus(connected) {
     }
 }
 
-// Loop button functions (defined before createPads)
-function togglePadLoop(padIndex) {
-    if (!isConnected) {
+// Loop Types
+const LOOP_TYPES = [
+    { id: 0, name: 'EVERY STEP', icon: '🔁', desc: 'Trigger en cada step (16th)' },
+    { id: 1, name: 'EVERY BEAT', icon: '🥁', desc: 'Trigger cada compás (quarter)' },
+    { id: 2, name: '2x BEAT', icon: '⚡', desc: '2 triggers por compás (8th)' },
+    { id: 3, name: 'ARRHYTHMIC', icon: '🎲', desc: 'Triggers aleatorios' }
+];
+
+// Show loop type popup for a pad
+function showLoopTypePopup(padIndex) {
+    if (!isConnected) return;
+    
+    // If already looping, just toggle off
+    const currentState = padLoopState[padIndex];
+    if (currentState && currentState.active) {
+        sendWebSocket({ cmd: 'toggleLoop', track: padIndex });
+        closeLoopTypePopup();
         return;
     }
     
-    sendWebSocket({
-        cmd: 'toggleLoop',
-        track: padIndex
+    // Remove any existing popup
+    closeLoopTypePopup();
+    
+    const backdrop = document.createElement('div');
+    backdrop.id = 'loopPopupBackdrop';
+    backdrop.className = 'loop-popup-backdrop';
+    backdrop.addEventListener('click', closeLoopTypePopup);
+    
+    const popup = document.createElement('div');
+    popup.id = 'loopPopupModal';
+    popup.className = 'loop-popup-modal';
+    
+    const padName = padNames[padIndex] || `Pad ${padIndex + 1}`;
+    popup.innerHTML = `
+        <div class="loop-popup-header">
+            <span class="loop-popup-title">🔁 LOOP: ${padName}</span>
+            <button class="loop-popup-close" onclick="closeLoopTypePopup()">&times;</button>
+        </div>
+        <div class="loop-popup-options">
+            ${LOOP_TYPES.map(lt => `
+                <button class="loop-type-btn" data-loop-type="${lt.id}" onclick="activateLoop(${padIndex}, ${lt.id})">
+                    <span class="loop-type-icon">${lt.icon}</span>
+                    <span class="loop-type-name">${lt.name}</span>
+                    <span class="loop-type-desc">${lt.desc}</span>
+                </button>
+            `).join('')}
+        </div>
+    `;
+    
+    document.body.appendChild(backdrop);
+    document.body.appendChild(popup);
+    
+    requestAnimationFrame(() => {
+        backdrop.classList.add('visible');
+        popup.classList.add('visible');
     });
+}
+
+function activateLoop(padIndex, loopType) {
+    sendWebSocket({ cmd: 'toggleLoop', track: padIndex, loopType: loopType });
+    closeLoopTypePopup();
+}
+
+function closeLoopTypePopup() {
+    const backdrop = document.getElementById('loopPopupBackdrop');
+    const popup = document.getElementById('loopPopupModal');
+    if (popup) { popup.classList.remove('visible'); popup.classList.add('closing'); }
+    if (backdrop) { backdrop.classList.remove('visible'); }
+    setTimeout(() => {
+        if (backdrop) backdrop.remove();
+        if (popup) popup.remove();
+    }, 300);
 }
 
 function updateLoopButtonState(padIndex) {
@@ -440,6 +532,7 @@ function createPads() {
         pad.innerHTML = `
             <button class="pad-upload-btn" data-pad="${i}" title="Load Sample">+</button>
             <button class="pad-filter-btn" data-pad="${i}" title="Filter">F</button>
+            <button class="pad-fx-btn" data-pad="${i}" title="FX (Distortion/BitCrush)">🎸</button>
             <button class="loop-btn" data-pad="${i}" title="Toggle Loop">🔁</button>
             <div class="pad-content">
                 <div class="pad-name">${padNames[i]}</div>
@@ -516,6 +609,24 @@ function createPads() {
             });
         }
         
+        // Event listener para botón FX (Distortion/BitCrush)
+        const fxBtn = pad.querySelector('.pad-fx-btn');
+        if (fxBtn) {
+            fxBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            });
+            fxBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showPadFxPopup(i, pad);
+            });
+            fxBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showPadFxPopup(i, pad);
+            });
+        }
+        
         // Event listener para botón de loop
         const loopBtn = pad.querySelector('.loop-btn');
         if (loopBtn) {
@@ -525,12 +636,12 @@ function createPads() {
             loopBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                togglePadLoop(i);
+                showLoopTypePopup(i);
             });
             loopBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                togglePadLoop(i);
+                showLoopTypePopup(i);
             });
         }
         
@@ -556,29 +667,24 @@ function createPads() {
 }
 
 function startTremolo(padIndex, padElement) {
-    // Trigger inicial con animación intensa y más brillo
+    // Trigger IMMEDIATELY - zero delay
     triggerPad(padIndex);
-    padElement.style.animation = 'padRipple 0.35s ease-out';
+    padElement.style.animation = 'padRipple 0.3s ease-out';
     
-    // Limpiar animación después
-    setTimeout(() => {
-        padElement.style.animation = '';
-    }, 350);
+    setTimeout(() => { padElement.style.animation = ''; }, 300);
     
-    // Tremolo: triggers repetidos cada 180ms (reducido para evitar saturación)
+    // Ultra-fast tremolo: 55ms repeat (~18/sec), starting after only 100ms hold
     tremoloIntervals[padIndex] = setTimeout(() => {
-        // Añadir clase para mantener brillo constante
         padElement.classList.add('tremolo-active');
         
         tremoloIntervals[padIndex] = setInterval(() => {
             triggerPad(padIndex);
-            // Flash sutil en cada trigger
-            padElement.style.filter = 'brightness(1.3)';
+            padElement.style.filter = 'brightness(1.35)';
             setTimeout(() => {
                 padElement.style.filter = 'brightness(1.1)';
-            }, 60);
-        }, 180); // Tremolo cada 180ms (~5.5 triggers/segundo)
-    }, 300);
+            }, 22);
+        }, 55); // 55ms = ~18 triggers/segundo
+    }, 100); // Solo 100ms de delay antes de tremolo
 }
 
 function stopTremolo(padIndex, padElement) {
@@ -601,36 +707,47 @@ function startKeyboardTremolo(padIndex, padElement) {
     stopKeyboardTremolo(padIndex, padElement);
     if (!padElement) return;
 
+    // Ultra-low latency engine using performance.now() + requestAnimationFrame
     const state = {
-        startTime: Date.now(),
-        currentRate: 220,
-        minRate: 60,
-        timeoutId: null
+        startTime: performance.now(),
+        lastTrigger: 0,
+        currentRate: 55,     // Start at 55ms (~18 hits/sec) - ultra fast
+        minRate: 18,         // Minimum 18ms (~55 hits/sec) - machine gun
+        rafId: null,
+        alive: true
     };
     keyboardTremoloState[padIndex] = state;
     padElement.classList.add('keyboard-tremolo');
 
-    const tick = () => {
-        triggerPad(padIndex);
-        padElement.classList.add('active');
-        padElement.style.filter = 'brightness(1.4)';
-        setTimeout(() => {
-            padElement.style.filter = 'brightness(1.1)';
-        }, 60);
+    // First trigger IMMEDIATELY with zero delay
+    triggerPad(padIndex);
+    padElement.classList.add('active');
+    padElement.style.filter = 'brightness(1.5)';
+    state.lastTrigger = performance.now();
 
-        const elapsed = Date.now() - state.startTime;
-        const rampFactor = Math.max(state.minRate, Math.round(220 * Math.pow(0.93, elapsed / 200)));
-        state.currentRate = rampFactor;
-        state.timeoutId = setTimeout(tick, state.currentRate);
+    const tick = (now) => {
+        if (!state.alive) return;
+        const elapsed = now - state.lastTrigger;
+        if (elapsed >= state.currentRate) {
+            triggerPad(padIndex);
+            // Visual flash (minimal DOM work for speed)
+            padElement.style.filter = 'brightness(1.5)';
+            setTimeout(() => { if (state.alive) padElement.style.filter = 'brightness(1.15)'; }, 25);
+            state.lastTrigger = now;
+            // Accelerate: exponential ramp from 55ms to 18ms
+            const holdTime = now - state.startTime;
+            state.currentRate = Math.max(state.minRate, 55 * Math.pow(0.82, holdTime / 120));
+        }
+        state.rafId = requestAnimationFrame(tick);
     };
-
-    tick();
+    state.rafId = requestAnimationFrame(tick);
 }
 
 function stopKeyboardTremolo(padIndex, padElement) {
     const state = keyboardTremoloState[padIndex];
-    if (state && state.timeoutId) {
-        clearTimeout(state.timeoutId);
+    if (state) {
+        state.alive = false;
+        if (state.rafId) cancelAnimationFrame(state.rafId);
     }
     delete keyboardTremoloState[padIndex];
 
@@ -676,8 +793,12 @@ function showPadFilterSelector(padIndex, padElement) {
     filterGrid.className = 'pfe-filter-grid';
     
     FILTER_TYPES.forEach((filter, index) => {
+        // Skip pad-only filters (Scratch, Turntablism) when sync is enabled
+        if (filter.padOnly && padSeqSyncEnabled) return;
+        
         const filterBtn = document.createElement('button');
         filterBtn.className = 'pfe-filter-btn';
+        if (filter.padOnly) filterBtn.classList.add('pfe-filter-special');
         filterBtn.dataset.filterType = index;
         if (index === padFilterState[padIndex]) {
             filterBtn.classList.add('active');
@@ -740,8 +861,8 @@ function setPadFilter(padIndex, filterType) {
         ws.send(JSON.stringify(msg));
     }
     
-    // Sync: also apply to track if sync enabled
-    if (padSeqSyncEnabled && padIndex < 16) {
+    // Sync: also apply to track if sync enabled (skip pad-only special filters)
+    if (padSeqSyncEnabled && padIndex < 16 && filterType <= 9) {
         trackFilterState[padIndex] = filterType;
         syncFilterToTrack(padIndex, filterType);
     }
@@ -817,6 +938,299 @@ window.syncFilterToPad = function(padIndex, filterType) {
 function clearPadFilter(padIndex) {
     setPadFilter(padIndex, 0);
 }
+
+// ============= PER-PAD FX POPUP =============
+const DISTORTION_MODES = [
+    { id: 0, name: 'SOFT CLIP', icon: '🎸', desc: 'Saturación suave analógica' },
+    { id: 1, name: 'HARD CLIP', icon: '⚡', desc: 'Recorte duro digital' },
+    { id: 2, name: 'TUBE', icon: '🔥', desc: 'Saturación tipo válvula' },
+    { id: 3, name: 'FUZZ', icon: '💥', desc: 'Distorsión extrema' }
+];
+
+function showPadFxPopup(padIndex, padElement) {
+    closePadFxPopup();
+    
+    const backdrop = document.createElement('div');
+    backdrop.id = 'padFxBackdrop';
+    backdrop.className = 'loop-popup-backdrop';
+    backdrop.addEventListener('click', closePadFxPopup);
+    
+    const currentFx = padFxState[padIndex] || {};
+    const distortion = currentFx.distortion || 0;
+    const distMode = currentFx.distMode || 0;
+    const bitcrush = currentFx.bitcrush || 16;
+    
+    const padName = padNames[padIndex] || `Pad ${padIndex + 1}`;
+    const popup = document.createElement('div');
+    popup.id = 'padFxModal';
+    popup.className = 'pad-fx-modal';
+    popup.innerHTML = `
+        <div class="loop-popup-header">
+            <span class="loop-popup-title">🎸 FX: ${padName}</span>
+            <button class="loop-popup-close" onclick="closePadFxPopup()">&times;</button>
+        </div>
+        <div class="pad-fx-content">
+            <div class="pad-fx-section">
+                <h4>🎸 DISTORTION</h4>
+                <div class="pad-fx-modes">
+                    ${DISTORTION_MODES.map(m => `
+                        <button class="loop-type-btn pad-fx-mode-btn ${m.id === distMode ? 'active' : ''}" 
+                                data-mode="${m.id}" onclick="setPadFxDistMode(${padIndex}, ${m.id})">
+                            <span class="loop-type-icon">${m.icon}</span>
+                            <span class="loop-type-name">${m.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="pad-fx-slider-row">
+                    <label>Drive <span id="padFxDriveVal">${distortion}</span>%</label>
+                    <input type="range" id="padFxDrive" min="0" max="100" value="${distortion}" 
+                           oninput="setPadFxDrive(${padIndex}, this.value)" class="fx-slider">
+                </div>
+            </div>
+            <div class="pad-fx-section">
+                <h4>📼 BIT CRUSH</h4>
+                <div class="pad-fx-slider-row">
+                    <label>Bits <span id="padFxBitsVal">${bitcrush}</span></label>
+                    <input type="range" id="padFxBits" min="4" max="16" value="${bitcrush}" 
+                           oninput="setPadFxBits(${padIndex}, this.value)" class="fx-slider">
+                </div>
+            </div>
+            <button class="pad-fx-clear-btn" onclick="clearPadFxAll(${padIndex})">🚫 CLEAR ALL FX</button>
+        </div>
+    `;
+    
+    document.body.appendChild(backdrop);
+    document.body.appendChild(popup);
+    requestAnimationFrame(() => {
+        backdrop.classList.add('visible');
+        popup.classList.add('visible');
+    });
+}
+
+function closePadFxPopup() {
+    const backdrop = document.getElementById('padFxBackdrop');
+    const popup = document.getElementById('padFxModal');
+    if (popup) { popup.classList.remove('visible'); popup.classList.add('closing'); }
+    if (backdrop) { backdrop.classList.remove('visible'); }
+    setTimeout(() => { if (backdrop) backdrop.remove(); if (popup) popup.remove(); }, 300);
+}
+
+function setPadFxDistMode(padIndex, mode) {
+    if (!padFxState[padIndex]) padFxState[padIndex] = {};
+    padFxState[padIndex].distMode = mode;
+    const drive = padFxState[padIndex].distortion || 0;
+    sendWebSocket({ cmd: 'setPadDistortion', pad: padIndex, amount: drive, mode: mode });
+    // Update active state visually
+    document.querySelectorAll('#padFxModal .pad-fx-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+    });
+    // Sync to track if enabled
+    if (padSeqSyncEnabled && padIndex < 16) {
+        if (!trackFxState[padIndex]) trackFxState[padIndex] = {};
+        trackFxState[padIndex].distMode = mode;
+        trackFxState[padIndex].distortion = drive;
+        sendWebSocket({ cmd: 'setTrackDistortion', track: padIndex, amount: drive, mode: mode });
+    }
+}
+
+function setPadFxDrive(padIndex, value) {
+    const val = parseInt(value);
+    if (!padFxState[padIndex]) padFxState[padIndex] = {};
+    padFxState[padIndex].distortion = val;
+    const mode = padFxState[padIndex].distMode || 0;
+    document.getElementById('padFxDriveVal').textContent = val;
+    sendWebSocket({ cmd: 'setPadDistortion', pad: padIndex, amount: val, mode: mode });
+    updatePadFxIndicator(padIndex);
+    // Sync to track if enabled
+    if (padSeqSyncEnabled && padIndex < 16) {
+        if (!trackFxState[padIndex]) trackFxState[padIndex] = {};
+        trackFxState[padIndex].distortion = val;
+        trackFxState[padIndex].distMode = mode;
+        sendWebSocket({ cmd: 'setTrackDistortion', track: padIndex, amount: val, mode: mode });
+    }
+}
+
+function setPadFxBits(padIndex, value) {
+    const val = parseInt(value);
+    if (!padFxState[padIndex]) padFxState[padIndex] = {};
+    padFxState[padIndex].bitcrush = val;
+    document.getElementById('padFxBitsVal').textContent = val;
+    sendWebSocket({ cmd: 'setPadBitCrush', pad: padIndex, value: val });
+    updatePadFxIndicator(padIndex);
+    // Sync to track if enabled
+    if (padSeqSyncEnabled && padIndex < 16) {
+        if (!trackFxState[padIndex]) trackFxState[padIndex] = {};
+        trackFxState[padIndex].bitcrush = val;
+        sendWebSocket({ cmd: 'setTrackBitCrush', track: padIndex, value: val });
+    }
+}
+
+function clearPadFxAll(padIndex) {
+    padFxState[padIndex] = null;
+    sendWebSocket({ cmd: 'clearPadFX', pad: padIndex });
+    updatePadFxIndicator(padIndex);
+    closePadFxPopup();
+    // Sync to track if enabled
+    if (padSeqSyncEnabled && padIndex < 16) {
+        trackFxState[padIndex] = null;
+        sendWebSocket({ cmd: 'clearTrackFX', track: padIndex });
+    }
+}
+
+function updatePadFxIndicator(padIndex) {
+    const pad = document.querySelector(`.pad[data-pad="${padIndex}"]`);
+    if (!pad) return;
+    let badge = pad.querySelector('.pad-fx-badge');
+    const fx = padFxState[padIndex];
+    const hasFx = fx && ((fx.distortion && fx.distortion > 0) || (fx.bitcrush && fx.bitcrush < 16));
+    
+    if (hasFx) {
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'pad-fx-badge';
+            pad.appendChild(badge);
+        }
+        badge.textContent = '🎸';
+        badge.style.display = 'block';
+    } else if (badge) {
+        badge.style.display = 'none';
+    }
+}
+
+// Track FX functions (same concept but for sequencer tracks)
+function showTrackFxPopup(trackIndex) {
+    closePadFxPopup(); // Reuse close
+    
+    const backdrop = document.createElement('div');
+    backdrop.id = 'padFxBackdrop';
+    backdrop.className = 'loop-popup-backdrop';
+    backdrop.addEventListener('click', closePadFxPopup);
+    
+    const currentFx = trackFxState[trackIndex] || {};
+    const distortion = currentFx.distortion || 0;
+    const distMode = currentFx.distMode || 0;
+    const bitcrush = currentFx.bitcrush || 16;
+    
+    const trackName = padNames[trackIndex] || `Track ${trackIndex + 1}`;
+    const popup = document.createElement('div');
+    popup.id = 'padFxModal';
+    popup.className = 'pad-fx-modal';
+    popup.innerHTML = `
+        <div class="loop-popup-header">
+            <span class="loop-popup-title">🎸 TRACK FX: ${trackName}</span>
+            <button class="loop-popup-close" onclick="closePadFxPopup()">&times;</button>
+        </div>
+        <div class="pad-fx-content">
+            <div class="pad-fx-section">
+                <h4>🎸 DISTORTION</h4>
+                <div class="pad-fx-modes">
+                    ${DISTORTION_MODES.map(m => `
+                        <button class="loop-type-btn pad-fx-mode-btn ${m.id === distMode ? 'active' : ''}" 
+                                data-mode="${m.id}" onclick="setTrackFxDistMode(${trackIndex}, ${m.id})">
+                            <span class="loop-type-icon">${m.icon}</span>
+                            <span class="loop-type-name">${m.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="pad-fx-slider-row">
+                    <label>Drive <span id="padFxDriveVal">${distortion}</span>%</label>
+                    <input type="range" id="padFxDrive" min="0" max="100" value="${distortion}" 
+                           oninput="setTrackFxDrive(${trackIndex}, this.value)" class="fx-slider">
+                </div>
+            </div>
+            <div class="pad-fx-section">
+                <h4>📼 BIT CRUSH</h4>
+                <div class="pad-fx-slider-row">
+                    <label>Bits <span id="padFxBitsVal">${bitcrush}</span></label>
+                    <input type="range" id="padFxBits" min="4" max="16" value="${bitcrush}" 
+                           oninput="setTrackFxBits(${trackIndex}, this.value)" class="fx-slider">
+                </div>
+            </div>
+            <button class="pad-fx-clear-btn" onclick="clearTrackFxAll(${trackIndex})">🚫 CLEAR ALL FX</button>
+        </div>
+    `;
+    
+    document.body.appendChild(backdrop);
+    document.body.appendChild(popup);
+    requestAnimationFrame(() => {
+        backdrop.classList.add('visible');
+        popup.classList.add('visible');
+    });
+}
+
+function setTrackFxDistMode(trackIndex, mode) {
+    if (!trackFxState[trackIndex]) trackFxState[trackIndex] = {};
+    trackFxState[trackIndex].distMode = mode;
+    const drive = trackFxState[trackIndex].distortion || 0;
+    sendWebSocket({ cmd: 'setTrackDistortion', track: trackIndex, amount: drive, mode: mode });
+    document.querySelectorAll('#padFxModal .pad-fx-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+    });
+    // Sync to pad if enabled
+    if (padSeqSyncEnabled && trackIndex < 16) {
+        if (!padFxState[trackIndex]) padFxState[trackIndex] = {};
+        padFxState[trackIndex].distMode = mode;
+        padFxState[trackIndex].distortion = drive;
+        sendWebSocket({ cmd: 'setPadDistortion', pad: trackIndex, amount: drive, mode: mode });
+        updatePadFxIndicator(trackIndex);
+    }
+}
+
+function setTrackFxDrive(trackIndex, value) {
+    const val = parseInt(value);
+    if (!trackFxState[trackIndex]) trackFxState[trackIndex] = {};
+    trackFxState[trackIndex].distortion = val;
+    const mode = trackFxState[trackIndex].distMode || 0;
+    document.getElementById('padFxDriveVal').textContent = val;
+    sendWebSocket({ cmd: 'setTrackDistortion', track: trackIndex, amount: val, mode: mode });
+    // Sync to pad if enabled
+    if (padSeqSyncEnabled && trackIndex < 16) {
+        if (!padFxState[trackIndex]) padFxState[trackIndex] = {};
+        padFxState[trackIndex].distortion = val;
+        padFxState[trackIndex].distMode = mode;
+        sendWebSocket({ cmd: 'setPadDistortion', pad: trackIndex, amount: val, mode: mode });
+        updatePadFxIndicator(trackIndex);
+    }
+}
+
+function setTrackFxBits(trackIndex, value) {
+    const val = parseInt(value);
+    if (!trackFxState[trackIndex]) trackFxState[trackIndex] = {};
+    trackFxState[trackIndex].bitcrush = val;
+    document.getElementById('padFxBitsVal').textContent = val;
+    sendWebSocket({ cmd: 'setTrackBitCrush', track: trackIndex, value: val });
+    // Sync to pad if enabled
+    if (padSeqSyncEnabled && trackIndex < 16) {
+        if (!padFxState[trackIndex]) padFxState[trackIndex] = {};
+        padFxState[trackIndex].bitcrush = val;
+        sendWebSocket({ cmd: 'setPadBitCrush', pad: trackIndex, value: val });
+        updatePadFxIndicator(trackIndex);
+    }
+}
+
+function clearTrackFxAll(trackIndex) {
+    trackFxState[trackIndex] = null;
+    sendWebSocket({ cmd: 'clearTrackFX', track: trackIndex });
+    closePadFxPopup();
+    // Sync to pad if enabled
+    if (padSeqSyncEnabled && trackIndex < 16) {
+        padFxState[trackIndex] = null;
+        sendWebSocket({ cmd: 'clearPadFX', pad: trackIndex });
+        updatePadFxIndicator(trackIndex);
+    }
+}
+
+// Expose FX functions
+window.showPadFxPopup = showPadFxPopup;
+window.showTrackFxPopup = showTrackFxPopup;
+window.setPadFxDistMode = setPadFxDistMode;
+window.setPadFxDrive = setPadFxDrive;
+window.setPadFxBits = setPadFxBits;
+window.clearPadFxAll = clearPadFxAll;
+window.setTrackFxDistMode = setTrackFxDistMode;
+window.setTrackFxDrive = setTrackFxDrive;
+window.setTrackFxBits = setTrackFxBits;
+window.clearTrackFxAll = clearTrackFxAll;
 
 // Update pad filter indicator visual
 function updatePadFilterIndicator(padIndex) {
@@ -1179,6 +1593,18 @@ function createSequencer() {
             }
         });
         
+        const trackFxBtn = document.createElement('button');
+        trackFxBtn.className = 'track-fx-btn';
+        trackFxBtn.setAttribute('aria-label', 'FX');
+        trackFxBtn.title = 'Distortion & BitCrush';
+        trackFxBtn.textContent = '🎸';
+        trackFxBtn.dataset.track = track;
+        trackFxBtn.style.borderColor = trackColors[track];
+        trackFxBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showTrackFxPopup(track);
+        });
+        
         const name = document.createElement('span');
         name.textContent = trackNames[track];
         name.style.color = trackColors[track];
@@ -1189,6 +1615,7 @@ function createSequencer() {
         
         label.appendChild(volumeBtn);
         label.appendChild(filterBtn);
+        label.appendChild(trackFxBtn);
         label.appendChild(name);
         label.appendChild(loopIndicator);
         label.style.borderColor = trackColors[track];
@@ -2295,7 +2722,9 @@ function setupKeyboardControls() {
 
     const codeToPad = {
         Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3,
-        Digit5: 4, Digit6: 5, Digit7: 6, Digit8: 7
+        Digit5: 4, Digit6: 5, Digit7: 6, Digit8: 7,
+        Digit9: 8, Digit0: 9,
+        KeyU: 10, KeyI: 11, KeyO: 12, KeyP: 13, KeyD: 14, KeyF: 15
     };
 
     const getPadIndexFromEvent = (e) => {

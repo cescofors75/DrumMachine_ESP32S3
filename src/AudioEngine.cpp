@@ -53,9 +53,12 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackFilters[i].cutoff = 1000.0f;
     trackFilters[i].resonance = 1.0f;
     trackFilters[i].gain = 0.0f;
+    trackFilters[i].bitDepth = 16;
+    trackFilters[i].distortion = 0.0f;
     trackFilters[i].state.x1 = trackFilters[i].state.x2 = 0.0f;
     trackFilters[i].state.y1 = trackFilters[i].state.y2 = 0.0f;
     trackFilterActive[i] = false;
+    trackDistortionMode[i] = DIST_SOFT;
   }
   
   for (int i = 0; i < MAX_PADS; i++) {
@@ -63,15 +66,35 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     padFilters[i].cutoff = 1000.0f;
     padFilters[i].resonance = 1.0f;
     padFilters[i].gain = 0.0f;
+    padFilters[i].bitDepth = 16;
+    padFilters[i].distortion = 0.0f;
     padFilters[i].state.x1 = padFilters[i].state.x2 = 0.0f;
     padFilters[i].state.y1 = padFilters[i].state.y2 = 0.0f;
     padFilterActive[i] = false;
+    padDistortionMode[i] = DIST_SOFT;
+    
+    // Scratch state
+    scratchState[i].lfoPhase = 0.0f;
+    scratchState[i].lfoRate = 5.0f;
+    scratchState[i].depth = 0.85f;
+    scratchState[i].lpState1 = 0.0f;
+    scratchState[i].lpState2 = 0.0f;
+    scratchState[i].noiseState = 12345 + i * 7919;
+    
+    // Turntablism state
+    turntablismState[i].mode = 0;
+    turntablismState[i].modeTimer = 35280;
+    turntablismState[i].gatePhase = 0.0f;
+    turntablismState[i].lpState1 = 0.0f;
+    turntablismState[i].lpState2 = 0.0f;
+    turntablismState[i].noiseState = 67890 + i * 6271;
   }
   
   // Initialize volume
   masterVolume = 100;
   sequencerVolume = 10;
   liveVolume = 80;
+  livePitchShift = 1.0f;
   
   // ============= Initialize NEW Master Effects =============
   
@@ -276,11 +299,12 @@ void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
   voices[voiceIndex].volume = constrain((liveVolume * 120) / 100, 0, 180);
-  voices[voiceIndex].pitchShift = 1.0f;
+  voices[voiceIndex].pitchShift = livePitchShift;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = true;
   voices[voiceIndex].startAge = ++voiceAge;
+  voices[voiceIndex].scratchPos = 0.0f;
 }
 
 void AudioEngine::stopSample(int padIndex) {
@@ -296,6 +320,20 @@ void AudioEngine::stopAll() {
   for (int i = 0; i < MAX_VOICES; i++) {
     voices[i].active = false;
   }
+}
+
+void AudioEngine::setLivePitchShift(float pitch) {
+  livePitchShift = constrain(pitch, 0.25f, 3.0f);
+  // Apply to all currently active live pad voices
+  for (int i = 0; i < MAX_VOICES; i++) {
+    if (voices[i].active && voices[i].isLivePad) {
+      voices[i].pitchShift = livePitchShift;
+    }
+  }
+}
+
+float AudioEngine::getLivePitchShift() {
+  return livePitchShift;
 }
 
 void AudioEngine::setPitch(int voiceIndex, float pitch) {
@@ -340,10 +378,152 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
     
     Voice& voice = voices[v];
     
+    // Detect scratch/turntablism special processing for live pad voices
+    FilterType specialFxType = FILTER_NONE;
+    if (voice.isLivePad && voice.padIndex >= 0 && voice.padIndex < MAX_PADS && padFilterActive[voice.padIndex]) {
+      FilterType ft = padFilters[voice.padIndex].filterType;
+      if (ft == FILTER_SCRATCH || ft == FILTER_TURNTABLISM) specialFxType = ft;
+    }
+    
+    if (specialFxType != FILTER_NONE) {
+      // ====== SCRATCH / TURNTABLISM - Special vinyl DSP ======
+      int pi = voice.padIndex;
+      float fLen = (float)voice.length;
+      
+      for (size_t i = 0; i < samples; i++) {
+        float posAdvance = 1.0f;
+        float vinylFilterCutoff = 4000.0f;
+        bool addCrackle = false;
+        bool gateOff = false;
+        
+        if (specialFxType == FILTER_SCRATCH) {
+          // Scratch LFO: triangle wave for natural vinyl scratch feel
+          ScratchState& ss = scratchState[pi];
+          ss.lfoPhase += ss.lfoRate / (float)SAMPLE_RATE;
+          if (ss.lfoPhase >= 1.0f) ss.lfoPhase -= 1.0f;
+          // Triangle wave: -1 to +1  
+          float tri = (ss.lfoPhase < 0.5f) ? (ss.lfoPhase * 4.0f - 1.0f) : (3.0f - ss.lfoPhase * 4.0f);
+          // Scratch speed: oscillates forward and backward
+          posAdvance = tri * ss.depth * 3.0f;
+          // Vinyl filter: brighter when moving fast, duller at turnaround
+          vinylFilterCutoff = 300.0f + fabsf(posAdvance) * 3500.0f;
+          addCrackle = true;
+          
+        } else { // FILTER_TURNTABLISM
+          TurntablismState& ts = turntablismState[pi];
+          if (ts.modeTimer == 0) {
+            ts.mode = (ts.mode + 1) % 4;
+            switch (ts.mode) {
+              case 0: ts.modeTimer = 33075; break;   // Normal ~750ms
+              case 1: ts.modeTimer = 15435; break;   // Brake ~350ms
+              case 2: ts.modeTimer = 19845; break;   // Backspin ~450ms
+              case 3: ts.modeTimer = 24255; ts.gatePhase = 0; break; // Stutter ~550ms
+            }
+          }
+          ts.modeTimer--;
+          
+          switch (ts.mode) {
+            case 0: // Normal playback
+              posAdvance = 1.0f;
+              vinylFilterCutoff = 12000.0f;
+              break;
+            case 1: { // Vinyl brake - pitch ramps down  
+              float progress = 1.0f - (float)ts.modeTimer / 15435.0f;
+              posAdvance = 1.0f - progress * 0.97f; // Down to 0.03
+              vinylFilterCutoff = 10000.0f * (1.0f - progress * 0.92f) + 150.0f;
+              addCrackle = (progress > 0.7f);
+              break;
+            }
+            case 2: { // Backspin - reverse playback
+              float progress = (float)ts.modeTimer / 19845.0f;
+              posAdvance = -1.8f * progress * progress; // Quadratic deceleration
+              vinylFilterCutoff = 1500.0f + progress * 2500.0f;
+              addCrackle = true;
+              break;
+            }
+            case 3: { // Stutter / transform scratch
+              ts.gatePhase += 11.0f * 6.28318f / (float)SAMPLE_RATE; // ~11Hz stutter
+              if (ts.gatePhase > 6.28318f) ts.gatePhase -= 6.28318f;
+              float gate = (ts.gatePhase < 3.14159f) ? 1.0f : 0.0f;
+              posAdvance = gate;
+              gateOff = (gate == 0.0f);
+              vinylFilterCutoff = 5000.0f;
+              break;
+            }
+          }
+        }
+        
+        // Advance float position with wrapping (sample loops in scratch mode)
+        voice.scratchPos += posAdvance;
+        while (voice.scratchPos >= fLen) voice.scratchPos -= fLen;
+        while (voice.scratchPos < 0.0f) voice.scratchPos += fLen;
+        
+        int readPos = (int)voice.scratchPos;
+        if (readPos < 0) readPos = 0;
+        if (readPos >= (int)voice.length) readPos = (int)voice.length - 1;
+        
+        // Read and scale sample
+        int32_t scaled = ((int32_t)voice.buffer[readPos] * voice.velocity * voice.volume) / 12700;
+        float fSample = (float)constrain(scaled, -32768, 32767) / 32768.0f;
+        
+        // Hard gate for stutter OFF segments
+        if (gateOff) {
+          fSample = 0.0f;
+        } else {
+          // Vinyl character: 2-pole one-pole LP (warm analog tone)
+          float alpha = vinylFilterCutoff / (vinylFilterCutoff + (float)SAMPLE_RATE * 0.159155f);
+          
+          if (specialFxType == FILTER_SCRATCH) {
+            ScratchState& ss = scratchState[pi];
+            ss.lpState1 += alpha * (fSample - ss.lpState1);
+            ss.lpState2 += alpha * (ss.lpState1 - ss.lpState2);
+            fSample = ss.lpState2;
+            
+            // Vinyl crackle: sparse random pops
+            ss.noiseState = ss.noiseState * 1103515245u + 12345u;
+            if ((ss.noiseState >> 24) < 7) {
+              float crackle = (float)((int32_t)(ss.noiseState >> 16) - 32768) / 32768.0f;
+              fSample += crackle * 0.025f;
+            }
+          } else {
+            TurntablismState& ts = turntablismState[pi];
+            ts.lpState1 += alpha * (fSample - ts.lpState1);
+            ts.lpState2 += alpha * (ts.lpState1 - ts.lpState2);
+            fSample = ts.lpState2;
+            
+            // Backspin and brake vinyl noise
+            if (addCrackle) {
+              ts.noiseState = ts.noiseState * 1103515245u + 12345u;
+              if ((ts.noiseState >> 24) < 10) {
+                float crackle = (float)((int32_t)(ts.noiseState >> 16) - 32768) / 32768.0f;
+                fSample += crackle * 0.035f;
+              }
+            }
+          }
+        }
+        
+        // Clamp and mix
+        int16_t out = (int16_t)(fSample * 32768.0f);
+        if (out > 32767) out = 32767;
+        if (out < -32768) out = -32768;
+        
+        mixAcc[i * 2] += out;
+        mixAcc[i * 2 + 1] += out;
+      }
+      // Keep voice alive (scratch loops indefinitely)
+      voice.position = (uint32_t)voice.scratchPos;
+      continue;
+    }
+    
+    // ====== NORMAL VOICE PROCESSING ======
+    const bool hasPitchShift = (voice.pitchShift < 0.99f || voice.pitchShift > 1.01f);
+    if (hasPitchShift) voice.scratchPos = (float)voice.position;
+    
     for (size_t i = 0; i < samples; i++) {
       if (voice.position >= voice.length) {
         if (voice.loop && voice.loopEnd > voice.loopStart) {
           voice.position = voice.loopStart;
+          if (hasPitchShift) voice.scratchPos = (float)voice.loopStart;
         } else {
           voice.active = false;
           break;
@@ -356,22 +536,56 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       // Apply per-pad or per-track filter if active (using per-voice state)
       int16_t filtered = (int16_t)constrain(scaled, -32768, 32767);
       if (voice.padIndex >= 0 && voice.padIndex < MAX_PADS) {
+        FXParams* chFx = nullptr;
+        DistortionMode chDistMode = DIST_SOFT;
+        
         if (voice.isLivePad && padFilterActive[voice.padIndex]) {
-          float x = (float)filtered;
-          float y = padFilters[voice.padIndex].coeffs.b0 * x + voice.filterState.x1;
-          voice.filterState.x1 = padFilters[voice.padIndex].coeffs.b1 * x - padFilters[voice.padIndex].coeffs.a1 * y + voice.filterState.x2;
-          voice.filterState.x2 = padFilters[voice.padIndex].coeffs.b2 * x - padFilters[voice.padIndex].coeffs.a2 * y;
-          if (y > 32767.0f) y = 32767.0f;
-          else if (y < -32768.0f) y = -32768.0f;
-          filtered = (int16_t)y;
+          chFx = &padFilters[voice.padIndex];
+          chDistMode = padDistortionMode[voice.padIndex];
         } else if (!voice.isLivePad && voice.padIndex < MAX_AUDIO_TRACKS && trackFilterActive[voice.padIndex]) {
-          float x = (float)filtered;
-          float y = trackFilters[voice.padIndex].coeffs.b0 * x + voice.filterState.x1;
-          voice.filterState.x1 = trackFilters[voice.padIndex].coeffs.b1 * x - trackFilters[voice.padIndex].coeffs.a1 * y + voice.filterState.x2;
-          voice.filterState.x2 = trackFilters[voice.padIndex].coeffs.b2 * x - trackFilters[voice.padIndex].coeffs.a2 * y;
-          if (y > 32767.0f) y = 32767.0f;
-          else if (y < -32768.0f) y = -32768.0f;
-          filtered = (int16_t)y;
+          chFx = &trackFilters[voice.padIndex];
+          chDistMode = trackDistortionMode[voice.padIndex];
+        }
+        
+        if (chFx) {
+          // 1. Per-channel distortion
+          if (chFx->distortion > 0.1f) {
+            float x = (float)filtered / 32768.0f;
+            float amt = chFx->distortion / 100.0f;
+            x *= (1.0f + amt * 3.0f);
+            switch (chDistMode) {
+              case DIST_HARD:
+                if (x > 1.0f) x = 1.0f; else if (x < -1.0f) x = -1.0f;
+                break;
+              case DIST_TUBE:
+                x = (x >= 0.0f) ? (1.0f - expf(-x)) : -(1.0f - expf(x * 1.2f));
+                break;
+              case DIST_FUZZ:
+                x = x / (1.0f + fabsf(x)); x *= 2.0f; x = x / (1.0f + fabsf(x));
+                break;
+              default: // DIST_SOFT
+                x = x / (1.0f + fabsf(x));
+                break;
+            }
+            filtered = (int16_t)(x * 32768.0f);
+          }
+          
+          // 2. Per-channel biquad filter
+          if (chFx->filterType != FILTER_NONE) {
+            float x = (float)filtered;
+            float y = chFx->coeffs.b0 * x + voice.filterState.x1;
+            voice.filterState.x1 = chFx->coeffs.b1 * x - chFx->coeffs.a1 * y + voice.filterState.x2;
+            voice.filterState.x2 = chFx->coeffs.b2 * x - chFx->coeffs.a2 * y;
+            if (y > 32767.0f) y = 32767.0f;
+            else if (y < -32768.0f) y = -32768.0f;
+            filtered = (int16_t)y;
+          }
+          
+          // 3. Per-channel bitcrush
+          if (chFx->bitDepth < 16) {
+            int shift = 16 - chFx->bitDepth;
+            filtered = (filtered >> shift) << shift;
+          }
         }
       }
       
@@ -379,7 +593,13 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       mixAcc[i * 2] += filtered;
       mixAcc[i * 2 + 1] += filtered;
       
-      voice.position++;
+      // Advance position (with pitch shift support)
+      if (hasPitchShift) {
+        voice.scratchPos += voice.pitchShift;
+        voice.position = (uint32_t)voice.scratchPos;
+      } else {
+        voice.position++;
+      }
     }
   }
   
@@ -471,6 +691,7 @@ void AudioEngine::resetVoice(int voiceIndex) {
   voices[voiceIndex].isLivePad = false;
   voices[voiceIndex].startAge = 0;
   voices[voiceIndex].filterState = {0.0f, 0.0f, 0.0f, 0.0f};
+  voices[voiceIndex].scratchPos = 0.0f;
 }
 
 // ============= FX IMPLEMENTATION =============
@@ -1025,13 +1246,30 @@ bool AudioEngine::setPadFilter(int pad, FilterType type, float cutoff, float res
   padFilters[pad].gain = constrain(gain, -12.0f, 12.0f);
   padFilterActive[pad] = (type != FILTER_NONE);
   
-  // Calculate coefficients for this filter
-  if (type != FILTER_NONE) {
+  // Special effects: initialize scratch/turntablism state
+  if (type == FILTER_SCRATCH) {
+    scratchState[pad].lfoPhase = 0.0f;
+    scratchState[pad].lfoRate = 5.0f;
+    scratchState[pad].depth = 0.85f;
+    scratchState[pad].lpState1 = 0.0f;
+    scratchState[pad].lpState2 = 0.0f;
+    Serial.printf("[AudioEngine] Pad %d: SCRATCH effect initialized (rate: %.1f Hz, depth: %.2f)\n", pad, 5.0f, 0.85f);
+  } else if (type == FILTER_TURNTABLISM) {
+    turntablismState[pad].mode = 0;
+    turntablismState[pad].modeTimer = 33075;
+    turntablismState[pad].gatePhase = 0.0f;
+    turntablismState[pad].lpState1 = 0.0f;
+    turntablismState[pad].lpState2 = 0.0f;
+    Serial.printf("[AudioEngine] Pad %d: TURNTABLISM effect initialized\n", pad);
+  } else if (type != FILTER_NONE) {
+    // Calculate biquad coefficients for standard filters only
     calculateBiquadCoeffs(padFilters[pad]);
   }
   
-  Serial.printf("[AudioEngine] Pad %d filter: %s (cutoff: %.1f Hz, Q: %.2f, gain: %.1f dB)\n",
-                pad, getFilterName(type), cutoff, resonance, gain);
+  if (type != FILTER_SCRATCH && type != FILTER_TURNTABLISM) {
+    Serial.printf("[AudioEngine] Pad %d filter: %s (cutoff: %.1f Hz, Q: %.2f, gain: %.1f dB)\n",
+                  pad, getFilterName(type), cutoff, resonance, gain);
+  }
   return true;
 }
 
@@ -1055,6 +1293,70 @@ int AudioEngine::getActivePadFiltersCount() {
   return count;
 }
 
+// ============= PER-PAD/TRACK FX (Distortion + BitCrush) =============
+
+void AudioEngine::setPadDistortion(int pad, float amount, DistortionMode mode) {
+  if (pad < 0 || pad >= MAX_PADS) return;
+  padFilters[pad].distortion = constrain(amount, 0.0f, 100.0f);
+  padDistortionMode[pad] = mode;
+  // Activate pad filter channel if any FX is set
+  if (amount > 0.1f || padFilters[pad].filterType != FILTER_NONE || padFilters[pad].bitDepth < 16) {
+    padFilterActive[pad] = true;
+  }
+  Serial.printf("[AudioEngine] Pad %d distortion: %.1f%% mode=%d\n", pad, amount, mode);
+}
+
+void AudioEngine::setPadBitCrush(int pad, uint8_t bits) {
+  if (pad < 0 || pad >= MAX_PADS) return;
+  padFilters[pad].bitDepth = constrain(bits, 4, 16);
+  if (bits < 16 || padFilters[pad].filterType != FILTER_NONE || padFilters[pad].distortion > 0.1f) {
+    padFilterActive[pad] = true;
+  }
+  Serial.printf("[AudioEngine] Pad %d bitcrush: %d bits\n", pad, bits);
+}
+
+void AudioEngine::clearPadFX(int pad) {
+  if (pad < 0 || pad >= MAX_PADS) return;
+  padFilters[pad].distortion = 0.0f;
+  padFilters[pad].bitDepth = 16;
+  padDistortionMode[pad] = DIST_SOFT;
+  // Only deactivate if filter is also off
+  if (padFilters[pad].filterType == FILTER_NONE) {
+    padFilterActive[pad] = false;
+  }
+  Serial.printf("[AudioEngine] Pad %d FX cleared\n", pad);
+}
+
+void AudioEngine::setTrackDistortion(int track, float amount, DistortionMode mode) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return;
+  trackFilters[track].distortion = constrain(amount, 0.0f, 100.0f);
+  trackDistortionMode[track] = mode;
+  if (amount > 0.1f || trackFilters[track].filterType != FILTER_NONE || trackFilters[track].bitDepth < 16) {
+    trackFilterActive[track] = true;
+  }
+  Serial.printf("[AudioEngine] Track %d distortion: %.1f%% mode=%d\n", track, amount, mode);
+}
+
+void AudioEngine::setTrackBitCrush(int track, uint8_t bits) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return;
+  trackFilters[track].bitDepth = constrain(bits, 4, 16);
+  if (bits < 16 || trackFilters[track].filterType != FILTER_NONE || trackFilters[track].distortion > 0.1f) {
+    trackFilterActive[track] = true;
+  }
+  Serial.printf("[AudioEngine] Track %d bitcrush: %d bits\n", track, bits);
+}
+
+void AudioEngine::clearTrackFX(int track) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return;
+  trackFilters[track].distortion = 0.0f;
+  trackFilters[track].bitDepth = 16;
+  trackDistortionMode[track] = DIST_SOFT;
+  if (trackFilters[track].filterType == FILTER_NONE) {
+    trackFilterActive[track] = false;
+  }
+  Serial.printf("[AudioEngine] Track %d FX cleared\n", track);
+}
+
 // ============= FILTER PRESETS =============
 
 const FilterPreset* AudioEngine::getFilterPreset(FilterType type) {
@@ -1068,10 +1370,12 @@ const FilterPreset* AudioEngine::getFilterPreset(FilterType type) {
     {FILTER_PEAKING, 1000.0f, 3.0f, 9.0f, "Peaking EQ"},
     {FILTER_LOWSHELF, 200.0f, 1.0f, 9.0f, "Low Shelf"},
     {FILTER_HIGHSHELF, 5000.0f, 1.0f, 8.0f, "High Shelf"},
-    {FILTER_RESONANT, 800.0f, 12.0f, 0.0f, "Resonant"}
+    {FILTER_RESONANT, 800.0f, 12.0f, 0.0f, "Resonant"},
+    {FILTER_SCRATCH, 0.0f, 0.0f, 0.0f, "Scratch"},
+    {FILTER_TURNTABLISM, 0.0f, 0.0f, 0.0f, "Turntablism"}
   };
   
-  if (type >= FILTER_NONE && type <= FILTER_RESONANT) {
+  if (type >= FILTER_NONE && type <= FILTER_TURNTABLISM) {
     return &presets[type];
   }
   return &presets[0];

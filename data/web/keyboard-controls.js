@@ -322,11 +322,78 @@ function handleKeyboardShortcut(e) {
       return true;
     }
     
-    // Check for unassigned keys (when no cell selected and not a pad)
-    const unassignedKeys = ['u', 'i', 'o', 'p', 'd', 'f', 'g', 'j', 'k', 'l'];
-    const keyLower = e.key.toLowerCase();
-    if (unassignedKeys.includes(keyLower) && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      showToast(`Key "${e.key.toUpperCase()}" is not assigned`, TOAST_TYPES.UNASSIGNED, 2000);
+    // ============= LIVE PERFORMANCE KEYS =============
+    
+    // G: KILL ALL - Stop all sounds immediately
+    if (key === 'G' && !selectedCell) {
+      e.preventDefault();
+      if (window.sendWebSocket) {
+        window.sendWebSocket({ cmd: 'stopAllSounds' });
+      }
+      // Also stop all active keyboard tremolos
+      for (let pi = 0; pi < 16; pi++) {
+        if (window.keyboardPadsActive && window.keyboardPadsActive[pi]) {
+          window.keyboardPadsActive[pi] = false;
+          const padEl = document.querySelector(`.pad[data-pad="${pi}"]`);
+          if (padEl && window.stopKeyboardTremolo) window.stopKeyboardTremolo(pi, padEl);
+        }
+      }
+      showToast('💀 KILL ALL', TOAST_TYPES.WARNING, 1500);
+      return true;
+    }
+    
+    // J: Quick filter cycle on selected/last pad (OFF → LP → HP → BP → RES → OFF)
+    if (key === 'J' && !selectedCell) {
+      e.preventDefault();
+      const pad = selectedPad !== null ? selectedPad : (window._lastTriggeredPad || 0);
+      if (!window._padQuickFilter) window._padQuickFilter = {};
+      const filterCycle = [0, 1, 2, 3, 9]; // OFF, LP, HP, BP, Resonant
+      let idx = (window._padQuickFilter[pad] || 0) + 1;
+      if (idx >= filterCycle.length) idx = 0;
+      window._padQuickFilter[pad] = idx;
+      const filterType = filterCycle[idx];
+      if (window.setPadFilter) window.setPadFilter(pad, filterType);
+      const filterNames = ['OFF', 'LOW PASS', 'HIGH PASS', 'BAND PASS', 'RESONANT'];
+      const filterIcons = ['🚫', '🔥', '✨', '📞', '⚡'];
+      const names = window.padNames || [];
+      showToast(`${filterIcons[idx]} ${names[pad] || 'Pad'}: ${filterNames[idx]}`, TOAST_TYPES.SUCCESS, 1500);
+      return true;
+    }
+    
+    // K: Live PITCH UP on all active live pads (hold for ramp)
+    if (key === 'K' && !selectedCell) {
+      e.preventDefault();
+      if (!window._livePitchShift) window._livePitchShift = 1.0;
+      window._livePitchShift = Math.min(3.0, window._livePitchShift + 0.15);
+      if (window.sendWebSocket) {
+        window.sendWebSocket({ cmd: 'setLivePitch', pitch: window._livePitchShift });
+      }
+      const semitones = Math.round(12 * Math.log2(window._livePitchShift));
+      showToast(`🎵 PITCH ↑ ${semitones > 0 ? '+' : ''}${semitones} st`, TOAST_TYPES.INFO, 1200);
+      return true;
+    }
+    
+    // L: Live PITCH DOWN on all active live pads (hold for ramp)
+    if (key === 'L' && !selectedCell) {
+      e.preventDefault();
+      if (!window._livePitchShift) window._livePitchShift = 1.0;
+      window._livePitchShift = Math.max(0.25, window._livePitchShift - 0.15);
+      if (window.sendWebSocket) {
+        window.sendWebSocket({ cmd: 'setLivePitch', pitch: window._livePitchShift });
+      }
+      const semitones = Math.round(12 * Math.log2(window._livePitchShift));
+      showToast(`🎵 PITCH ↓ ${semitones > 0 ? '+' : ''}${semitones} st`, TOAST_TYPES.INFO, 1200);
+      return true;
+    }
+    
+    // `: Reset pitch to normal
+    if (e.key === '`' && !selectedCell) {
+      e.preventDefault();
+      window._livePitchShift = 1.0;
+      if (window.sendWebSocket) {
+        window.sendWebSocket({ cmd: 'setLivePitch', pitch: 1.0 });
+      }
+      showToast('🎵 PITCH RESET', TOAST_TYPES.INFO, 1200);
       return true;
     }
   }
@@ -1013,10 +1080,28 @@ function createKeyboardSidebar() {
           <div class="key-item"><kbd>6</kbd><span>CP (Clap)</span></div>
           <div class="key-item"><kbd>7</kbd><span>RS (Rimshot)</span></div>
           <div class="key-item"><kbd>8</kbd><span>CB (Cowbell)</span></div>
-          <div class="key-item"><span>Pads 9-16: touch only (LT, MT, HT, MA, CL, HC, MC, LC)</span></div>
+          <div class="key-item"><kbd>9</kbd><span>LT (Low Tom)</span></div>
+          <div class="key-item"><kbd>0</kbd><span>MT (Mid Tom)</span></div>
+          <div class="key-item"><kbd>U</kbd><span>HT (High Tom)</span></div>
+          <div class="key-item"><kbd>I</kbd><span>MA (Maracas)</span></div>
+          <div class="key-item"><kbd>O</kbd><span>CL (Claves)</span></div>
+          <div class="key-item"><kbd>P</kbd><span>HC (Hi Conga)</span></div>
+          <div class="key-item"><kbd>D</kbd><span>MC (Mid Conga)</span></div>
+          <div class="key-item"><kbd>F</kbd><span>LC (Low Conga)</span></div>
         </div>
-        <div class="key-note">Hold = Tremolo | Shift+Key = Mute Track</div>
-        <div class="key-note">Auto-selects pad for Shift+F1-F10 filters</div>
+        <div class="key-note">Hold = Tremolo (55ms→18ms) | Shift+Key = Mute</div>
+        <div class="key-note">5+ simultaneous tremolos supported!</div>
+      </div>
+      
+      <div class="key-section">
+        <h3>🎤 LIVE PERFORMANCE</h3>
+        <div class="key-list">
+          <div class="key-item"><kbd>G</kbd><span>💀 KILL ALL sounds</span></div>
+          <div class="key-item"><kbd>J</kbd><span>🎛️ Cycle filter on pad</span></div>
+          <div class="key-item"><kbd>K</kbd><span>🎵 Pitch UP (+semitone)</span></div>
+          <div class="key-item"><kbd>L</kbd><span>🎵 Pitch DOWN (-semitone)</span></div>
+          <div class="key-item"><kbd>\`</kbd><span>🎵 Reset pitch</span></div>
+        </div>
       </div>
       
       <div class="key-section">
@@ -1078,9 +1163,8 @@ function createKeyboardSidebar() {
         </div>
       </div>
       
-      <div class="key-section unassigned">
-        <h3>⚪ Unassigned Keys</h3>
-        <div class="key-note">Available: 9, 0, U, I, O, P, D, F, G, J, K, L</div>
+      <div class="key-section">
+        <h3>⚡ All 16 pads + 5 live controls mapped!</h3>
       </div>
     </div>
   `;

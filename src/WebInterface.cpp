@@ -938,13 +938,40 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int track = doc["track"];
     if (track < 0 || track >= 16) return;
     yield();
+    
+    // If loopType is provided, set it before toggling
+    if (doc.containsKey("loopType")) {
+      int lt = doc["loopType"];
+      sequencer.setLoopType(track, (LoopType)constrain(lt, 0, 3));
+    }
+    
     sequencer.toggleLoop(track);
     
-    StaticJsonDocument<128> responseDoc;
+    StaticJsonDocument<192> responseDoc;
     responseDoc["type"] = "loopState";
     responseDoc["track"] = track;
     responseDoc["active"] = sequencer.isLooping(track);
     responseDoc["paused"] = sequencer.isLoopPaused(track);
+    responseDoc["loopType"] = (int)sequencer.getLoopType(track);
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+    yield();
+  }
+  else if (cmd == "setLoopType") {
+    int track = doc["track"];
+    int lt = doc["loopType"];
+    if (track < 0 || track >= 16) return;
+    yield();
+    sequencer.setLoopType(track, (LoopType)constrain(lt, 0, 3));
+    
+    StaticJsonDocument<192> responseDoc;
+    responseDoc["type"] = "loopState";
+    responseDoc["track"] = track;
+    responseDoc["active"] = sequencer.isLooping(track);
+    responseDoc["paused"] = sequencer.isLoopPaused(track);
+    responseDoc["loopType"] = lt;
     
     String output;
     serializeJson(responseDoc, output);
@@ -1075,6 +1102,89 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     float gain = doc["value"];
     audioEngine.setCompressorMakeupGain(gain);  // Already in dB
   }
+  // ============= Per-Pad / Per-Track FX Commands =============
+  else if (cmd == "setPadDistortion") {
+    int pad = doc["pad"];
+    float amount = doc["amount"];
+    int mode = doc.containsKey("mode") ? (int)doc["mode"] : 0;
+    if (pad >= 0 && pad < 16) {
+      audioEngine.setPadDistortion(pad, amount, (DistortionMode)mode);
+      StaticJsonDocument<128> resp;
+      resp["type"] = "padFxSet";
+      resp["pad"] = pad;
+      resp["fx"] = "distortion";
+      resp["amount"] = amount;
+      resp["mode"] = mode;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
+  else if (cmd == "setPadBitCrush") {
+    int pad = doc["pad"];
+    int bits = doc["value"];
+    if (pad >= 0 && pad < 16) {
+      audioEngine.setPadBitCrush(pad, bits);
+      StaticJsonDocument<128> resp;
+      resp["type"] = "padFxSet";
+      resp["pad"] = pad;
+      resp["fx"] = "bitcrush";
+      resp["value"] = bits;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
+  else if (cmd == "clearPadFX") {
+    int pad = doc["pad"];
+    if (pad >= 0 && pad < 16) {
+      audioEngine.clearPadFX(pad);
+      StaticJsonDocument<96> resp;
+      resp["type"] = "padFxCleared";
+      resp["pad"] = pad;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
+  else if (cmd == "setTrackDistortion") {
+    int track = doc["track"];
+    float amount = doc["amount"];
+    int mode = doc.containsKey("mode") ? (int)doc["mode"] : 0;
+    if (track >= 0 && track < 16) {
+      audioEngine.setTrackDistortion(track, amount, (DistortionMode)mode);
+      StaticJsonDocument<128> resp;
+      resp["type"] = "trackFxSet";
+      resp["track"] = track;
+      resp["fx"] = "distortion";
+      resp["amount"] = amount;
+      resp["mode"] = mode;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
+  else if (cmd == "setTrackBitCrush") {
+    int track = doc["track"];
+    int bits = doc["value"];
+    if (track >= 0 && track < 16) {
+      audioEngine.setTrackBitCrush(track, bits);
+      StaticJsonDocument<128> resp;
+      resp["type"] = "trackFxSet";
+      resp["track"] = track;
+      resp["fx"] = "bitcrush";
+      resp["value"] = bits;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
+  else if (cmd == "clearTrackFX") {
+    int track = doc["track"];
+    if (track >= 0 && track < 16) {
+      audioEngine.clearTrackFX(track);
+      StaticJsonDocument<96> resp;
+      resp["type"] = "trackFxCleared";
+      resp["track"] = track;
+      String out; serializeJson(resp, out);
+      if (ws) ws->textAll(out);
+    }
+  }
   else if (cmd == "setSequencerVolume") {
     int volume = doc["value"];
     audioEngine.setSequencerVolume(volume);
@@ -1104,6 +1214,16 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setVolume") {
     int volume = doc["value"];
     audioEngine.setMasterVolume(volume);
+  }
+  else if (cmd == "stopAllSounds") {
+    audioEngine.stopAll();
+    Serial.println("[WS] KILL ALL - All sounds stopped");
+  }
+  else if (cmd == "setLivePitch") {
+    float pitch = doc["pitch"].as<float>();
+    pitch = constrain(pitch, 0.25f, 3.0f);
+    audioEngine.setLivePitchShift(pitch);
+    Serial.printf("[WS] Live pitch set to %.2f\n", pitch);
   }
   // ============= NEW: Per-Track Filter Commands =============
   else if (cmd == "setTrackFilter") {

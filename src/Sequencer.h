@@ -13,6 +13,14 @@
 #define STEPS_PER_PATTERN 16
 #define MAX_TRACKS 16
 
+// Loop types for pads
+enum LoopType {
+  LOOP_EVERY_STEP = 0,   // Trigger every step (16th note)
+  LOOP_EVERY_BEAT = 1,   // Trigger every beat (4 steps = quarter note)
+  LOOP_HALF_BEAT = 2,    // Trigger 2x per beat (8th note = every 2 steps)
+  LOOP_ARRHYTHMIC = 3    // Random timing
+};
+
 class Sequencer {
 public:
   Sequencer();
@@ -67,6 +75,8 @@ public:
   
   // Loop system for live pads
   void toggleLoop(int track);
+  void setLoopType(int track, LoopType type);
+  LoopType getLoopType(int track);
   void pauseLoop(int track);
   bool isLooping(int track);
   bool isLoopPaused(int track);
@@ -105,6 +115,8 @@ private:
   // Loop system
   bool loopActive[MAX_TRACKS];
   bool loopPaused[MAX_TRACKS];
+  LoopType loopType[MAX_TRACKS];
+  uint8_t loopStepCounter[MAX_TRACKS];
   
   void calculateStepInterval();
   void processStep();

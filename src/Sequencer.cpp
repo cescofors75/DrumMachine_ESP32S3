@@ -32,6 +32,8 @@ Sequencer::Sequencer() :
     trackVolume[t] = 100;
     loopActive[t] = false;
     loopPaused[t] = false;
+    loopType[t] = LOOP_EVERY_STEP;
+    loopStepCounter[t] = 0;
   }
   
   calculateStepInterval();
@@ -317,8 +319,24 @@ void Sequencer::toggleLoop(int track) {
   if (track >= 0 && track < MAX_TRACKS) {
     loopActive[track] = !loopActive[track];
     loopPaused[track] = false; // Reset pause state
-    Serial.printf("[Loop] Track %d: %s\n", track, loopActive[track] ? "ACTIVE" : "INACTIVE");
+    loopStepCounter[track] = 0; // Reset counter
+    Serial.printf("[Loop] Track %d: %s (type=%d)\n", track, loopActive[track] ? "ACTIVE" : "INACTIVE", loopType[track]);
   }
+}
+
+void Sequencer::setLoopType(int track, LoopType type) {
+  if (track >= 0 && track < MAX_TRACKS) {
+    loopType[track] = type;
+    loopStepCounter[track] = 0;
+    Serial.printf("[Loop] Track %d type set to %d\n", track, type);
+  }
+}
+
+LoopType Sequencer::getLoopType(int track) {
+  if (track >= 0 && track < MAX_TRACKS) {
+    return loopType[track];
+  }
+  return LOOP_EVERY_STEP;
 }
 
 void Sequencer::pauseLoop(int track) {
@@ -348,9 +366,32 @@ void Sequencer::processLoops() {
   // Process looped tracks every step
   for (int track = 0; track < MAX_TRACKS; track++) {
     if (loopActive[track] && !loopPaused[track] && !trackMuted[track]) {
-      if (stepCallback != nullptr) {
-        stepCallback(track, 100, trackVolume[track]); // Loop triggers at consistent velocity with track volume
+      bool shouldTrigger = false;
+      
+      switch (loopType[track]) {
+        case LOOP_EVERY_STEP:
+          // Trigger on every step (16th note)
+          shouldTrigger = true;
+          break;
+        case LOOP_EVERY_BEAT:
+          // Trigger every 4 steps (quarter note)
+          shouldTrigger = (loopStepCounter[track] % 4 == 0);
+          break;
+        case LOOP_HALF_BEAT:
+          // Trigger every 2 steps (8th note)
+          shouldTrigger = (loopStepCounter[track] % 2 == 0);
+          break;
+        case LOOP_ARRHYTHMIC:
+          // Random trigger ~40% chance per step
+          shouldTrigger = (random(100) < 40);
+          break;
       }
+      
+      if (shouldTrigger && stepCallback != nullptr) {
+        stepCallback(track, 100, trackVolume[track]);
+      }
+      
+      loopStepCounter[track] = (loopStepCounter[track] + 1) % 16;
     }
   }
 }

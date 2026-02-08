@@ -1376,6 +1376,43 @@ body:not(.mono-mode) .pad.tremolo-active {
     transform: scale(0.95);
 }
 
+/* Special Pad-Only Filters (Scratch / Turntablism) */
+.pfe-filter-special {
+    background: linear-gradient(145deg, rgba(0, 180, 220, 0.2), rgba(0, 120, 180, 0.15)) !important;
+    border: 2px solid rgba(0, 200, 255, 0.4) !important;
+    position: relative;
+    overflow: hidden;
+}
+.pfe-filter-special::before {
+    content: 'PAD ONLY';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 7px;
+    font-weight: 800;
+    color: rgba(0, 220, 255, 0.7);
+    letter-spacing: 0.5px;
+}
+.pfe-filter-special:hover {
+    background: linear-gradient(145deg, rgba(0, 200, 255, 0.35), rgba(0, 150, 200, 0.25)) !important;
+    border-color: rgba(0, 220, 255, 0.7) !important;
+    box-shadow: 0 0 20px rgba(0, 200, 255, 0.4), inset 0 1px 2px rgba(0, 200, 255, 0.2) !important;
+}
+.pfe-filter-special.active {
+    background: linear-gradient(145deg, rgba(0, 200, 255, 0.9), rgba(0, 140, 200, 0.85)) !important;
+    border-color: rgba(100, 240, 255, 1) !important;
+    box-shadow: 0 4px 20px rgba(0, 200, 255, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.3) !important;
+    color: #fff;
+}
+@keyframes vinylSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.pfe-filter-special.active .pfe-icon {
+    display: inline-block;
+    animation: vinylSpin 2s linear infinite;
+}
+
 /* Sync Toggle */
 .sync-toggle-wrap {
     display: flex;
@@ -6489,5 +6526,243 @@ body.midi-dialog-open .midi-import-overlay * {
     
     .fx-card {
         padding: 10px;
+    }
+}
+
+/* ============= LOOP TYPE POPUP ============= */
+.loop-popup-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.loop-popup-backdrop.visible { opacity: 1; }
+
+.loop-popup-modal {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%);
+    border: 2px solid rgba(255, 100, 0, 0.6);
+    border-radius: 16px;
+    padding: 20px;
+    z-index: 9999;
+    min-width: 320px;
+    max-width: 90vw;
+    opacity: 0;
+    transition: all 0.3s;
+    box-shadow: 0 0 40px rgba(255, 100, 0, 0.3);
+}
+.loop-popup-modal.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.loop-popup-modal.closing { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+
+.loop-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 100, 0, 0.3);
+}
+.loop-popup-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #ff6600;
+}
+.loop-popup-close {
+    background: none; border: none; color: #888;
+    font-size: 1.5em; cursor: pointer;
+    transition: color 0.2s;
+}
+.loop-popup-close:hover { color: #fff; }
+
+.loop-popup-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.loop-type-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+.loop-type-btn:hover {
+    background: rgba(255, 100, 0, 0.15);
+    border-color: rgba(255, 100, 0, 0.5);
+    transform: translateX(4px);
+}
+.loop-type-btn:active {
+    transform: translateX(2px) scale(0.98);
+}
+.loop-type-icon { font-size: 1.5em; min-width: 36px; text-align: center; }
+.loop-type-name { font-weight: 700; font-size: 1em; min-width: 110px; }
+.loop-type-desc { font-size: 0.8em; color: #888; }
+
+/* ============= PAD FX BUTTON ============= */
+.pad-fx-btn {
+    background: linear-gradient(145deg, rgba(220, 80, 20, 0.8), rgba(180, 40, 0, 0.9));
+    border: 1px solid rgba(255, 120, 50, 0.6);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.75em;
+    font-weight: 700;
+    padding: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    z-index: 100 !important;
+    position: absolute !important;
+    bottom: 6px !important;
+    left: 108px !important;
+    top: auto !important;
+    right: auto !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    width: 22px; height: 22px;
+    min-width: 44px; min-height: 44px;
+    display: flex !important;
+    align-items: center; justify-content: center;
+    opacity: 0.75;
+    line-height: 1;
+    isolation: isolate;
+}
+.pad-fx-btn:hover {
+    background: linear-gradient(145deg, rgba(240, 100, 30, 0.95), rgba(200, 60, 10, 1));
+    border-color: rgba(255, 150, 80, 0.9);
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+/* ============= PAD FX POPUP / TRACK FX POPUP ============= */
+.pad-fx-modal {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%);
+    border: 2px solid rgba(220, 80, 20, 0.6);
+    border-radius: 16px;
+    padding: 20px;
+    z-index: 9999;
+    min-width: 340px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    opacity: 0;
+    transition: all 0.3s;
+    box-shadow: 0 0 40px rgba(220, 80, 20, 0.3);
+}
+.pad-fx-modal.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.pad-fx-modal.closing { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+
+.pad-fx-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.pad-fx-section h4 {
+    font-size: 1em;
+    color: #ff6600;
+    margin-bottom: 10px;
+}
+.pad-fx-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.pad-fx-mode-btn.active {
+    background: rgba(255, 100, 0, 0.3) !important;
+    border-color: rgba(255, 100, 0, 0.7) !important;
+}
+.pad-fx-slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.pad-fx-slider-row label {
+    font-size: 0.9em;
+    color: #ccc;
+}
+.pad-fx-clear-btn {
+    padding: 10px;
+    background: rgba(200, 0, 0, 0.2);
+    border: 1px solid rgba(200, 0, 0, 0.4);
+    border-radius: 8px;
+    color: #ff4444;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.pad-fx-clear-btn:hover {
+    background: rgba(200, 0, 0, 0.4);
+    border-color: rgba(200, 0, 0, 0.7);
+}
+
+/* PAD FX Badge */
+.pad-fx-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 14px;
+    z-index: 50;
+    pointer-events: none;
+    animation: fxBadgePulse 2s infinite;
+}
+@keyframes fxBadgePulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; filter: brightness(1.3); }
+}
+
+/* ============= TRACK FX BUTTON (Sequencer) ============= */
+.track-fx-btn {
+    background: linear-gradient(145deg, rgba(220, 80, 20, 0.7), rgba(180, 40, 0, 0.8));
+    border: 1px solid rgba(255, 120, 50, 0.4);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    width: 22px; height: 22px;
+    min-width: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.7;
+    padding: 0;
+    margin-right: 2px;
+    flex-shrink: 0;
+}
+.track-fx-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+    background: linear-gradient(145deg, rgba(240, 100, 30, 0.9), rgba(200, 60, 10, 1));
+}
+
+/* ============= RESPONSIVE for new elements ============= */
+@media (max-width: 600px) {
+    .pad-fx-btn {
+        left: 90px !important;
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 0.65em;
+    }
+    .loop-popup-modal, .pad-fx-modal {
+        min-width: 280px;
+        padding: 14px;
+    }
+    .pad-fx-modes {
+        grid-template-columns: 1fr;
     }
 }

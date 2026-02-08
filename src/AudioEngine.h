@@ -38,7 +38,9 @@ enum FilterType {
   FILTER_PEAKING = 6,
   FILTER_LOWSHELF = 7,
   FILTER_HIGHSHELF = 8,
-  FILTER_RESONANT = 9
+  FILTER_RESONANT = 9,
+  FILTER_SCRATCH = 10,
+  FILTER_TURNTABLISM = 11
 };
 
 // Distortion modes (inspired by torvalds/AudioNoise distortion.h)
@@ -145,6 +147,26 @@ struct CompressorParams {
   float envelope;         // Current envelope level (state)
 };
 
+// Scratch effect state (per-pad, vinyl scratch simulation)
+struct ScratchState {
+  float lfoPhase;       // LFO phase accumulator
+  float lfoRate;        // Scratch oscillation rate (Hz)
+  float depth;          // Scratch depth (amplitude 0.5-1.0)
+  float lpState1;       // One-pole LP filter state 1
+  float lpState2;       // One-pole LP filter state 2
+  uint32_t noiseState;  // LFSR for vinyl crackle
+};
+
+// Turntablism effect state (per-pad, DJ turntable simulation)
+struct TurntablismState {
+  int mode;             // 0=normal, 1=brake, 2=backspin, 3=stutter
+  uint32_t modeTimer;   // Samples remaining in current mode
+  float gatePhase;      // Stutter gate LFO phase
+  float lpState1;       // One-pole LP state 1
+  float lpState2;       // One-pole LP state 2
+  uint32_t noiseState;  // LFSR for vinyl noise
+};
+
 // Voice structure
 struct Voice {
   int16_t* buffer;
@@ -161,6 +183,7 @@ struct Voice {
   bool isLivePad;
   uint32_t startAge;
   FilterState filterState;
+  float scratchPos;     // Float position for scratch/turntablism effects
 };
 
 class AudioEngine {
@@ -180,6 +203,10 @@ public:
   void triggerSampleLive(int padIndex, uint8_t velocity);
   void stopSample(int padIndex);
   void stopAll();
+  
+  // Live performance
+  void setLivePitchShift(float pitch);
+  float getLivePitchShift();
   
   // Voice parameters
   void setPitch(int voiceIndex, float pitch);
@@ -234,6 +261,14 @@ public:
   FilterType getPadFilter(int pad);
   int getActivePadFiltersCount();
   
+  // Per-Pad/Track FX (Distortion + BitCrush per channel)
+  void setPadDistortion(int pad, float amount, DistortionMode mode = DIST_SOFT);
+  void setPadBitCrush(int pad, uint8_t bits);
+  void clearPadFX(int pad);
+  void setTrackDistortion(int track, float amount, DistortionMode mode = DIST_SOFT);
+  void setTrackBitCrush(int track, uint8_t bits);
+  void clearTrackFX(int track);
+  
   // Filter Presets
   static const FilterPreset* getFilterPreset(FilterType type);
   static const char* getFilterName(FilterType type);
@@ -272,12 +307,21 @@ private:
   uint8_t masterVolume;
   uint8_t sequencerVolume;
   uint8_t liveVolume;
+  float livePitchShift;
   
   // Per-track and per-pad filters
   FXParams trackFilters[MAX_AUDIO_TRACKS];
   bool trackFilterActive[MAX_AUDIO_TRACKS];
   FXParams padFilters[MAX_PADS];
   bool padFilterActive[MAX_PADS];
+  
+  // Per-track and per-pad FX (distortion + bitcrush)
+  DistortionMode trackDistortionMode[MAX_AUDIO_TRACKS];
+  DistortionMode padDistortionMode[MAX_PADS];
+  
+  // Scratch / Turntablism per-pad state
+  ScratchState scratchState[MAX_PADS];
+  TurntablismState turntablismState[MAX_PADS];
   
   // ============= NEW: Master Effects State =============
   float* delayBuffer;                           // PSRAM-allocated circular buffer
