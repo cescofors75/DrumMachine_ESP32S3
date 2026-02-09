@@ -9,7 +9,7 @@
 
 #include <Arduino.h>
 
-#define MAX_PATTERNS 16
+#define MAX_PATTERNS 128
 #define STEPS_PER_PATTERN 16
 #define MAX_TRACKS 16
 
@@ -50,6 +50,9 @@ public:
   void setStepVelocity(int pattern, int track, int step, uint8_t velocity);
   uint8_t getStepVelocity(int track, int step);
   uint8_t getStepVelocity(int pattern, int track, int step);
+  
+  // Bulk pattern writing (for reliable MIDI import)
+  void setPatternBulk(int pattern, const bool stepsData[16][16], const uint8_t velsData[16][16]);
   
   // Pattern management
   void selectPattern(int pattern);

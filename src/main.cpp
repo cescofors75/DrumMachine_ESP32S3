@@ -154,7 +154,7 @@ void onStepTrigger(int track, uint8_t velocity, uint8_t trackVolume) {
 void triggerPadWithLED(int track, uint8_t velocity) {
     audioEngine.triggerSampleLive(track, velocity);
     
-    // Iluminar LED RGB con color del instrumento
+    // Iluminar LED RGB con color del instrumento (solo pads principales 0-15)
     if (track >= 0 && track < 16) {
         uint32_t color = ledMonoMode ? 0xFF0000 : instrumentColors[track];
         ledBrightness = 255;

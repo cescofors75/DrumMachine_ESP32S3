@@ -218,6 +218,18 @@ uint8_t Sequencer::getStepVelocity(int pattern, int track, int step) {
   return velocities[pattern][track][step];
 }
 
+void Sequencer::setPatternBulk(int pattern, const bool stepsData[16][16], const uint8_t velsData[16][16]) {
+  if (pattern < 0 || pattern >= MAX_PATTERNS) return;
+  
+  for (int t = 0; t < MAX_TRACKS; t++) {
+    for (int s = 0; s < STEPS_PER_PATTERN; s++) {
+      steps[pattern][t][s] = stepsData[t][s];
+      velocities[pattern][t][s] = velsData[t][s];
+    }
+  }
+  Serial.printf("[Bulk] Pattern %d written (16x16)\n", pattern);
+}
+
 void Sequencer::selectPattern(int pattern) {
   if (pattern < 0 || pattern >= MAX_PATTERNS) return;
   

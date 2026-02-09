@@ -26,8 +26,8 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     resetVoice(i);
   }
   
-  // Initialize sample buffers
-  for (int i = 0; i < 16; i++) {
+  // Initialize sample buffers (16 sequencer + 8 XTRA pads)
+  for (int i = 0; i < MAX_PADS; i++) {
     sampleBuffers[i] = nullptr;
     sampleLengths[i] = 0;
   }
@@ -253,7 +253,7 @@ bool AudioEngine::begin(int bckPin, int wsPin, int dataPin) {
 }
 
 bool AudioEngine::setSampleBuffer(int padIndex, int16_t* buffer, uint32_t length) {
-  if (padIndex < 0 || padIndex >= 16) return false;
+  if (padIndex < 0 || padIndex >= MAX_PADS) return false;
   
   sampleBuffers[padIndex] = buffer;
   sampleLengths[padIndex] = length;
@@ -269,7 +269,7 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
 }
 
 void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume) {
-  if (padIndex < 0 || padIndex >= 16 || sampleBuffers[padIndex] == nullptr) return;
+  if (padIndex < 0 || padIndex >= MAX_PADS || sampleBuffers[padIndex] == nullptr) return;
   
   int voiceIndex = findFreeVoice();
   if (voiceIndex < 0) return; // Voice stealing handled inside findFreeVoice
@@ -288,7 +288,7 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
-  if (padIndex < 0 || padIndex >= 16 || sampleBuffers[padIndex] == nullptr) return;
+  if (padIndex < 0 || padIndex >= MAX_PADS || sampleBuffers[padIndex] == nullptr) return;
   
   int voiceIndex = findFreeVoice();
   if (voiceIndex < 0) return;

@@ -46,8 +46,8 @@ data/
 
 1. **Copia** la carpeta `data/` al directori del teu sketch Arduino:
    ```
-   DrumMachine_ESP32S3/
-   ├── DrumMachine_ESP32S3.ino
+   RED808Master/
+   ├── RED808Master.ino
    ├── AudioEngine.h
    ├── ...
    └── data/              ← Aquí

@@ -618,10 +618,10 @@ function setImportMode(allBars) {
 function updateSongModeInfo() {
     if (!parsedMidiData) return;
     const totalBars = getMidiTotalBars(parsedMidiData);
-    const barsToImport = Math.min(totalBars, 16); // Max 16 patterns
+    const barsToImport = Math.min(totalBars, 128); // Max 128 patterns
     const infoEl = document.getElementById('songModeInfo');
     if (infoEl) {
-        infoEl.textContent = `${barsToImport} compases → Patterns 1-${barsToImport}${totalBars > 16 ? ` (máx 16 de ${totalBars})` : ''}`;
+        infoEl.textContent = `${barsToImport} compases → Patterns 1-${barsToImport}${totalBars > 128 ? ` (máx 128 de ${totalBars})` : ''}`;
     }
 }
 
@@ -771,7 +771,7 @@ function updateBarMap(midiData) {
 
     // Build compact bar map (clickable squares)
     let html = '';
-    const maxDisplay = Math.min(totalBars, 32); // Show max 32 bars
+    const maxDisplay = Math.min(totalBars, 64); // Show max 64 bars
     for (let b = 0; b < maxDisplay; b++) {
         const hasData = barNoteCounts[b] > 0;
         const isCurrent = b === currentImportBar;
@@ -779,7 +779,7 @@ function updateBarMap(midiData) {
         const cls = `bar-map-cell${hasData ? ' has-data' : ''}${isCurrent ? ' current' : ''}`;
         html += `<span class="${cls}" onclick="jumpToBar(${b})" title="Compás ${b + 1}: ${barNoteCounts[b]} notas" style="${hasData ? `opacity:${intensity}` : ''}">${b + 1}</span>`;
     }
-    if (totalBars > 32) html += `<span class="bar-map-more">+${totalBars - 32}</span>`;
+    if (totalBars > 64) html += `<span class="bar-map-more">+${totalBars - 64}</span>`;
     html += `<div class="bar-map-summary">${barsWithData} de ${totalBars} compases con datos drum</div>`;
 
     barMapEl.innerHTML = html;
@@ -976,6 +976,13 @@ function completeImportProgress(fileName, totalBars, totalNotes) {
 function confirmMidiImport() {
     if (!parsedMidiData) return;
 
+    // Check WebSocket connection before importing
+    if (typeof window.isWebSocketReady === 'function' ? !window.isWebSocketReady() : (!window.ws || window.ws.readyState !== WebSocket.OPEN)) {
+        alert('⚠️ WebSocket desconectado. Reconectando... Inténtalo de nuevo en unos segundos.');
+        if (typeof window.initWebSocket === 'function') window.initWebSocket();
+        return;
+    }
+
     // Apply tempo if checkbox is checked
     const useTempo = document.getElementById('useTempoCheckbox').checked;
     if (useTempo && parsedMidiData.tempo > 0) {
@@ -993,13 +1000,13 @@ function confirmMidiImport() {
     }
 
     if (importAllBars) {
-        // === SONG MODE: Import all bars into sequential patterns ===
+        // === SONG MODE: Import all bars using BULK commands ===
         const totalBars = getMidiTotalBars(parsedMidiData);
-        const barsToImport = Math.min(totalBars, 16); // Max 16 patterns
+        const barsToImport = Math.min(totalBars, 128); // Max 128 patterns
         let totalMapped = 0;
         const midiFileName = lastMidiFileName || 'MIDI';
 
-        console.log(`[MIDI Import] Starting song import: ${barsToImport} bars`);
+        console.log(`[MIDI Import] Starting BULK song import: ${barsToImport} bars`);
 
         // Close the import dialog FIRST, then show progress
         closeMidiImportDialog();
@@ -1007,94 +1014,113 @@ function confirmMidiImport() {
         // Show progress overlay
         showImportProgress(midiFileName, barsToImport);
 
-        // Queue commands with small delays to avoid flooding WebSocket
-        let cmdQueue = [];
-        // Mark bar boundaries for progress tracking
-        let barBoundaries = []; // index in cmdQueue where each bar starts
-
-        // Clear all patterns that will be used
-        for (let bar = 0; bar < barsToImport; bar++) {
-            cmdQueue.push({ cmd: 'clearPattern', pattern: bar });
+        // Clear all patterns with throttling to avoid flooding ESP32
+        console.log(`[MIDI Import] Clearing ${barsToImport} patterns...`);
+        let clearIdx = 0;
+        function sendNextClear() {
+            if (clearIdx < barsToImport) {
+                sendWebSocket({ cmd: 'clearPattern', pattern: clearIdx });
+                clearIdx++;
+                // Send in batches of 4, then yield
+                if (clearIdx % 4 === 0) {
+                    setTimeout(sendNextClear, 20);
+                } else {
+                    sendNextClear();
+                }
+            }
         }
+        sendNextClear();
 
-        // Generate patterns for all bars
+        // Pre-generate all pattern data
+        const allPatterns = [];
         for (let bar = 0; bar < barsToImport; bar++) {
-            barBoundaries.push(cmdQueue.length);
             const result = midiToPattern(parsedMidiData, {
                 bars: 1,
                 startBar: bar,
                 channel: currentImportChannel,
                 quantize: true
             });
-
             totalMapped += result.mappedNotes;
-
-            for (let track = 0; track < 16; track++) {
-                for (let step = 0; step < 16; step++) {
-                    if (result.pattern[track][step]) {
-                        cmdQueue.push({
-                            cmd: 'setStep',
-                            pattern: bar,
-                            track: track,
-                            step: step,
-                            active: true
-                        });
-                        if (result.velocities[track][step] !== 127) {
-                            cmdQueue.push({
-                                cmd: 'setStepVelocity',
-                                pattern: bar,
-                                track: track,
-                                step: step,
-                                velocity: result.velocities[track][step]
-                            });
-                        }
-                    }
-                }
-            }
+            allPatterns.push(result);
         }
 
-        // Enable song mode
-        cmdQueue.push({ cmd: 'setSongMode', enabled: true, length: barsToImport });
-        // Select first pattern
-        cmdQueue.push({ cmd: 'selectPattern', index: 0 });
+        // Send patterns one at a time using setBulk (waits for ACK)
+        let currentBar = 0;
+        let acksReceived = 0;
+        let acksFailed = 0;
 
-        // Send commands in small batches with generous delays to avoid ESP32 crash
-        const BATCH_SIZE = 8; // Smaller batches to prevent WebSocket buffer overflow
-        let batchIndex = 0;
+        function sendNextBulkPattern() {
+            if (currentBar < barsToImport) {
+                const barIdx = currentBar;
+                const result = allPatterns[barIdx];
+                
+                // Build compact arrays: s = steps (0/1), v = velocities
+                const s = [];
+                const v = [];
+                for (let t = 0; t < 16; t++) {
+                    const trackSteps = [];
+                    const trackVels = [];
+                    for (let step = 0; step < 16; step++) {
+                        trackSteps.push(result.pattern[t][step] ? 1 : 0);
+                        trackVels.push(result.velocities[t][step] || 127);
+                    }
+                    s.push(trackSteps);
+                    v.push(trackVels);
+                }
 
-        function sendBatch() {
-            const end = Math.min(batchIndex + BATCH_SIZE, cmdQueue.length);
-            for (let i = batchIndex; i < end; i++) {
-                sendWebSocket(cmdQueue[i]);
-            }
-            batchIndex = end;
-
-            // Update progress bar
-            const percent = Math.round((batchIndex / cmdQueue.length) * 100);
-            // Find which bar we're at
-            let currentBar = 0;
-            for (let b = barBoundaries.length - 1; b >= 0; b--) {
-                if (batchIndex >= barBoundaries[b]) { currentBar = b + 1; break; }
-            }
-            updateImportProgress(percent, currentBar, barsToImport);
-
-            if (batchIndex < cmdQueue.length) {
-                setTimeout(sendBatch, 120); // 120ms between batches (safer for ESP32)
+                const bulkCmd = { cmd: 'setBulk', p: barIdx, s: s, v: v };
+                sendWebSocket(bulkCmd);
+                
+                // Update progress
+                const percent = Math.round(((barIdx + 1) / barsToImport) * 100);
+                updateImportProgress(percent, barIdx + 1, barsToImport);
+                
+                if (barIdx < 3 || barIdx === barsToImport - 1) {
+                    console.log(`[MIDI Import] Sent bulk pattern ${barIdx + 1}/${barsToImport} (${result.mappedNotes} notes)`);
+                }
+                currentBar++;
+                
+                // Wait for ACK or timeout, then send next
+                const ackTimeout = setTimeout(() => {
+                    acksFailed++;
+                    console.warn(`[MIDI Import] No ACK for pattern ${barIdx} (timeout ${acksFailed})`);
+                    sendNextBulkPattern();
+                }, 1200); // 1200ms timeout per pattern (increased for stability)
+                
+                // Store handler to be called when ACK arrives
+                window._bulkAckCallback = (ackPattern) => {
+                    clearTimeout(ackTimeout);
+                    acksReceived++;
+                    window._bulkAckCallback = null;
+                    // Small delay between patterns for ESP32 stability
+                    setTimeout(sendNextBulkPattern, 30);
+                };
             } else {
-                // All sent - refresh pattern display after a delay
+                // All patterns sent, finalize
+                window._bulkAckCallback = null;
+                
+                // Enable song mode and select first pattern
+                sendWebSocket({ cmd: 'setSongMode', enabled: true, length: barsToImport });
+                setTimeout(() => {
+                    sendWebSocket({ cmd: 'selectPattern', index: 0 });
+                }, 100);
+                
+                // Refresh pattern display
                 setTimeout(() => {
                     sendWebSocket({ cmd: 'getPattern' });
-                    // Notify app.js about song mode
                     if (typeof window.onSongModeActivated === 'function') {
                         window.onSongModeActivated(barsToImport, midiFileName);
                     }
                     completeImportProgress(midiFileName, barsToImport, totalMapped);
                 }, 500);
-                console.log(`[MIDI Import] Song imported: ${barsToImport} bars, ${totalMapped} total notes, ${cmdQueue.length} commands sent`);
+                console.log(`[MIDI Import] BULK song imported: ${barsToImport} bars, ${totalMapped} total notes, ACKs: ${acksReceived}/${barsToImport}, timeouts: ${acksFailed}`);
             }
         }
 
-        sendBatch();
+        // Start sending after delay (let clearPattern commands process)
+        // Delay scales with number of patterns to clear
+        const clearDelay = Math.max(300, barsToImport * 30);
+        setTimeout(() => sendNextBulkPattern(), clearDelay);
     } else {
         // === SINGLE BAR MODE: Import one bar into current pattern ===
         const result = midiToPattern(parsedMidiData, {
@@ -1111,57 +1137,32 @@ function confirmMidiImport() {
             return;
         }
 
-        // Build command queue (same batching approach as song mode)
-        let cmdQueue = [];
-        cmdQueue.push({ cmd: 'clearPattern' });
-
-        for (let track = 0; track < 16; track++) {
+        // Build compact bulk arrays for single bar
+        const s = [];
+        const v = [];
+        for (let t = 0; t < 16; t++) {
+            const trackSteps = [];
+            const trackVels = [];
             for (let step = 0; step < 16; step++) {
-                if (result.pattern[track][step]) {
-                    cmdQueue.push({
-                        cmd: 'setStep',
-                        track: track,
-                        step: step,
-                        active: true
-                    });
-                    if (result.velocities[track][step] !== 127) {
-                        cmdQueue.push({
-                            cmd: 'setStepVelocity',
-                            track: track,
-                            step: step,
-                            velocity: result.velocities[track][step]
-                        });
-                    }
-                }
+                trackSteps.push(result.pattern[t][step] ? 1 : 0);
+                trackVels.push(result.velocities[t][step] || 127);
             }
+            s.push(trackSteps);
+            v.push(trackVels);
         }
 
-        // Send in batches with delays to avoid flooding ESP32
-        const BATCH_SIZE = 8;
-        let batchIndex = 0;
-
-        function sendSingleBarBatch() {
-            const end = Math.min(batchIndex + BATCH_SIZE, cmdQueue.length);
-            for (let i = batchIndex; i < end; i++) {
-                sendWebSocket(cmdQueue[i]);
-            }
-            batchIndex = end;
-
-            if (batchIndex < cmdQueue.length) {
-                setTimeout(sendSingleBarBatch, 100);
-            } else {
-                // All sent - refresh pattern display after delay
-                setTimeout(() => {
-                    sendWebSocket({ cmd: 'getPattern' });
-                    parsedMidiData = null; // Clean up
-                }, 400);
-                console.log(`[MIDI Import] Single bar imported: bar ${currentImportBar + 1}, ${result.mappedNotes} notes, ${cmdQueue.length} commands sent`);
-            }
-        }
-
-        // Close dialog FIRST (saves parsedMidiData reference before nulling)
+        // Close dialog FIRST
         closeMidiImportDialog();
-        sendSingleBarBatch();
+
+        // Send single bulk command (uses current pattern via server default)
+        sendWebSocket({ cmd: 'setBulk', p: -1, s: s, v: v });
+        
+        // Refresh pattern display after delay
+        setTimeout(() => {
+            sendWebSocket({ cmd: 'getPattern' });
+            parsedMidiData = null; // Clean up
+        }, 400);
+        console.log(`[MIDI Import] Single bar BULK imported: bar ${currentImportBar + 1}, ${result.mappedNotes} notes`);
     }
 }
 

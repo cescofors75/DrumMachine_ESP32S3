@@ -64,7 +64,7 @@ GPIO 18   →    BACK    → GND
 
 ## ⚙️ Configuració del Codi
 
-Al fitxer `DrumMachine_ESP32S3.ino`:
+Al fitxer `RED808Master.ino`:
 
 ### 1. Hardware (ja està configurat així per defecte)
 ```cpp
@@ -121,7 +121,7 @@ Tools → ESP32 Sketch Data Upload
 
 ### 4. Configura WiFi
 ```cpp
-// Edita DrumMachine_ESP32S3.ino
+// Edita RED808Master.ino
 #define WIFI_SSID "el_teu_wifi"
 #define WIFI_PASSWORD "la_teva_password"
 ```

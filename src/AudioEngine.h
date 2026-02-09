@@ -19,7 +19,7 @@
 
 // Constants for filter management
 static constexpr int MAX_AUDIO_TRACKS = 16;
-static constexpr int MAX_PADS = 16;
+static constexpr int MAX_PADS = 24;  // 16 sequencer + 8 XTRA pads
 
 // ============= NEW: Master Effects Constants =============
 #define DELAY_BUFFER_SIZE 32768    // ~0.74s at 44100Hz (in PSRAM)
@@ -290,8 +290,8 @@ public:
   
 private:
   Voice voices[MAX_VOICES];
-  int16_t* sampleBuffers[16];
-  uint32_t sampleLengths[16];
+  int16_t* sampleBuffers[MAX_PADS];
+  uint32_t sampleLengths[MAX_PADS];
   
   i2s_port_t i2sPort;
   int16_t mixBuffer[DMA_BUF_LEN * 2];

@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initWebSocket() {
     const wsUrl = `ws://${window.location.hostname}/ws`;
     ws = new WebSocket(wsUrl);
+    window.ws = ws; // Expose for midi-import.js
     
     ws.onopen = () => {
         isConnected = true;
@@ -150,7 +151,13 @@ function initWebSocket() {
     };
     
     ws.onmessage = (event) => {
+        if (typeof event.data !== 'string') return; // Skip binary messages
         const data = JSON.parse(event.data);
+        // Handle bulk ACK for MIDI import
+        if (data.type === 'bulkAck' && typeof window._bulkAckCallback === 'function') {
+            window._bulkAckCallback(data.p);
+            return;
+        }
         handleWebSocketMessage(data);
     };
 }
@@ -360,6 +367,9 @@ function handleWebSocketMessage(data) {
             break;
         case 'uploadComplete':
             handleUploadComplete(data);
+            break;
+        case 'midiScan':
+            handleMidiScanState(data);
             break;
     }
     
@@ -2696,15 +2706,23 @@ window.onSongModeActivated = function(length, midiFileName) {
     }
 };
 
-// Send WebSocket message
+// Send WebSocket message (returns true if sent)
 function sendWebSocket(data) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(data));
+        return true;
     }
+    return false;
 }
 
-// Export to window for keyboard-controls.js
+// Check WebSocket connection status
+function isWebSocketReady() {
+    return ws && ws.readyState === WebSocket.OPEN;
+}
+
+// Export to window for keyboard-controls.js and midi-import.js
 window.sendWebSocket = sendWebSocket;
+window.isWebSocketReady = isWebSocketReady;
 
 // ============= KEYBOARD CONTROLS =============
 
@@ -3546,6 +3564,17 @@ function handleMIDIDeviceMessage(data) {
     }
 }
 
+function handleMidiScanState(data) {
+    const toggle = document.getElementById('midiScanToggle');
+    if (toggle) toggle.checked = !!data.enabled;
+}
+
+function toggleMidiScan(enabled) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cmd: 'setMidiScan', enabled: enabled }));
+    }
+}
+
 function updateMidiUptime() {
     if (!midiConnectTimestamp) return;
     
@@ -4244,57 +4273,109 @@ function renderXtraAddButton() {
     grid.appendChild(addBtn);
 }
 
+// Next available XTRA pad slot (16-23)
+let nextXtraSlot = 16;
+
 function showXtraPadPicker() {
-    // Modal to pick which of the 16 instruments to map
+    // Count used XTRA slots
+    const usedSlots = xtraPads.map(p => p.padIndex);
+    let freeSlot = -1;
+    for (let s = 16; s < 24; s++) {
+        if (!usedSlots.includes(s)) { freeSlot = s; break; }
+    }
+    if (freeSlot < 0) {
+        if (window.showToast) window.showToast('❌ Maximum 8 XTRA pads', window.TOAST_TYPES?.ERROR, 3000);
+        return;
+    }
+
     const modal = document.createElement('div');
     modal.className = 'sample-modal';
     modal.innerHTML = `
-        <div class="sample-modal-content">
-            <h3>🎲 New XTRA Pad</h3>
-            <p style="color:#aaa;margin:0 0 12px;font-size:12px;">Pick an instrument to clone as an independent pad</p>
-            <div class="xtra-picker-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;"></div>
-            <button class="btn-close-modal">Cancel</button>
+        <div class="sample-modal-content" style="max-width:380px;">
+            <h3 style="margin:0 0 8px;">📤 Upload WAV → XTRA Pad</h3>
+            <p style="color:#aaa;margin:0 0 14px;font-size:11px;">Pads independientes (no Sequencer). Slot ${freeSlot - 15}/8</p>
+            <div id="xtraUploadZone" style="border:2px dashed #ff6600;border-radius:10px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;">
+                <div style="font-size:42px;margin-bottom:8px;">📂</div>
+                <div style="color:#ff6600;font-weight:bold;font-size:15px;" id="xtraUploadMsg">Click to select WAV file</div>
+                <div style="color:#666;font-size:10px;margin-top:6px;">Max 2MB · WAV format</div>
+            </div>
+            <div style="margin-top:12px;text-align:right;">
+                <button class="btn-close-modal">Cancel</button>
+            </div>
         </div>
     `;
 
-    const pickerGrid = modal.querySelector('.xtra-picker-grid');
+    const uploadZone = modal.querySelector('#xtraUploadZone');
+    const uploadMsg = modal.querySelector('#xtraUploadMsg');
 
-    for (let i = 0; i < 16; i++) {
-        const btn = document.createElement('button');
-        btn.style.cssText = 'padding:10px 4px;border:1px solid #555;border-radius:6px;background:#1a1a2e;color:#fff;cursor:pointer;font-size:13px;font-weight:bold;transition:all .15s;';
-        const sampleMeta = padSampleMetadata[i];
-        const label = padNames[i];
-        const sub = sampleMeta && sampleMeta.filename ? sampleMeta.filename : '...';
-        btn.innerHTML = `<div>${label}</div><div style="font-size:9px;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</div>`;
-        btn.addEventListener('mouseenter', () => { btn.style.background = '#ff6600'; btn.style.color = '#000'; });
-        btn.addEventListener('mouseleave', () => { btn.style.background = '#1a1a2e'; btn.style.color = '#fff'; });
-        btn.addEventListener('click', () => {
-            createXtraPad(i, padNames[i]);
-            modal.remove();
+    uploadZone.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.wav,.WAV';
+        input.style.display = 'none';
+        input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.wav')) {
+                if (window.showToast) window.showToast('❌ Solo archivos WAV', window.TOAST_TYPES?.ERROR, 3000);
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                if (window.showToast) window.showToast('❌ Máximo 2MB', window.TOAST_TYPES?.ERROR, 3000);
+                return;
+            }
+            uploadMsg.textContent = `⏳ Uploading ${file.name}...`;
+            uploadZone.style.pointerEvents = 'none';
+            uploadZone.style.opacity = '0.6';
+
+            const slot = freeSlot;
+            const formData = new FormData();
+            formData.append('file', file);
+            fetch(`/api/upload?pad=${slot}`, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (window.showToast) window.showToast(`✅ ${file.name} → XTRA ${slot - 15}`, window.TOAST_TYPES?.SUCCESS, 2000);
+                        setTimeout(() => {
+                            createXtraPad(slot, file.name.replace(/\.wav$/i, ''));
+                            modal.remove();
+                        }, 300);
+                    } else {
+                        if (window.showToast) window.showToast(`❌ ${data.message || 'Error'}`, window.TOAST_TYPES?.ERROR, 3000);
+                        uploadMsg.textContent = 'Click to select WAV file';
+                        uploadZone.style.pointerEvents = ''; uploadZone.style.opacity = '';
+                    }
+                })
+                .catch(err => {
+                    if (window.showToast) window.showToast(`❌ ${err.message}`, window.TOAST_TYPES?.ERROR, 3000);
+                    uploadMsg.textContent = 'Click to select WAV file';
+                    uploadZone.style.pointerEvents = ''; uploadZone.style.opacity = '';
+                });
         });
-        pickerGrid.appendChild(btn);
-    }
+        document.body.appendChild(input);
+        input.click();
+        setTimeout(() => input.remove(), 1000);
+    });
 
     modal.querySelector('.btn-close-modal').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
 }
 
-function createXtraPad(padIndex, family) {
+function createXtraPad(padIndex, label) {
     const grid = document.getElementById('padsXtraGrid');
     if (!grid) return;
 
     const id = ++xtraPadCounter;
-    const sampleMeta = padSampleMetadata[padIndex];
-    const filename = sampleMeta ? sampleMeta.filename : '...';
+    const displayName = label || `XTRA ${padIndex - 15}`;
 
     const padEl = document.createElement('div');
     padEl.className = 'pad-xtra';
     padEl.dataset.xtraId = id;
     padEl.dataset.padIndex = padIndex;
     padEl.innerHTML = `
-        <div class="pad-xtra-name">${family}</div>
-        <div class="pad-xtra-sample" title="${filename}">${filename}</div>
+        <div class="pad-xtra-name">${displayName}</div>
+        <div class="pad-xtra-sample" title="Slot ${padIndex - 15}">XTRA ${padIndex - 15}</div>
         <div class="pad-xtra-controls">
             <button class="pad-xtra-btn xtra-loop" title="Loop">🔁</button>
             <button class="pad-xtra-btn xtra-filter" title="Filter">F</button>
@@ -4343,7 +4424,7 @@ function createXtraPad(padIndex, family) {
     });
 
     // Store reference
-    xtraPads.push({ id, padIndex, family, filename, element: padEl });
+    xtraPads.push({ id, padIndex, label: displayName, element: padEl });
 
     // Insert before "+" button
     const addBtn = grid.querySelector('.pad-xtra-add');

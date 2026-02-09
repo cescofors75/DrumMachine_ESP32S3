@@ -52,6 +52,10 @@ public:
   bool begin();
   void update();
 
+  // Scan control
+  void setScanEnabled(bool enabled) { scanEnabled = enabled; }
+  bool isScanEnabled() const { return scanEnabled; }
+
   // Device info
   bool isDeviceConnected() const { return deviceInfo.connected; }
   MIDIDeviceInfo getDeviceInfo() const { return deviceInfo; }
@@ -123,6 +127,9 @@ private:
   // Note Mapping
   MIDINoteMapping noteMappings[MAX_MIDI_MAPPINGS];
   int mappingCount;
+
+  // Scan control
+  volatile bool scanEnabled;
 };
 
 #endif // MIDI_CONTROLLER_H

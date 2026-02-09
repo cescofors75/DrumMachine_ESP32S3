@@ -85,12 +85,12 @@ Si prefieres usar Arduino IDE:
    - Esperar a que termine (puede tardar varios minutos)
 
 4. **Compilar y Subir**:
-   - Abrir `DrumMachine_ESP32S3.ino`
+   - Abrir `RED808Master.ino`
    - Sketch → Upload
 
 ## Configuración WiFi
 
-Antes de subir, edita en `DrumMachine_ESP32S3.cpp` o `.ino`:
+Antes de subir, edita en `RED808Master.cpp` o `.ino`:
 
 ```cpp
 #define WIFI_SSID "TU_WIFI_AQUI"

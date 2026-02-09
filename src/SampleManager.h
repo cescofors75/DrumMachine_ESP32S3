@@ -11,7 +11,7 @@
 #include <FS.h>
 #include "AudioEngine.h"
 
-#define MAX_SAMPLES 16
+#define MAX_SAMPLES 24  // 16 sequencer + 8 XTRA pads
 #define MAX_SAMPLE_SIZE (2 * 1024 * 1024) // 2MB per sample (suficiente para samples largos)
 
 // WAV file header structure

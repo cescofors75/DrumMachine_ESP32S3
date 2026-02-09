@@ -1773,25 +1773,29 @@ body:not(.mono-mode) .pad.tremolo-active {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    font-size: 9px;
+    gap: 0;
+    font-size: 10px;
     font-weight: bold;
     border: 2px solid;
     border-radius: 4px;
     background: rgba(0,0,0,0.3);
-    padding: 2px 3px 10px;
+    padding: 0 2px;
     text-align: center;
     position: relative;
-    flex-direction: column;
+    flex-direction: row;
     transition: background 0.3s ease;
     backdrop-filter: blur(2px);
     height: 22px;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .track-label > span {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.6);
     position: relative;
     z-index: 1;
+    font-size: 10px;
+    letter-spacing: 0.5px;
 }
 
 .track-label.muted {
@@ -1847,17 +1851,16 @@ body:not(.mono-mode) .pad.tremolo-active {
 
 /* Volume button replaces mute button */
 .volume-btn {
-    position: absolute;
-    bottom: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
+    position: relative;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
     padding: 0;
-    border: 2px solid;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.95);
+    border: 1.5px solid;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.9);
     color: #333;
-    font-size: 11px;
+    font-size: 8px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.2s;
@@ -1866,7 +1869,8 @@ body:not(.mono-mode) .pad.tremolo-active {
     justify-content: center;
     line-height: 1;
     z-index: 2;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    margin-right: 3px;
 }
 
 .volume-btn:hover {
@@ -4267,6 +4271,25 @@ body.mono-mode .info-item {
 /* Dashboard Header */
 .midi-dashboard-header {
     margin-bottom: 25px;
+}
+
+.midi-scan-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.midi-scan-label {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 .midi-title-group {

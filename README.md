@@ -1,6 +1,8 @@
-# ESP32-S3 Drum Machine
+# RED808Master - ESP32-S3 Drum Machine
 
 Drum machine professional amb ESP32-S3, PCM5102A DAC, pantalla ST7789 i 16 pads.
+
+**GitHub:** [https://github.com/cescofors75/RED808Master](https://github.com/cescofors75/RED808Master)
 
 ## Hardware Necessari
 
@@ -98,7 +100,7 @@ Pad 8  --> GPIO 21     Pad 16 --> GPIO 46
 
 ### Opció 1: Connectar a la teva WiFi
 
-Edita `DrumMachine_ESP32S3.ino`:
+Edita `RED808Master.ino`:
 
 ```cpp
 #define WIFI_MODE_STATION  // Descomenta aquesta línia
@@ -242,8 +244,8 @@ ffmpeg -i input.wav -ar 44100 -ac 1 -sample_fmt s16 -af "loudnorm" output.wav
 ## Estructura del Codi
 
 ```
-DrumMachine_ESP32S3/
-├── DrumMachine_ESP32S3.ino  # Main file
+RED808Master/
+├── RED808Master.ino  # Main file
 ├── AudioEngine.h/.cpp        # Motor d'àudio I2S
 ├── SampleManager.h/.cpp      # Gestió SPIFFS->PSRAM
 ├── DisplayManager.h/.cpp     # Pantalla ST7789

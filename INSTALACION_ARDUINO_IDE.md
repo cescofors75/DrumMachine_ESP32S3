@@ -63,7 +63,7 @@ Avantatges Arduino IDE 2.x:
 
 **Arduino IDE 2.x detecta llibreries que falten automàticament!**
 
-1. **Obre** el fitxer `DrumMachine_ESP32S3.ino`
+1. **Obre** el fitxer `RED808Master.ino`
 
 2. Arduino IDE detectarà:
    ```cpp
@@ -281,10 +281,10 @@ arduino-cli lib install "TFT_eSPI"
 arduino-cli lib install "Adafruit NeoPixel"
 
 # Compilar
-arduino-cli compile --fqbn esp32:esp32:esp32s3 DrumMachine_ESP32S3.ino
+arduino-cli compile --fqbn esp32:esp32:esp32s3 RED808Master.ino
 
 # Pujar
-arduino-cli upload -p [PORT] --fqbn esp32:esp32:esp32s3 DrumMachine_ESP32S3.ino
+arduino-cli upload -p [PORT] --fqbn esp32:esp32:esp32s3 RED808Master.ino
 ```
 
 ---
@@ -411,7 +411,7 @@ Test:
 ### Una Vegada Tot Instal·lat
 
 ```
-1. Obre DrumMachine_ESP32S3.ino
+1. Obre RED808Master.ino
 
 2. Verifica configuració:
    Tools → Board → ESP32S3 Dev Module

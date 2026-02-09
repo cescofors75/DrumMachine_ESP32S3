@@ -531,7 +531,36 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
     yield();
   } else if (type == WS_EVT_DATA) {
     AwsFrameInfo *info = (AwsFrameInfo*)arg;
-    if (info->final && info->index == 0 && info->len == len) {
+    
+    // --- Frame reassembly for fragmented WebSocket messages ---
+    // setBulk JSON (~2KB) exceeds TCP MSS (1460 bytes) and arrives in chunks
+    static uint8_t* _wsReassemblyBuf = nullptr;
+    static size_t _wsReassemblySize = 0;
+    bool _wsFreeAfter = false;
+    
+    if (!(info->final && info->index == 0 && info->len == len)) {
+      // Fragmented frame - reassemble chunks into complete message
+      if (info->index == 0) {
+        if (_wsReassemblyBuf) { free(_wsReassemblyBuf); _wsReassemblyBuf = nullptr; }
+        _wsReassemblyBuf = (uint8_t*)malloc(info->len + 1);
+        if (!_wsReassemblyBuf) {
+          Serial.printf("[WS] ALLOC FAIL reassembly: %u bytes\n", info->len);
+          return;
+        }
+        _wsReassemblySize = info->len;
+      }
+      if (_wsReassemblyBuf && info->index + len <= _wsReassemblySize) {
+        memcpy(_wsReassemblyBuf + info->index, data, len);
+      }
+      if (info->final && (info->index + len) == info->len && _wsReassemblyBuf) {
+        data = _wsReassemblyBuf;
+        len = _wsReassemblySize;
+        _wsFreeAfter = true;
+        Serial.printf("[WS] Reassembled frame: %u bytes\n", len);
+      } else {
+        return; // Still accumulating chunks
+      }
+    }
       
       // 1. MANEJO DE BINARIO (Baja latencia para Triggers)
       if (info->opcode == WS_BINARY) {
@@ -548,6 +577,60 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
       else if (info->opcode == WS_TEXT) {
         data[len] = 0;
         
+        // Check for bulk pattern command (needs larger JSON doc)
+        if (len > 400 && strstr((char*)data, "\"setBulk\"") != nullptr) {
+          DynamicJsonDocument bulkDoc(16384);
+          DeserializationError bulkErr = deserializeJson(bulkDoc, (char*)data);
+          if (!bulkErr) {
+            int pattern = bulkDoc["p"].as<int>();
+            // p = -1 means current pattern (single bar import)
+            if (pattern < 0) pattern = sequencer.getCurrentPattern();
+            if (pattern >= 0 && pattern < MAX_PATTERNS) {
+              bool stepsData[16][16] = {};
+              uint8_t velsData[16][16];
+              memset(velsData, 127, sizeof(velsData));
+              
+              JsonArray sArr = bulkDoc["s"].as<JsonArray>();
+              JsonArray vArr = bulkDoc["v"].as<JsonArray>();
+              
+              for (int t = 0; t < 16 && t < (int)sArr.size(); t++) {
+                JsonArray trackSteps = sArr[t].as<JsonArray>();
+                for (int s = 0; s < 16 && s < (int)trackSteps.size(); s++) {
+                  stepsData[t][s] = trackSteps[s].as<int>() != 0;
+                }
+                if (vArr && t < (int)vArr.size()) {
+                  JsonArray trackVels = vArr[t].as<JsonArray>();
+                  for (int s = 0; s < 16 && s < (int)trackVels.size(); s++) {
+                    int v = trackVels[s].as<int>();
+                    velsData[t][s] = (v > 0 && v <= 127) ? v : 127;
+                  }
+                }
+              }
+              
+              sequencer.setPatternBulk(pattern, stepsData, velsData);
+              yield();
+              
+              // Send ACK back to client
+              StaticJsonDocument<64> ack;
+              ack["type"] = "bulkAck";
+              ack["p"] = pattern;
+              String ackStr;
+              serializeJson(ack, ackStr);
+              if (isClientReady(client)) {
+                client->text(ackStr);
+              }
+            }
+          } else {
+            Serial.printf("[WS] setBulk parse error: %s (len=%d)\n", bulkErr.c_str(), len);
+          }
+          // Cleanup reassembly buffer before early return
+          if (_wsFreeAfter && _wsReassemblyBuf) {
+            free(_wsReassemblyBuf);
+            _wsReassemblyBuf = nullptr;
+          }
+          return; // Already handled
+        }
+
         StaticJsonDocument<512> doc;
         DeserializationError error = deserializeJson(doc, (char*)data);
         
@@ -613,6 +696,16 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             
             // 3. Cliente solicitará samples con getSampleCounts cuando esté listo
             Serial.println("[init] Complete. Client should request pattern and samples next.");
+
+            // 4. Enviar estado de MIDI scan
+            if (midiController) {
+              StaticJsonDocument<128> midiScanDoc;
+              midiScanDoc["type"] = "midiScan";
+              midiScanDoc["enabled"] = midiController->isScanEnabled();
+              String midiOut;
+              serializeJson(midiScanDoc, midiOut);
+              if (isClientReady(client)) client->text(midiOut);
+            }
           }
           else if (cmd == "getSampleCounts") {
             // Nuevo comando para obtener conteos de samples
@@ -710,6 +803,10 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           // Comandos restantes ya procesados por processCommand()
         }
       }
+    // Cleanup reassembly buffer after processing
+    if (_wsFreeAfter && _wsReassemblyBuf) {
+      free(_wsReassemblyBuf);
+      _wsReassemblyBuf = nullptr;
     }
   }
 }
@@ -824,7 +921,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   
   if (cmd == "trigger") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 16) return;
+    if (pad < 0 || pad >= 24) return;  // 16 sequencer + 8 XTRA
     int velocity = doc.containsKey("vel") ? doc["vel"].as<int>() : 127;
     triggerPadWithLED(pad, velocity);
   }
@@ -1471,6 +1568,20 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     serializeJson(responseDoc, output);
     if (ws) ws->textAll(output);
   }
+  else if (cmd == "setMidiScan") {
+    bool enabled = doc["enabled"];
+    if (midiController) {
+      midiController->setScanEnabled(enabled);
+      Serial.printf("[MIDI] Scan %s\n", enabled ? "ENABLED" : "DISABLED");
+      // Broadcast state to all clients
+      StaticJsonDocument<128> responseDoc;
+      responseDoc["type"] = "midiScan";
+      responseDoc["enabled"] = enabled;
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+    }
+  }
 }
 
 // Actualizar o registrar cliente UDP
@@ -1686,7 +1797,8 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
     
     // Obtener nombre de la familia del pad
     const char* families[] = {"BD", "SD", "CH", "OH", "CP", "RS", "CL", "CY",
-                              "CB", "MA", "HC", "HT", "MC", "MT", "LC", "LT"};
+                              "CB", "MA", "HC", "HT", "MC", "MT", "LC", "LT",
+                              "X0", "X1", "X2", "X3", "X4", "X5", "X6", "X7"};
     String familyName = families[uploadPad];
     
     // Crear directorio si no existe
@@ -1771,8 +1883,10 @@ void WebInterface::handleUpload(AsyncWebServerRequest *request, String filename,
       Serial.printf("[Upload] ✓ File written: %d bytes\n", uploadReceived);
       
       // Validar formato WAV
-      String filePath = "/" + String((const char*[]){"BD", "SD", "CH", "OH", "CP", "RS", "CL", "CY",
-                                                      "CB", "MA", "HC", "HT", "MC", "MT", "LC", "LT"}[uploadPad]) + "/" + uploadFilename;
+      const char* allFamilies[] = {"BD", "SD", "CH", "OH", "CP", "RS", "CL", "CY",
+                                    "CB", "MA", "HC", "HT", "MC", "MT", "LC", "LT",
+                                    "X0", "X1", "X2", "X3", "X4", "X5", "X6", "X7"};
+      String filePath = "/" + String(allFamilies[uploadPad]) + "/" + uploadFilename;
       File checkFile = LittleFS.open(filePath, "r");
       
       uint32_t sampleRate = 0;

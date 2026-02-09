@@ -13,7 +13,7 @@ La Drum Machine té una interfície web completa optimitzada per iPad que et per
 
 ### Opció 1: Connectar a la teva WiFi (Recomanat)
 
-**Al codi Arduino** (`DrumMachine_ESP32S3.ino`):
+**Al codi Arduino** (`RED808Master.ino`):
 
 ```cpp
 // Opció 1: Connectar a la teva WiFi

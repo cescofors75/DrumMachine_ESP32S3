@@ -38,6 +38,8 @@ MIDIController::MIDIController()
   // Inicializar mapeo por defecto (36-43 → pads 0-7)
   resetToDefaultMapping();
   
+  scanEnabled = false;  // Desactivado por defecto, se activa desde la web
+  
   s_midiInstance = this;
 }
 
@@ -132,21 +134,26 @@ void MIDIController::usbHostTask(void* arg) {
   uint32_t pollCount = 0;
   
   while (true) {
-    // Handle USB host events
-    usb_host_client_handle_events(controller->clientHandle, pdMS_TO_TICKS(10));
-    usb_host_lib_handle_events(pdMS_TO_TICKS(10), nullptr);
-    
-    pollCount++;
-    
-    // Debug output every 5 seconds to show the task is alive
-    if (millis() - lastDebugTime > 5000) {
-      Serial.printf("[MIDI Task] Alive - polled %d times in 5s | Device: %s\n", 
-                    pollCount, controller->deviceInfo.connected ? "CONNECTED" : "waiting...");
-      pollCount = 0;
-      lastDebugTime = millis();
+    if (controller->scanEnabled) {
+      // Handle USB host events
+      usb_host_client_handle_events(controller->clientHandle, pdMS_TO_TICKS(10));
+      usb_host_lib_handle_events(pdMS_TO_TICKS(10), nullptr);
+      
+      pollCount++;
+      
+      // Debug output every 5 seconds to show the task is alive
+      if (millis() - lastDebugTime > 5000) {
+        Serial.printf("[MIDI Task] Alive - polled %d times in 5s | Device: %s\n", 
+                      pollCount, controller->deviceInfo.connected ? "CONNECTED" : "waiting...");
+        pollCount = 0;
+        lastDebugTime = millis();
+      }
+      
+      vTaskDelay(pdMS_TO_TICKS(10));
+    } else {
+      // Scan disabled - sleep longer to save CPU
+      vTaskDelay(pdMS_TO_TICKS(200));
     }
-    
-    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
@@ -187,7 +194,7 @@ void MIDIController::clientEventCallback(const usb_host_client_event_msg_t* even
 }
 
 void MIDIController::update() {
-  if (!initialized) return;
+  if (!initialized || !scanEnabled) return;
 
   // Update messages per second counter
   uint32_t now = millis();

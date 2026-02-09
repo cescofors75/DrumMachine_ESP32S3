@@ -146,11 +146,11 @@ python3 organize_808_kits.py ./els_teus_3_directoris_808 ./data
 #### 3.2 Copiar a Sketch
 ```
 ✓ Copia la carpeta "data/" 
-✓ Enganxa-la dins de: DrumMachine_ESP32S3/
+✓ Enganxa-la dins de: RED808Master/
   
 Estructura final:
-DrumMachine_ESP32S3/
-├── DrumMachine_ESP32S3.ino
+RED808Master/
+├── RED808Master.ino
 ├── AudioEngine.h
 ├── ...
 └── data/          ← Aquí!
@@ -164,7 +164,7 @@ DrumMachine_ESP32S3/
 
 #### 4.1 Configurar WiFi
 
-Obre `DrumMachine_ESP32S3.ino` i edita:
+Obre `RED808Master.ino` i edita:
 
 **Opció A: Connectar a la teva WiFi (recomanat)**
 ```cpp
