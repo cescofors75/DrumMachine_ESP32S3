@@ -559,55 +559,213 @@
                             </div>
                         </div>
                         
-                        <!-- 12: REVERSE -->
-                        <div class="filter-card filter-card-creative" data-filter="12">
-                            <div class="filter-header">
-                                <span class="filter-icon">⏪</span>
-                                <span class="filter-title">REVERSE</span>
-                                <span class="filter-key">F11</span>
-                            </div>
-                            <p class="filter-desc">Invierte el sample. Reproduce al revés para crear buildups y efectos creativos.</p>
-                            <div class="filter-presets">
-                                <button onclick="applyReverseFilter()" class="preset-btn preset-extreme">⏪ Reverse ON</button>
-                                <button onclick="removeReverseFilter()" class="preset-btn preset-subtle">▶️ Normal</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 13: HALF-SPEED -->
-                        <div class="filter-card filter-card-creative" data-filter="13">
-                            <div class="filter-header">
-                                <span class="filter-icon">🐢</span>
-                                <span class="filter-title">HALF-SPEED</span>
-                                <span class="filter-key">F12</span>
-                            </div>
-                            <p class="filter-desc">Reduce la velocidad a la mitad. Sonido pitched-down, más grave y grueso.</p>
-                            <div class="filter-presets">
-                                <button onclick="applyHalfSpeedFilter()" class="preset-btn preset-extreme">🐢 Half</button>
-                                <button onclick="applyDoubleSpeedFilter()" class="preset-btn preset-warm">🐇 Double</button>
-                                <button onclick="applyNormalSpeedFilter()" class="preset-btn preset-subtle">▶️ Normal</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 14: STUTTER -->
-                        <div class="filter-card filter-card-acid" data-filter="14">
-                            <div class="filter-header">
-                                <span class="filter-icon">🔁</span>
-                                <span class="filter-title">STUTTER</span>
-                            </div>
-                            <p class="filter-desc">Repite rápidamente el inicio del sample. Efecto glitch, IDM, stutter edit.</p>
-                            <div class="filter-presets">
-                                <button onclick="applyStutterFilter(50)" class="preset-btn preset-extreme">⚡ Fast</button>
-                                <button onclick="applyStutterFilter(100)" class="preset-btn preset-warm">🔁 Medium</button>
-                                <button onclick="applyStutterFilter(200)" class="preset-btn preset-subtle">🐌 Slow</button>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
                 </div><!-- end fxtab-filters -->
                 
                 <!-- SUB-TAB: Master FX -->
                 <div class="fx-subtab-content" id="fxtab-masterFx">
-                <!-- ============= NEW: Master Effects Section ============= -->
+                
+                <!-- ============= TRACK FX Section ============= -->
+                <div class="track-fx-section">
+                    <h3>🎛️ TRACK FX <span class="fx-subtitle">Combinables en tiempo real</span></h3>
+                    <p class="track-fx-desc">Selecciona un track y activa/desactiva efectos. Se pueden combinar varios FX simultáneamente.</p>
+                    
+                    <!-- Track Selector -->
+                    <div class="track-fx-selector" id="trackFxSelector">
+                        <button class="track-fx-btn active" data-track="0">BD</button>
+                        <button class="track-fx-btn" data-track="1">SD</button>
+                        <button class="track-fx-btn" data-track="2">CH</button>
+                        <button class="track-fx-btn" data-track="3">OH</button>
+                        <button class="track-fx-btn" data-track="4">CY</button>
+                        <button class="track-fx-btn" data-track="5">CP</button>
+                        <button class="track-fx-btn" data-track="6">RS</button>
+                        <button class="track-fx-btn" data-track="7">CB</button>
+                        <button class="track-fx-btn" data-track="8">LT</button>
+                        <button class="track-fx-btn" data-track="9">MT</button>
+                        <button class="track-fx-btn" data-track="10">HT</button>
+                        <button class="track-fx-btn" data-track="11">MA</button>
+                        <button class="track-fx-btn" data-track="12">CL</button>
+                        <button class="track-fx-btn" data-track="13">HC</button>
+                        <button class="track-fx-btn" data-track="14">MC</button>
+                        <button class="track-fx-btn" data-track="15">LC</button>
+                    </div>
+                    
+                    <!-- FX Toggle Cards -->
+                    <div class="track-fx-cards">
+                        <!-- REVERSE -->
+                        <div class="track-fx-card" id="fxCardReverse">
+                            <div class="track-fx-card-header">
+                                <span class="track-fx-icon">⏪</span>
+                                <span class="track-fx-name">REVERSE</span>
+                                <label class="fx-toggle">
+                                    <input type="checkbox" id="fxReverseToggle" onchange="toggleTrackFx('reverse', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p class="track-fx-card-desc">Invierte el sample. Reproduce al revés para buildups y efectos creativos.</p>
+                        </div>
+                        
+                        <!-- PITCH SHIFT -->
+                        <div class="track-fx-card" id="fxCardPitch">
+                            <div class="track-fx-card-header">
+                                <span class="track-fx-icon">🎵</span>
+                                <span class="track-fx-name">PITCH SHIFT</span>
+                                <label class="fx-toggle">
+                                    <input type="checkbox" id="fxPitchToggle" onchange="toggleTrackFx('pitch', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p class="track-fx-card-desc">Cambia la velocidad/tono del sample.</p>
+                            <div class="track-fx-controls">
+                                <div class="pitch-presets">
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(0.25)">¼×</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(0.5)">½×</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(0.75)">¾×</button>
+                                    <button class="pitch-preset-btn active" onclick="setTrackFxPitch(1.0)">1×</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(1.5)">1.5×</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(2.0)">2×</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxPitch(3.0)">3×</button>
+                                </div>
+                                <div class="fx-control">
+                                    <label>Speed <span id="fxPitchValue">1.00</span>×</label>
+                                    <input type="range" id="fxPitchSlider" min="25" max="400" value="100" class="fx-slider" oninput="setTrackFxPitch(this.value/100)">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- STUTTER -->
+                        <div class="track-fx-card" id="fxCardStutter">
+                            <div class="track-fx-card-header">
+                                <span class="track-fx-icon">🔁</span>
+                                <span class="track-fx-name">STUTTER</span>
+                                <label class="fx-toggle">
+                                    <input type="checkbox" id="fxStutterToggle" onchange="toggleTrackFx('stutter', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p class="track-fx-card-desc">Repite rápidamente el inicio del sample. Efecto glitch/IDM.</p>
+                            <div class="track-fx-controls">
+                                <div class="pitch-presets">
+                                    <button class="pitch-preset-btn" onclick="setTrackFxStutter(30)">30ms</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxStutter(50)">50ms</button>
+                                    <button class="pitch-preset-btn active" onclick="setTrackFxStutter(100)">100ms</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxStutter(150)">150ms</button>
+                                    <button class="pitch-preset-btn" onclick="setTrackFxStutter(200)">200ms</button>
+                                </div>
+                                <div class="fx-control">
+                                    <label>Interval <span id="fxStutterValue">100</span>ms</label>
+                                    <input type="range" id="fxStutterSlider" min="10" max="500" value="100" class="fx-slider" oninput="setTrackFxStutter(parseInt(this.value))">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- VINYL SCRATCH -->
+                        <div class="track-fx-card track-fx-card-scratch" id="fxCardScratch">
+                            <div class="track-fx-card-header">
+                                <span class="track-fx-icon">💿</span>
+                                <span class="track-fx-name">VINYL SCRATCH</span>
+                                <label class="fx-toggle">
+                                    <input type="checkbox" id="fxScratchToggle" onchange="toggleTrackFx('scratch', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p class="track-fx-card-desc">Simulación de scratch de vinilo real. LFO controla la aguja moviéndose sobre el disco.</p>
+                            <div class="track-fx-controls">
+                                <div class="scratch-mode-selector">
+                                    <span class="scratch-mode-label">Style:</span>
+                                    <button class="scratch-mode-btn active" onclick="setScratchStyle('baby')" data-style="baby">👶 Baby</button>
+                                    <button class="scratch-mode-btn" onclick="setScratchStyle('chirp')" data-style="chirp">🐦 Chirp</button>
+                                    <button class="scratch-mode-btn" onclick="setScratchStyle('scribble')" data-style="scribble">✏️ Scribble</button>
+                                    <button class="scratch-mode-btn" onclick="setScratchStyle('drag')" data-style="drag">🎸 Drag</button>
+                                    <button class="scratch-mode-btn" onclick="setScratchStyle('transformer')" data-style="transformer">⚡ Transformer</button>
+                                </div>
+                                <div class="fx-control">
+                                    <label>Rate <span id="fxScratchRateValue">5.0</span> Hz</label>
+                                    <input type="range" id="fxScratchRate" min="5" max="250" value="50" class="fx-slider fx-slider-scratch" oninput="setScratchParam('rate', this.value/10)">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Depth <span id="fxScratchDepthValue">85</span>%</label>
+                                    <input type="range" id="fxScratchDepth" min="10" max="100" value="85" class="fx-slider fx-slider-scratch" oninput="setScratchParam('depth', this.value/100)">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Vinyl Tone <span id="fxScratchFilterValue">4000</span> Hz</label>
+                                    <input type="range" id="fxScratchFilter" min="200" max="12000" value="4000" step="100" class="fx-slider fx-slider-scratch" oninput="setScratchParam('filter', parseInt(this.value))">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Crackle <span id="fxScratchCrackleValue">25</span>%</label>
+                                    <input type="range" id="fxScratchCrackle" min="0" max="100" value="25" class="fx-slider fx-slider-scratch" oninput="setScratchParam('crackle', this.value/100)">
+                                </div>
+                            </div>
+                            <div class="scratch-visualizer" id="scratchVisualizer">
+                                <canvas id="scratchCanvas" width="280" height="60"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- TURNTABLISM -->
+                        <div class="track-fx-card track-fx-card-turntablism" id="fxCardTurntablism">
+                            <div class="track-fx-card-header">
+                                <span class="track-fx-icon">🎧</span>
+                                <span class="track-fx-name">TURNTABLISM</span>
+                                <label class="fx-toggle">
+                                    <input type="checkbox" id="fxTurntablismToggle" onchange="toggleTrackFx('turntablism', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p class="track-fx-card-desc">DJ turntable completo: brake, backspin, stutter, transform. Ciclo automático o manual.</p>
+                            <div class="track-fx-controls">
+                                <div class="turntable-mode-section">
+                                    <span class="scratch-mode-label">Control:</span>
+                                    <div class="turntable-control-btns">
+                                        <button class="turntable-mode-btn active" onclick="setTurntableControl('auto')" data-ctrl="auto">🔄 Auto Cycle</button>
+                                        <button class="turntable-mode-btn" onclick="setTurntableControl('manual')" data-ctrl="manual">🎯 Manual</button>
+                                    </div>
+                                </div>
+                                <div class="turntable-manual-triggers" id="turntableManualTriggers">
+                                    <button class="turntable-trigger-btn turntable-trigger-brake" onclick="triggerTurntableMode(1)">
+                                        <span class="tt-icon">⏹️</span><span class="tt-label">BRAKE</span>
+                                    </button>
+                                    <button class="turntable-trigger-btn turntable-trigger-backspin" onclick="triggerTurntableMode(2)">
+                                        <span class="tt-icon">🔄</span><span class="tt-label">BACKSPIN</span>
+                                    </button>
+                                    <button class="turntable-trigger-btn turntable-trigger-stutter" onclick="triggerTurntableMode(3)">
+                                        <span class="tt-icon">⚡</span><span class="tt-label">TRANSFORM</span>
+                                    </button>
+                                    <button class="turntable-trigger-btn turntable-trigger-normal" onclick="triggerTurntableMode(0)">
+                                        <span class="tt-icon">▶️</span><span class="tt-label">NORMAL</span>
+                                    </button>
+                                </div>
+                                <div class="fx-control">
+                                    <label>Brake Speed <span id="fxBrakeSpeedValue">350</span>ms</label>
+                                    <input type="range" id="fxBrakeSpeed" min="100" max="2000" value="350" step="10" class="fx-slider fx-slider-turntable" oninput="setTurntableParam('brakeSpeed', parseInt(this.value))">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Backspin Speed <span id="fxBackspinValue">450</span>ms</label>
+                                    <input type="range" id="fxBackspinSpeed" min="100" max="2000" value="450" step="10" class="fx-slider fx-slider-turntable" oninput="setTurntableParam('backspinSpeed', parseInt(this.value))">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Transform Rate <span id="fxTransformRateValue">11</span> Hz</label>
+                                    <input type="range" id="fxTransformRate" min="2" max="30" value="11" class="fx-slider fx-slider-turntable" oninput="setTurntableParam('transformRate', parseInt(this.value))">
+                                </div>
+                                <div class="fx-control">
+                                    <label>Vinyl Noise <span id="fxVinylNoiseValue">35</span>%</label>
+                                    <input type="range" id="fxVinylNoise" min="0" max="100" value="35" class="fx-slider fx-slider-turntable" oninput="setTurntableParam('vinylNoise', this.value/100)">
+                                </div>
+                            </div>
+                            <div class="turntable-status" id="turntableStatus">
+                                <div class="tt-status-mode"><span class="tt-mode-dot"></span> READY</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Active FX Status Grid -->
+                    <div class="track-fx-status" id="trackFxStatus">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                
+                <!-- ============= MASTER EFFECTS Section ============= -->
                 <div class="master-fx-section">
                     <h3>🎚️ MASTER EFFECTS <span class="fx-subtitle">(inspired by torvalds/AudioNoise)</span></h3>
                     

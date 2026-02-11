@@ -80,6 +80,8 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     scratchState[i].lpState1 = 0.0f;
     scratchState[i].lpState2 = 0.0f;
     scratchState[i].noiseState = 12345 + i * 7919;
+    scratchState[i].filterCutoff = 4000.0f;
+    scratchState[i].crackleAmount = 0.25f;
     
     // Turntablism state
     turntablismState[i].mode = 0;
@@ -88,6 +90,11 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     turntablismState[i].lpState1 = 0.0f;
     turntablismState[i].lpState2 = 0.0f;
     turntablismState[i].noiseState = 67890 + i * 6271;
+    turntablismState[i].autoMode = true;
+    turntablismState[i].brakeLen = 15435;
+    turntablismState[i].backspinLen = 19845;
+    turntablismState[i].transformRate = 11.0f;
+    turntablismState[i].vinylNoise = 0.35f;
     
     // Reverse / Pitch / Stutter state
     sampleReversed[i] = false;
@@ -411,19 +418,22 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
           float tri = (ss.lfoPhase < 0.5f) ? (ss.lfoPhase * 4.0f - 1.0f) : (3.0f - ss.lfoPhase * 4.0f);
           // Scratch speed: oscillates forward and backward
           posAdvance = tri * ss.depth * 3.0f;
-          // Vinyl filter: brighter when moving fast, duller at turnaround
-          vinylFilterCutoff = 300.0f + fabsf(posAdvance) * 3500.0f;
+          // Vinyl filter: configurable cutoff, brighter when moving fast
+          vinylFilterCutoff = (ss.filterCutoff * 0.075f) + fabsf(posAdvance) * ss.filterCutoff * 0.875f;
           addCrackle = true;
           
         } else { // FILTER_TURNTABLISM
           TurntablismState& ts = turntablismState[pi];
           if (ts.modeTimer == 0) {
-            ts.mode = (ts.mode + 1) % 4;
+            if (ts.autoMode) {
+              ts.mode = (ts.mode + 1) % 4;
+            }
+            // else in manual mode, stay on current mode and restart timer
             switch (ts.mode) {
-              case 0: ts.modeTimer = 33075; break;   // Normal ~750ms
-              case 1: ts.modeTimer = 15435; break;   // Brake ~350ms
-              case 2: ts.modeTimer = 19845; break;   // Backspin ~450ms
-              case 3: ts.modeTimer = 24255; ts.gatePhase = 0; break; // Stutter ~550ms
+              case 0: ts.modeTimer = 33075; break;                 // Normal ~750ms
+              case 1: ts.modeTimer = ts.brakeLen; break;           // Brake (configurable)
+              case 2: ts.modeTimer = ts.backspinLen; break;        // Backspin (configurable)
+              case 3: ts.modeTimer = 24255; ts.gatePhase = 0; break; // Transform ~550ms
             }
           }
           ts.modeTimer--;
@@ -434,21 +444,21 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
               vinylFilterCutoff = 12000.0f;
               break;
             case 1: { // Vinyl brake - pitch ramps down  
-              float progress = 1.0f - (float)ts.modeTimer / 15435.0f;
+              float progress = 1.0f - (float)ts.modeTimer / (float)ts.brakeLen;
               posAdvance = 1.0f - progress * 0.97f; // Down to 0.03
               vinylFilterCutoff = 10000.0f * (1.0f - progress * 0.92f) + 150.0f;
               addCrackle = (progress > 0.7f);
               break;
             }
             case 2: { // Backspin - reverse playback
-              float progress = (float)ts.modeTimer / 19845.0f;
+              float progress = (float)ts.modeTimer / (float)ts.backspinLen;
               posAdvance = -1.8f * progress * progress; // Quadratic deceleration
               vinylFilterCutoff = 1500.0f + progress * 2500.0f;
               addCrackle = true;
               break;
             }
             case 3: { // Stutter / transform scratch
-              ts.gatePhase += 11.0f * 6.28318f / (float)SAMPLE_RATE; // ~11Hz stutter
+              ts.gatePhase += ts.transformRate * 6.28318f / (float)SAMPLE_RATE;
               if (ts.gatePhase > 6.28318f) ts.gatePhase -= 6.28318f;
               float gate = (ts.gatePhase < 3.14159f) ? 1.0f : 0.0f;
               posAdvance = gate;
@@ -485,11 +495,12 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
             ss.lpState2 += alpha * (ss.lpState1 - ss.lpState2);
             fSample = ss.lpState2;
             
-            // Vinyl crackle: sparse random pops
+            // Vinyl crackle: sparse random pops (configurable intensity)
             ss.noiseState = ss.noiseState * 1103515245u + 12345u;
-            if ((ss.noiseState >> 24) < 7) {
+            uint8_t crackleThreshold = (uint8_t)(ss.crackleAmount * 28.0f); // 0-28 range
+            if ((ss.noiseState >> 24) < crackleThreshold) {
               float crackle = (float)((int32_t)(ss.noiseState >> 16) - 32768) / 32768.0f;
-              fSample += crackle * 0.025f;
+              fSample += crackle * (0.015f + ss.crackleAmount * 0.035f);
             }
           } else {
             TurntablismState& ts = turntablismState[pi];
@@ -497,12 +508,13 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
             ts.lpState2 += alpha * (ts.lpState1 - ts.lpState2);
             fSample = ts.lpState2;
             
-            // Backspin and brake vinyl noise
+            // Backspin and brake vinyl noise (configurable)
             if (addCrackle) {
               ts.noiseState = ts.noiseState * 1103515245u + 12345u;
-              if ((ts.noiseState >> 24) < 10) {
+              uint8_t noiseThreshold = (uint8_t)(ts.vinylNoise * 28.0f); // 0-28 range
+              if ((ts.noiseState >> 24) < noiseThreshold) {
                 float crackle = (float)((int32_t)(ts.noiseState >> 16) - 32768) / 32768.0f;
-                fSample += crackle * 0.035f;
+                fSample += crackle * (0.02f + ts.vinylNoise * 0.04f);
               }
             }
           }
@@ -1450,6 +1462,83 @@ void AudioEngine::setStutter(int padIndex, bool active, int intervalMs) {
   }
   
   Serial.printf("[AudioEngine] Stutter %s pad %d interval %dms\n", active ? "ON" : "OFF", padIndex, intervalMs);
+}
+
+// ============= SCRATCH & TURNTABLISM CONFIGURABLE PARAMS =============
+
+void AudioEngine::setScratchParams(int padIndex, bool active, float rate, float depth, float filterCutoff, float crackle) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  
+  if (active) {
+    // Activate scratch as pad filter
+    padFilters[padIndex].filterType = FILTER_SCRATCH;
+    padFilterActive[padIndex] = true;
+    
+    // Configure scratch state with provided parameters
+    ScratchState& ss = scratchState[padIndex];
+    ss.lfoPhase = 0.0f;
+    ss.lfoRate = constrain(rate, 0.5f, 25.0f);
+    ss.depth = constrain(depth, 0.1f, 1.0f);
+    ss.filterCutoff = constrain(filterCutoff, 200.0f, 12000.0f);
+    ss.crackleAmount = constrain(crackle, 0.0f, 1.0f);
+    ss.lpState1 = 0.0f;
+    ss.lpState2 = 0.0f;
+    
+    Serial.printf("[AudioEngine] Pad %d SCRATCH ON (rate:%.1fHz depth:%.0f%% filter:%.0fHz crackle:%.0f%%)\n",
+                  padIndex, ss.lfoRate, ss.depth * 100.0f, ss.filterCutoff, ss.crackleAmount * 100.0f);
+  } else {
+    // Only clear if current filter is scratch
+    if (padFilters[padIndex].filterType == FILTER_SCRATCH) {
+      padFilters[padIndex].filterType = FILTER_NONE;
+      padFilterActive[padIndex] = false;
+    }
+    Serial.printf("[AudioEngine] Pad %d SCRATCH OFF\n", padIndex);
+  }
+}
+
+void AudioEngine::setTurntablismParams(int padIndex, bool active, bool autoMode, int mode, int brakeMs, int backspinMs, float transformRate, float vinylNoise) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  
+  if (active) {
+    // Activate turntablism as pad filter
+    padFilters[padIndex].filterType = FILTER_TURNTABLISM;
+    padFilterActive[padIndex] = true;
+    
+    // Configure turntablism state
+    TurntablismState& ts = turntablismState[padIndex];
+    ts.autoMode = autoMode;
+    ts.brakeLen = (uint32_t)((SAMPLE_RATE * constrain(brakeMs, 100, 2000)) / 1000);
+    ts.backspinLen = (uint32_t)((SAMPLE_RATE * constrain(backspinMs, 100, 2000)) / 1000);
+    ts.transformRate = constrain(transformRate, 2.0f, 30.0f);
+    ts.vinylNoise = constrain(vinylNoise, 0.0f, 1.0f);
+    
+    // Manual mode trigger: set specific mode immediately
+    if (mode >= 0 && mode <= 3) {
+      ts.mode = mode;
+      switch (mode) {
+        case 0: ts.modeTimer = 33075; break;                           // Normal ~750ms
+        case 1: ts.modeTimer = ts.brakeLen; break;                     // Brake
+        case 2: ts.modeTimer = ts.backspinLen; break;                  // Backspin
+        case 3: ts.modeTimer = (uint32_t)(SAMPLE_RATE * 0.55f); ts.gatePhase = 0; break; // Transform ~550ms
+      }
+    } else if (ts.modeTimer == 0) {
+      // Fresh start
+      ts.mode = 0;
+      ts.modeTimer = 33075;
+    }
+    
+    ts.lpState1 = 0.0f;
+    ts.lpState2 = 0.0f;
+    
+    Serial.printf("[AudioEngine] Pad %d TURNTABLISM ON (auto:%d brake:%dms backspin:%dms tRate:%.1fHz noise:%.0f%%)\n",
+                  padIndex, autoMode, brakeMs, backspinMs, ts.transformRate, ts.vinylNoise * 100.0f);
+  } else {
+    if (padFilters[padIndex].filterType == FILTER_TURNTABLISM) {
+      padFilters[padIndex].filterType = FILTER_NONE;
+      padFilterActive[padIndex] = false;
+    }
+    Serial.printf("[AudioEngine] Pad %d TURNTABLISM OFF\n", padIndex);
+  }
 }
 
 // ============= EXTENDED BIQUAD COEFFICIENT CALCULATION =============

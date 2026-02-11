@@ -158,6 +158,8 @@ struct ScratchState {
   float lpState1;       // One-pole LP filter state 1
   float lpState2;       // One-pole LP filter state 2
   uint32_t noiseState;  // LFSR for vinyl crackle
+  float filterCutoff;   // Vinyl tone filter cutoff
+  float crackleAmount;  // Crackle intensity 0.0-1.0
 };
 
 // Turntablism effect state (per-pad, DJ turntable simulation)
@@ -168,6 +170,11 @@ struct TurntablismState {
   float lpState1;       // One-pole LP state 1
   float lpState2;       // One-pole LP state 2
   uint32_t noiseState;  // LFSR for vinyl noise
+  bool autoMode;        // true=auto cycle, false=manual
+  uint32_t brakeLen;    // Brake duration in samples
+  uint32_t backspinLen; // Backspin duration in samples
+  float transformRate;  // Transform stutter rate in Hz
+  float vinylNoise;     // Vinyl noise amount 0.0-1.0
 };
 
 // Voice structure
@@ -280,6 +287,10 @@ public:
   void setReverseSample(int padIndex, bool reverse);
   void setTrackPitchShift(int padIndex, float pitch);
   void setStutter(int padIndex, bool active, int intervalMs = 100);
+  
+  // Scratch / Turntablism per-track control
+  void setScratchParams(int padIndex, bool active, float rate = 5.0f, float depth = 0.85f, float filterCutoff = 4000.0f, float crackle = 0.25f);
+  void setTurntablismParams(int padIndex, bool active, bool autoMode = true, int mode = -1, int brakeMs = 350, int backspinMs = 450, float transformRate = 11.0f, float vinylNoise = 0.35f);
   
   // Volume Control
   void setMasterVolume(uint8_t volume);

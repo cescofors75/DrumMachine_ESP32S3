@@ -243,18 +243,17 @@ WebInterface::~WebInterface() {
 bool WebInterface::begin(const char* ssid, const char* password) {
   Serial.println("  Configurando WiFi...");
   
-  // Desactivar ahorro de energía WiFi para mínima latencia
+  // Desactivar ahorro de energía WiFi
   WiFi.setSleep(false);
   
   WiFi.mode(WIFI_OFF);
-  delay(100);
+  delay(50);
   
   WiFi.mode(WIFI_AP);
-  delay(100);
-  
-  // Potencia TX máxima estable para mínima latencia
-  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   delay(50);
+  
+  // Potencia TX máxima
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   
   // IP fija
   IPAddress local_IP(192, 168, 4, 1);
@@ -262,18 +261,20 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   IPAddress subnet(255, 255, 255, 0);
   WiFi.softAPConfig(local_IP, gateway, subnet);
   
-  // Canal 1 (menos congestionado), SSID visible, max 4 conexiones
+  // Canal 1, SSID visible, max 4 conexiones
   WiFi.softAP(ssid, password, 1, 0, 4);
-  delay(500);  // Más tiempo para estabilizar AP
+  delay(200);
   
-  // Forzar protocolo 802.11n para mínima latencia
+  // Protocolo b/g/n
   esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
   
-  // Configurar beacon interval más corto para conexión más rápida
+  // Beacon interval estándar (100ms) - más compatible con todos los dispositivos
   wifi_config_t conf;
   esp_wifi_get_config(WIFI_IF_AP, &conf);
-  conf.ap.beacon_interval = 50;  // 50ms beacon (default 100ms)
+  conf.ap.beacon_interval = 100;
   esp_wifi_set_config(WIFI_IF_AP, &conf);
+  
+  WiFi.setSleep(false);
   
   IPAddress IP = WiFi.softAPIP();
   Serial.print("RED808 AP IP: ");
@@ -291,17 +292,99 @@ bool WebInterface::begin(const char* ssid, const char* password) {
   
   server->addHandler(ws);
   
-  // Servir página de administración con cache optimizado
-  server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/admin.html", "text/html");
-    response->addHeader("Cache-Control", "max-age=600");  // Cache 10min
-    request->send(response);
+  // Servir archivos grandes con gzip explícito para máximo rendimiento
+  server->on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/index.html.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/index.html.gz", "text/html");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/index.html", "text/html");
+    }
   });
   
-  // Servir archivos estáticos desde LittleFS con cache balanceado
+  server->on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/index.html.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/index.html.gz", "text/html");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/index.html", "text/html");
+    }
+  });
+  
+  server->on("/app.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/app.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/app.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/app.js", "application/javascript");
+    }
+  });
+  
+  server->on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/style.css.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/style.css.gz", "text/css");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/style.css", "text/css");
+    }
+  });
+  
+  server->on("/keyboard-controls.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/keyboard-controls.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/keyboard-controls.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/keyboard-controls.js", "application/javascript");
+    }
+  });
+  
+  server->on("/keyboard-styles.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/keyboard-styles.css.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/keyboard-styles.css.gz", "text/css");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/keyboard-styles.css", "text/css");
+    }
+  });
+  
+  server->on("/midi-import.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/midi-import.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/midi-import.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=86400");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/midi-import.js", "application/javascript");
+    }
+  });
+  
+  // Admin page
+  server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/admin.html.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/admin.html.gz", "text/html");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "max-age=600");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/admin.html", "text/html");
+    }
+  });
+  
+  // Fallback para otros archivos estáticos (favicon, etc)
   server->serveStatic("/", LittleFS, "/web/")
-    .setDefaultFile("index.html")
-    .setCacheControl("max-age=3600");  // Cache 1h para balance velocidad/actualización
+    .setCacheControl("max-age=86400");
   
   // API REST
   server->on("/api/trigger", HTTP_POST, [](AsyncWebServerRequest *request){
@@ -882,7 +965,7 @@ void WebInterface::update() {
   // Limpiar WebSocket clients desconectados cada 2 segundos
   static unsigned long lastWsCleanup = 0;
   if (now - lastWsCleanup > 2000) {
-    ws->cleanupClients(2);  // Max 2 clients
+    ws->cleanupClients(4);  // Max 4 clients
     lastWsCleanup = now;
   }
   
@@ -893,15 +976,21 @@ void WebInterface::update() {
     lastCleanup = now;
   }
   
-  // WiFi health check cada 10 segundos
+  // WiFi health check cada 30 segundos (no-blocking)
   static unsigned long lastWifiCheck = 0;
-  if (now - lastWifiCheck > 10000) {
+  if (now - lastWifiCheck > 30000) {
     lastWifiCheck = now;
     if (WiFi.getMode() != WIFI_AP) {
-      Serial.println("[WiFi] AP mode lost! Restarting AP...");
+      Serial.println("[WiFi] AP mode lost! Restarting...");
       WiFi.mode(WIFI_AP);
-      delay(100);
-      WiFi.softAP(WiFi.softAPSSID().c_str(), nullptr, 6, 0, 4);
+      WiFi.softAP("RED808", "red808esp32", 1, 0, 4);
+      WiFi.setSleep(false);
+    }
+    int stations = WiFi.softAPgetStationNum();
+    static int lastStationCount = 0;
+    if (stations != lastStationCount) {
+      Serial.printf("[WiFi] Stations: %d\n", stations);
+      lastStationCount = stations;
     }
   }
 }
@@ -1341,6 +1430,37 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       }
     }
   }
+  // ============= SCRATCH Command (configurable) =============
+  else if (cmd == "setScratch") {
+    int track = doc["track"];
+    bool value = doc["value"];
+    if (track >= 0 && track < 16) {
+      float rate = doc.containsKey("rate") ? (float)doc["rate"] : 5.0f;
+      float depth = doc.containsKey("depth") ? (float)doc["depth"] : 0.85f;
+      float filter = doc.containsKey("filter") ? (float)doc["filter"] : 4000.0f;
+      float crackle = doc.containsKey("crackle") ? (float)doc["crackle"] : 0.25f;
+      audioEngine.setScratchParams(track, value, rate, depth, filter, crackle);
+      Serial.printf("[WS] Scratch %s -> Track %d (rate:%.1f depth:%.2f filter:%.0f crackle:%.2f)\n",
+                    value ? "ON" : "OFF", track, rate, depth, filter, crackle);
+    }
+  }
+  // ============= TURNTABLISM Command (configurable) =============
+  else if (cmd == "setTurntablism") {
+    int track = doc["track"];
+    bool value = doc["value"];
+    if (track >= 0 && track < 16) {
+      String control = doc.containsKey("control") ? doc["control"].as<String>() : "auto";
+      bool autoMode = (control == "auto");
+      int mode = doc.containsKey("mode") ? (int)doc["mode"] : -1;
+      int brakeSpeed = doc.containsKey("brakeSpeed") ? (int)doc["brakeSpeed"] : 350;
+      int backspinSpeed = doc.containsKey("backspinSpeed") ? (int)doc["backspinSpeed"] : 450;
+      float transformRate = doc.containsKey("transformRate") ? (float)doc["transformRate"] : 11.0f;
+      float vinylNoise = doc.containsKey("vinylNoise") ? (float)doc["vinylNoise"] : 0.35f;
+      audioEngine.setTurntablismParams(track, value, autoMode, mode, brakeSpeed, backspinSpeed, transformRate, vinylNoise);
+      Serial.printf("[WS] Turntablism %s -> Track %d (auto:%d mode:%d brake:%d backspin:%d tRate:%.1f noise:%.2f)\n",
+                    value ? "ON" : "OFF", track, autoMode, mode, brakeSpeed, backspinSpeed, transformRate, vinylNoise);
+    }
+  }
   else if (cmd == "setSequencerVolume") {
     int volume = doc["value"];
     audioEngine.setSequencerVolume(volume);
@@ -1641,20 +1761,18 @@ void WebInterface::updateUdpClient(IPAddress ip, uint16_t port) {
   String key = ip.toString();
   
   if (udpClients.find(key) != udpClients.end()) {
-    // Cliente existente, actualizar
+    // Cliente existente, solo actualizar timestamp y contador (sin Serial.printf)
     udpClients[key].lastSeen = millis();
     udpClients[key].packetCount++;
-    Serial.printf("[UDP] Client updated: %s:%d (packets: %d)\n", 
-                  ip.toString().c_str(), port, udpClients[key].packetCount);
   } else {
-    // Nuevo cliente
+    // Nuevo cliente - solo loguear nuevos
     UdpClient client;
     client.ip = ip;
     client.port = port;
     client.lastSeen = millis();
     client.packetCount = 1;
     udpClients[key] = client;
-    Serial.printf("[UDP] New client registered: %s:%d (total clients: %d)\n", 
+    Serial.printf("[UDP] New client: %s:%d (total: %d)\n", 
                   ip.toString().c_str(), port, udpClients.size());
   }
 }

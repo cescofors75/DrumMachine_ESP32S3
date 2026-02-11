@@ -4156,23 +4156,326 @@ function initFxSubtabs() {
             });
         });
     });
+    // Init Track FX system
+    initTrackFx();
 }
 
-// ============= REVERSE Filter =============
+// ============= TRACK FX System (per-track combinable effects) =============
+// State: per-track FX { reverse: bool, pitch: float, stutter: bool, stutterMs: int }
+let trackFxEffects = new Array(16).fill(null).map(() => ({
+    reverse: false,
+    pitch: 1.0,
+    stutter: false,
+    stutterMs: 100,
+    scratch: false,
+    scratchRate: 5.0,
+    scratchDepth: 0.85,
+    scratchFilter: 4000,
+    scratchCrackle: 0.25,
+    scratchStyle: 'baby',
+    turntablism: false,
+    turntableControl: 'auto',
+    turntableMode: 0,
+    brakeSpeed: 350,
+    backspinSpeed: 450,
+    transformRate: 11,
+    vinylNoise: 0.35
+}));
+let selectedFxTrack = 0;
+
+function initTrackFx() {
+    // Track selector buttons
+    const trackBtns = document.querySelectorAll('.track-fx-btn');
+    trackBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const track = parseInt(btn.dataset.track);
+            selectFxTrack(track);
+        });
+    });
+    // Initial render
+    updateTrackFxUI();
+    updateTrackFxStatusGrid();
+}
+
+function selectFxTrack(trackIndex) {
+    selectedFxTrack = trackIndex;
+    window.lastSelectedTrack = trackIndex;
+    
+    // Update selector buttons
+    document.querySelectorAll('.track-fx-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.track) === trackIndex);
+    });
+    
+    // Update toggle states to reflect selected track's FX
+    updateTrackFxUI();
+}
+
+function updateTrackFxUI() {
+    const fx = trackFxEffects[selectedFxTrack];
+    if (!fx) return;
+    
+    // Reverse toggle
+    const reverseToggle = document.getElementById('fxReverseToggle');
+    if (reverseToggle) reverseToggle.checked = fx.reverse;
+    document.getElementById('fxCardReverse')?.classList.toggle('fx-active', fx.reverse);
+    
+    // Pitch toggle & slider
+    const pitchToggle = document.getElementById('fxPitchToggle');
+    const pitchActive = fx.pitch !== 1.0;
+    if (pitchToggle) pitchToggle.checked = pitchActive;
+    document.getElementById('fxCardPitch')?.classList.toggle('fx-active', pitchActive);
+    const pitchSlider = document.getElementById('fxPitchSlider');
+    if (pitchSlider) pitchSlider.value = Math.round(fx.pitch * 100);
+    const pitchValue = document.getElementById('fxPitchValue');
+    if (pitchValue) pitchValue.textContent = fx.pitch.toFixed(2);
+    // Update pitch preset buttons
+    document.querySelectorAll('#fxCardPitch .pitch-preset-btn').forEach(btn => {
+        const val = parseFloat(btn.getAttribute('onclick')?.match(/setTrackFxPitch\(([\d.]+)\)/)?.[1] || '0');
+        btn.classList.toggle('active', Math.abs(val - fx.pitch) < 0.01);
+    });
+    
+    // Stutter toggle & slider
+    const stutterToggle = document.getElementById('fxStutterToggle');
+    if (stutterToggle) stutterToggle.checked = fx.stutter;
+    document.getElementById('fxCardStutter')?.classList.toggle('fx-active', fx.stutter);
+    const stutterSlider = document.getElementById('fxStutterSlider');
+    if (stutterSlider) stutterSlider.value = fx.stutterMs;
+    const stutterValue = document.getElementById('fxStutterValue');
+    if (stutterValue) stutterValue.textContent = fx.stutterMs;
+    // Update stutter preset buttons
+    document.querySelectorAll('#fxCardStutter .pitch-preset-btn').forEach(btn => {
+        const val = parseInt(btn.getAttribute('onclick')?.match(/setTrackFxStutter\((\d+)\)/)?.[1] || '0');
+        btn.classList.toggle('active', val === fx.stutterMs && fx.stutter);
+    });
+    
+    // Scratch toggle & UI
+    const scratchToggle = document.getElementById('fxScratchToggle');
+    if (scratchToggle) scratchToggle.checked = fx.scratch;
+    document.getElementById('fxCardScratch')?.classList.toggle('fx-active', fx.scratch);
+    const scratchRate = document.getElementById('fxScratchRate');
+    if (scratchRate) scratchRate.value = Math.round(fx.scratchRate * 10);
+    const scratchRateVal = document.getElementById('fxScratchRateValue');
+    if (scratchRateVal) scratchRateVal.textContent = fx.scratchRate.toFixed(1);
+    const scratchDepth = document.getElementById('fxScratchDepth');
+    if (scratchDepth) scratchDepth.value = Math.round(fx.scratchDepth * 100);
+    const scratchDepthVal = document.getElementById('fxScratchDepthValue');
+    if (scratchDepthVal) scratchDepthVal.textContent = Math.round(fx.scratchDepth * 100);
+    const scratchFilter = document.getElementById('fxScratchFilter');
+    if (scratchFilter) scratchFilter.value = fx.scratchFilter;
+    const scratchFilterVal = document.getElementById('fxScratchFilterValue');
+    if (scratchFilterVal) scratchFilterVal.textContent = fx.scratchFilter;
+    const scratchCrackle = document.getElementById('fxScratchCrackle');
+    if (scratchCrackle) scratchCrackle.value = Math.round(fx.scratchCrackle * 100);
+    const scratchCrackleVal = document.getElementById('fxScratchCrackleValue');
+    if (scratchCrackleVal) scratchCrackleVal.textContent = Math.round(fx.scratchCrackle * 100);
+    // Update scratch style buttons
+    document.querySelectorAll('.scratch-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.style === fx.scratchStyle);
+    });
+    
+    // Turntablism toggle & UI
+    const ttToggle = document.getElementById('fxTurntablismToggle');
+    if (ttToggle) ttToggle.checked = fx.turntablism;
+    document.getElementById('fxCardTurntablism')?.classList.toggle('fx-active', fx.turntablism);
+    const brakeSpeed = document.getElementById('fxBrakeSpeed');
+    if (brakeSpeed) brakeSpeed.value = fx.brakeSpeed;
+    const brakeVal = document.getElementById('fxBrakeSpeedValue');
+    if (brakeVal) brakeVal.textContent = fx.brakeSpeed;
+    const backspinSpeed = document.getElementById('fxBackspinSpeed');
+    if (backspinSpeed) backspinSpeed.value = fx.backspinSpeed;
+    const backspinVal = document.getElementById('fxBackspinValue');
+    if (backspinVal) backspinVal.textContent = fx.backspinSpeed;
+    const transformRate = document.getElementById('fxTransformRate');
+    if (transformRate) transformRate.value = fx.transformRate;
+    const transformVal = document.getElementById('fxTransformRateValue');
+    if (transformVal) transformVal.textContent = fx.transformRate;
+    const vinylNoise = document.getElementById('fxVinylNoise');
+    if (vinylNoise) vinylNoise.value = Math.round(fx.vinylNoise * 100);
+    const vinylNoiseVal = document.getElementById('fxVinylNoiseValue');
+    if (vinylNoiseVal) vinylNoiseVal.textContent = Math.round(fx.vinylNoise * 100);
+    // Turntable control mode
+    document.querySelectorAll('.turntable-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ctrl === fx.turntableControl);
+    });
+    // Status dot
+    const ttStatusDot = document.querySelector('.tt-mode-dot');
+    if (ttStatusDot) ttStatusDot.classList.toggle('active', fx.turntablism);
+}
+
+function toggleTrackFx(fxType, active) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    
+    switch (fxType) {
+        case 'reverse':
+            fx.reverse = active;
+            sendWebSocket({ cmd: 'setReverse', track: track, value: active });
+            document.getElementById('fxCardReverse')?.classList.toggle('fx-active', active);
+            if (window.showToast) window.showToast(`${active ? '⏪ REVERSE ON' : '▶️ REVERSE OFF'} → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            break;
+            
+        case 'pitch':
+            if (!active) {
+                fx.pitch = 1.0;
+                sendWebSocket({ cmd: 'setPitchShift', track: track, value: 1.0 });
+                document.getElementById('fxCardPitch')?.classList.remove('fx-active');
+                if (window.showToast) window.showToast(`▶️ PITCH NORMAL → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            } else {
+                // When toggling on, apply current pitch (default to 0.5 if was 1.0)
+                if (fx.pitch === 1.0) fx.pitch = 0.5;
+                sendWebSocket({ cmd: 'setPitchShift', track: track, value: fx.pitch });
+                document.getElementById('fxCardPitch')?.classList.add('fx-active');
+                if (window.showToast) window.showToast(`🎵 PITCH ${fx.pitch.toFixed(2)}× → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            }
+            updateTrackFxUI();
+            break;
+            
+        case 'stutter':
+            fx.stutter = active;
+            sendWebSocket({ cmd: 'setStutter', track: track, value: active, interval: fx.stutterMs });
+            document.getElementById('fxCardStutter')?.classList.toggle('fx-active', active);
+            if (window.showToast) window.showToast(`${active ? '🔁 STUTTER ON ' + fx.stutterMs + 'ms' : '🔁 STUTTER OFF'} → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            break;
+            
+        case 'scratch':
+            fx.scratch = active;
+            if (active) {
+                sendWebSocket({ cmd: 'setScratch', track: track, value: true, rate: fx.scratchRate, depth: fx.scratchDepth, filter: fx.scratchFilter, crackle: fx.scratchCrackle });
+            } else {
+                sendWebSocket({ cmd: 'setScratch', track: track, value: false });
+            }
+            document.getElementById('fxCardScratch')?.classList.toggle('fx-active', active);
+            if (window.showToast) window.showToast(`${active ? '💿 SCRATCH ON' : '💿 SCRATCH OFF'} → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            break;
+            
+        case 'turntablism':
+            fx.turntablism = active;
+            if (active) {
+                sendWebSocket({ cmd: 'setTurntablism', track: track, value: true, control: fx.turntableControl, brakeSpeed: fx.brakeSpeed, backspinSpeed: fx.backspinSpeed, transformRate: fx.transformRate, vinylNoise: fx.vinylNoise });
+            } else {
+                sendWebSocket({ cmd: 'setTurntablism', track: track, value: false });
+            }
+            document.getElementById('fxCardTurntablism')?.classList.toggle('fx-active', active);
+            const ttDot = document.querySelector('.tt-mode-dot');
+            if (ttDot) ttDot.classList.toggle('active', active);
+            if (window.showToast) window.showToast(`${active ? '🎧 TURNTABLISM ON' : '🎧 TURNTABLISM OFF'} → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+            break;
+    }
+    
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
+}
+
+function setTrackFxPitch(value) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    fx.pitch = value;
+    
+    // Auto-enable pitch toggle
+    const pitchToggle = document.getElementById('fxPitchToggle');
+    if (value !== 1.0) {
+        if (pitchToggle) pitchToggle.checked = true;
+        document.getElementById('fxCardPitch')?.classList.add('fx-active');
+    } else {
+        if (pitchToggle) pitchToggle.checked = false;
+        document.getElementById('fxCardPitch')?.classList.remove('fx-active');
+    }
+    
+    sendWebSocket({ cmd: 'setPitchShift', track: track, value: value });
+    
+    // Update UI
+    const pitchSlider = document.getElementById('fxPitchSlider');
+    if (pitchSlider) pitchSlider.value = Math.round(value * 100);
+    const pitchValue = document.getElementById('fxPitchValue');
+    if (pitchValue) pitchValue.textContent = value.toFixed(2);
+    
+    // Update preset buttons
+    document.querySelectorAll('#fxCardPitch .pitch-preset-btn').forEach(btn => {
+        const val = parseFloat(btn.getAttribute('onclick')?.match(/setTrackFxPitch\(([\d.]+)\)/)?.[1] || '0');
+        btn.classList.toggle('active', Math.abs(val - value) < 0.01);
+    });
+    
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
+}
+
+function setTrackFxStutter(intervalMs) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    fx.stutterMs = intervalMs;
+    
+    // Auto-enable stutter toggle
+    const stutterToggle = document.getElementById('fxStutterToggle');
+    if (stutterToggle) stutterToggle.checked = true;
+    fx.stutter = true;
+    document.getElementById('fxCardStutter')?.classList.add('fx-active');
+    
+    sendWebSocket({ cmd: 'setStutter', track: track, value: true, interval: intervalMs });
+    
+    // Update UI
+    const stutterSlider = document.getElementById('fxStutterSlider');
+    if (stutterSlider) stutterSlider.value = intervalMs;
+    const stutterValue = document.getElementById('fxStutterValue');
+    if (stutterValue) stutterValue.textContent = intervalMs;
+    
+    // Update preset buttons
+    document.querySelectorAll('#fxCardStutter .pitch-preset-btn').forEach(btn => {
+        const val = parseInt(btn.getAttribute('onclick')?.match(/setTrackFxStutter\((\d+)\)/)?.[1] || '0');
+        btn.classList.toggle('active', val === intervalMs);
+    });
+    
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
+}
+
+// Update the track selector buttons to show which have FX active
+function updateTrackFxBtnIndicators() {
+    document.querySelectorAll('.track-fx-btn').forEach(btn => {
+        const track = parseInt(btn.dataset.track);
+        const fx = trackFxEffects[track];
+        const hasFx = fx && (fx.reverse || fx.pitch !== 1.0 || fx.stutter || fx.scratch || fx.turntablism);
+        btn.classList.toggle('has-fx', hasFx);
+    });
+}
+
+// Update the status grid showing all 16 tracks with their active FX
+function updateTrackFxStatusGrid() {
+    const container = document.getElementById('trackFxStatus');
+    if (!container) return;
+    
+    let html = '';
+    for (let i = 0; i < 16; i++) {
+        const fx = trackFxEffects[i];
+        const hasAny = fx.reverse || fx.pitch !== 1.0 || fx.stutter || fx.scratch || fx.turntablism;
+        html += `<div class="track-fx-status-item" style="${hasAny ? 'background:rgba(168,85,247,0.1);' : ''}">
+            <span class="status-name">${padNames[i]}</span>
+            <div class="status-fx">
+                <span class="fx-dot ${fx.reverse ? 'reverse-on' : ''}" title="Reverse"></span>
+                <span class="fx-dot ${fx.pitch !== 1.0 ? 'pitch-on' : ''}" title="Pitch ${fx.pitch.toFixed(2)}×"></span>
+                <span class="fx-dot ${fx.stutter ? 'stutter-on' : ''}" title="Stutter ${fx.stutterMs}ms"></span>
+                <span class="fx-dot ${fx.scratch ? 'scratch-on' : ''}" title="Scratch"></span>
+                <span class="fx-dot ${fx.turntablism ? 'turntablism-on' : ''}" title="Turntablism"></span>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+// Legacy functions - now use trackFxEffects system
 function applyReverseFilter() {
-    // Get selected track/pad context
     const context = getSelectedFilterContext();
     if (!context) {
         if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
         return;
     }
     if (context.type === 'track') {
-        sendWebSocket({ cmd: 'setReverse', track: context.index, value: true });
-        if (window.showToast) window.showToast(`⏪ REVERSE ON → Track ${padNames[context.index]}`, window.TOAST_TYPES?.SUCCESS, 2000);
-    } else {
-        sendWebSocket({ cmd: 'setReverse', pad: context.index, value: true });
-        if (window.showToast) window.showToast(`⏪ REVERSE ON → Pad ${context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+        trackFxEffects[context.index].reverse = true;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
     }
+    sendWebSocket({ cmd: 'setReverse', [context.type]: context.index, value: true });
+    if (window.showToast) window.showToast(`⏪ REVERSE ON → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
 }
 
 function removeReverseFilter() {
@@ -4182,12 +4485,13 @@ function removeReverseFilter() {
         return;
     }
     if (context.type === 'track') {
-        sendWebSocket({ cmd: 'setReverse', track: context.index, value: false });
-        if (window.showToast) window.showToast(`▶️ Normal → Track ${padNames[context.index]}`, window.TOAST_TYPES?.SUCCESS, 2000);
-    } else {
-        sendWebSocket({ cmd: 'setReverse', pad: context.index, value: false });
-        if (window.showToast) window.showToast(`▶️ Normal → Pad ${context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+        trackFxEffects[context.index].reverse = false;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
     }
+    sendWebSocket({ cmd: 'setReverse', [context.type]: context.index, value: false });
+    if (window.showToast) window.showToast(`▶️ Normal → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
 }
 
 // ============= HALF-SPEED / DOUBLE-SPEED Filter =============
@@ -4196,6 +4500,12 @@ function applyHalfSpeedFilter() {
     if (!context) {
         if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
         return;
+    }
+    if (context.type === 'track') {
+        trackFxEffects[context.index].pitch = 0.5;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
     }
     sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 0.5 });
     if (window.showToast) window.showToast(`🐢 HALF-SPEED → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
@@ -4207,6 +4517,12 @@ function applyDoubleSpeedFilter() {
         if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
         return;
     }
+    if (context.type === 'track') {
+        trackFxEffects[context.index].pitch = 2.0;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
+    }
     sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 2.0 });
     if (window.showToast) window.showToast(`🐇 DOUBLE-SPEED → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
 }
@@ -4216,6 +4532,12 @@ function applyNormalSpeedFilter() {
     if (!context) {
         if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
         return;
+    }
+    if (context.type === 'track') {
+        trackFxEffects[context.index].pitch = 1.0;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
     }
     sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 1.0 });
     if (window.showToast) window.showToast(`▶️ Normal Speed → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
@@ -4227,6 +4549,13 @@ function applyStutterFilter(intervalMs) {
     if (!context) {
         if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
         return;
+    }
+    if (context.type === 'track') {
+        trackFxEffects[context.index].stutter = true;
+        trackFxEffects[context.index].stutterMs = intervalMs;
+        updateTrackFxUI();
+        updateTrackFxStatusGrid();
+        updateTrackFxBtnIndicators();
     }
     sendWebSocket({ cmd: 'setStutter', [context.type]: context.index, interval: intervalMs, value: true });
     if (window.showToast) window.showToast(`🔁 STUTTER ${intervalMs}ms → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
@@ -4259,6 +4588,234 @@ window.applyDoubleSpeedFilter = applyDoubleSpeedFilter;
 window.applyNormalSpeedFilter = applyNormalSpeedFilter;
 window.applyStutterFilter = applyStutterFilter;
 window.getSelectedFilterContext = getSelectedFilterContext;
+window.toggleTrackFx = toggleTrackFx;
+window.setTrackFxPitch = setTrackFxPitch;
+window.setTrackFxStutter = setTrackFxStutter;
+window.selectFxTrack = selectFxTrack;
+window.setScratchStyle = setScratchStyle;
+window.setScratchParam = setScratchParam;
+window.setTurntableControl = setTurntableControl;
+window.setTurntableParam = setTurntableParam;
+window.triggerTurntableMode = triggerTurntableMode;
+
+// ============= SCRATCH FX Functions =============
+
+const SCRATCH_STYLES = {
+    baby:        { rate: 3.0,  depth: 0.6,  filter: 3000, crackle: 0.15 },
+    chirp:       { rate: 8.0,  depth: 0.9,  filter: 5000, crackle: 0.20 },
+    scribble:    { rate: 15.0, depth: 0.5,  filter: 6000, crackle: 0.10 },
+    drag:        { rate: 1.5,  depth: 1.0,  filter: 2000, crackle: 0.40 },
+    transformer: { rate: 12.0, depth: 0.95, filter: 8000, crackle: 0.05 }
+};
+
+function setScratchStyle(style) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    const preset = SCRATCH_STYLES[style];
+    if (!preset) return;
+    
+    fx.scratchStyle = style;
+    fx.scratchRate = preset.rate;
+    fx.scratchDepth = preset.depth;
+    fx.scratchFilter = preset.filter;
+    fx.scratchCrackle = preset.crackle;
+    
+    // Auto-enable scratch
+    fx.scratch = true;
+    const scratchToggle = document.getElementById('fxScratchToggle');
+    if (scratchToggle) scratchToggle.checked = true;
+    document.getElementById('fxCardScratch')?.classList.add('fx-active');
+    
+    sendWebSocket({ cmd: 'setScratch', track: track, value: true, rate: fx.scratchRate, depth: fx.scratchDepth, filter: fx.scratchFilter, crackle: fx.scratchCrackle });
+    
+    updateTrackFxUI();
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
+    updateScratchVisualizer();
+    
+    if (window.showToast) window.showToast(`💿 ${style.toUpperCase()} SCRATCH → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+}
+
+function setScratchParam(param, value) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    
+    switch (param) {
+        case 'rate':
+            fx.scratchRate = value;
+            document.getElementById('fxScratchRateValue').textContent = value.toFixed(1);
+            break;
+        case 'depth':
+            fx.scratchDepth = value;
+            document.getElementById('fxScratchDepthValue').textContent = Math.round(value * 100);
+            break;
+        case 'filter':
+            fx.scratchFilter = value;
+            document.getElementById('fxScratchFilterValue').textContent = value;
+            break;
+        case 'crackle':
+            fx.scratchCrackle = value;
+            document.getElementById('fxScratchCrackleValue').textContent = Math.round(value * 100);
+            break;
+    }
+    
+    // Send if scratch is active
+    if (fx.scratch) {
+        sendWebSocket({ cmd: 'setScratch', track: track, value: true, rate: fx.scratchRate, depth: fx.scratchDepth, filter: fx.scratchFilter, crackle: fx.scratchCrackle });
+    }
+    
+    updateScratchVisualizer();
+}
+
+// Mini scratch waveform visualizer
+let scratchVisFrame = null;
+function updateScratchVisualizer() {
+    const canvas = document.getElementById('scratchCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const fx = trackFxEffects[selectedFxTrack];
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    if (scratchVisFrame) cancelAnimationFrame(scratchVisFrame);
+    
+    let phase = 0;
+    function drawFrame() {
+        ctx.clearRect(0, 0, w, h);
+        
+        // Background gradient
+        const gradient = ctx.createLinearGradient(0, 0, w, 0);
+        gradient.addColorStop(0, '#0d0a1a');
+        gradient.addColorStop(0.5, '#150d2e');
+        gradient.addColorStop(1, '#0d0a1a');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+        
+        // Center line
+        ctx.strokeStyle = 'rgba(139,92,246,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, h/2);
+        ctx.lineTo(w, h/2);
+        ctx.stroke();
+        
+        // Scratch waveform
+        ctx.strokeStyle = fx.scratch ? '#a78bfa' : '#444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 0; x < w; x++) {
+            const t = (x / w) * Math.PI * 2 * 3 + phase;
+            // Triangle wave 
+            const tri = Math.abs(((t / (Math.PI * 2)) % 1) * 4 - 2) - 1;
+            const y = h/2 + tri * fx.scratchDepth * (h/2 - 4);
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        
+        // Crackle dots
+        if (fx.scratch && fx.scratchCrackle > 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            for (let i = 0; i < 5; i++) {
+                if (Math.random() < fx.scratchCrackle) {
+                    const cx = Math.random() * w;
+                    const cy = Math.random() * h;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        if (fx.scratch) {
+            phase += fx.scratchRate * 0.02;
+            scratchVisFrame = requestAnimationFrame(drawFrame);
+        }
+    }
+    drawFrame();
+}
+
+// ============= TURNTABLISM FX Functions =============
+
+function setTurntableControl(mode) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    fx.turntableControl = mode;
+    
+    document.querySelectorAll('.turntable-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ctrl === mode);
+    });
+    
+    if (fx.turntablism) {
+        sendWebSocket({ cmd: 'setTurntablism', track: track, value: true, control: mode, brakeSpeed: fx.brakeSpeed, backspinSpeed: fx.backspinSpeed, transformRate: fx.transformRate, vinylNoise: fx.vinylNoise });
+    }
+    
+    if (window.showToast) window.showToast(`🎧 Control: ${mode.toUpperCase()} → ${padNames[track]}`, window.TOAST_TYPES?.INFO, 1500);
+}
+
+function setTurntableParam(param, value) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    
+    switch (param) {
+        case 'brakeSpeed':
+            fx.brakeSpeed = value;
+            document.getElementById('fxBrakeSpeedValue').textContent = value;
+            break;
+        case 'backspinSpeed':
+            fx.backspinSpeed = value;
+            document.getElementById('fxBackspinValue').textContent = value;
+            break;
+        case 'transformRate':
+            fx.transformRate = value;
+            document.getElementById('fxTransformRateValue').textContent = value;
+            break;
+        case 'vinylNoise':
+            fx.vinylNoise = value;
+            document.getElementById('fxVinylNoiseValue').textContent = Math.round(value * 100);
+            break;
+    }
+    
+    if (fx.turntablism) {
+        sendWebSocket({ cmd: 'setTurntablism', track: track, value: true, control: fx.turntableControl, brakeSpeed: fx.brakeSpeed, backspinSpeed: fx.backspinSpeed, transformRate: fx.transformRate, vinylNoise: fx.vinylNoise });
+    }
+}
+
+function triggerTurntableMode(mode) {
+    const track = selectedFxTrack;
+    const fx = trackFxEffects[track];
+    
+    // Auto-enable turntablism
+    if (!fx.turntablism) {
+        fx.turntablism = true;
+        const ttToggle = document.getElementById('fxTurntablismToggle');
+        if (ttToggle) ttToggle.checked = true;
+        document.getElementById('fxCardTurntablism')?.classList.add('fx-active');
+    }
+    
+    // Switch to manual mode
+    fx.turntableControl = 'manual';
+    fx.turntableMode = mode;
+    document.querySelectorAll('.turntable-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ctrl === 'manual');
+    });
+    
+    sendWebSocket({ cmd: 'setTurntablism', track: track, value: true, control: 'manual', mode: mode, brakeSpeed: fx.brakeSpeed, backspinSpeed: fx.backspinSpeed, transformRate: fx.transformRate, vinylNoise: fx.vinylNoise });
+    
+    const modeNames = ['NORMAL', 'BRAKE', 'BACKSPIN', 'TRANSFORM'];
+    const modeIcons = ['▶️', '⏹️', '🔄', '⚡'];
+    
+    // Update status
+    const statusEl = document.querySelector('.tt-status-mode');
+    if (statusEl) {
+        statusEl.innerHTML = `<span class="tt-mode-dot active"></span> ${modeNames[mode]}`;
+    }
+    
+    if (window.showToast) window.showToast(`${modeIcons[mode]} ${modeNames[mode]} → ${padNames[track]}`, window.TOAST_TYPES?.SUCCESS, 1500);
+    
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
+}
 
 // ============= Update XTRA Pads Filter Status =============
 function updateXtraFiltersStatus() {
