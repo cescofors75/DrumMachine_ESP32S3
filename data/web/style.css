@@ -3885,6 +3885,94 @@ body.mono-mode .info-item {
     transform: scale(1.05);
 }
 
+/* ============= FX SUB-TABS ============= */
+
+.fx-subtabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid #1abc9c;
+}
+
+.fx-subtab-btn {
+    flex: 1;
+    padding: 12px 20px;
+    background: rgba(20, 20, 30, 0.8);
+    color: #888;
+    border: none;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.fx-subtab-btn:first-child {
+    border-right: 1px solid rgba(26, 188, 156, 0.3);
+}
+
+.fx-subtab-btn.active {
+    background: linear-gradient(135deg, rgba(26, 188, 156, 0.3), rgba(52, 152, 219, 0.3));
+    color: #1abc9c;
+    text-shadow: 0 0 10px rgba(26, 188, 156, 0.5);
+}
+
+.fx-subtab-btn:hover:not(.active) {
+    background: rgba(26, 188, 156, 0.1);
+    color: #aaa;
+}
+
+.fx-subtab-content {
+    display: none;
+}
+
+.fx-subtab-content.active {
+    display: block;
+}
+
+/* ============= XTRA PADS FILTER SECTION ============= */
+
+.xtra-description {
+    color: #888;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.xtra-filters-section {
+    margin-top: 25px;
+    padding: 20px;
+    background: rgba(255, 102, 0, 0.05);
+    border: 1px solid rgba(255, 102, 0, 0.2);
+    border-radius: 10px;
+}
+
+.xtra-filters-section h3 {
+    color: #ff6600;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.xtra-filters-desc {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.xtra-filters-status {
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.xtra-filters-status .no-filters {
+    color: #666;
+    font-style: italic;
+    font-size: 12px;
+}
+
 /* ============= FILTER LIBRARY STYLES ============= */
 
 .filter-library {

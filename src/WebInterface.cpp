@@ -1289,6 +1289,58 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       if (ws) ws->textAll(out);
     }
   }
+  // ============= REVERSE Command =============
+  else if (cmd == "setReverse") {
+    bool value = doc["value"];
+    if (doc.containsKey("track")) {
+      int track = doc["track"];
+      if (track >= 0 && track < 16) {
+        audioEngine.setReverseSample(track, value);
+        Serial.printf("[WS] Reverse %s -> Track %d\n", value ? "ON" : "OFF", track);
+      }
+    } else if (doc.containsKey("pad")) {
+      int pad = doc["pad"];
+      if (pad >= 0 && pad < 24) {
+        audioEngine.setReverseSample(pad, value);
+        Serial.printf("[WS] Reverse %s -> Pad %d\n", value ? "ON" : "OFF", pad);
+      }
+    }
+  }
+  // ============= PITCH SHIFT Command =============
+  else if (cmd == "setPitchShift") {
+    float value = doc["value"];
+    if (doc.containsKey("track")) {
+      int track = doc["track"];
+      if (track >= 0 && track < 16) {
+        audioEngine.setTrackPitchShift(track, value);
+        Serial.printf("[WS] PitchShift %.2f -> Track %d\n", value, track);
+      }
+    } else if (doc.containsKey("pad")) {
+      int pad = doc["pad"];
+      if (pad >= 0 && pad < 24) {
+        audioEngine.setTrackPitchShift(pad, value);
+        Serial.printf("[WS] PitchShift %.2f -> Pad %d\n", value, pad);
+      }
+    }
+  }
+  // ============= STUTTER Command =============
+  else if (cmd == "setStutter") {
+    bool value = doc["value"];
+    int interval = doc.containsKey("interval") ? (int)doc["interval"] : 100;
+    if (doc.containsKey("track")) {
+      int track = doc["track"];
+      if (track >= 0 && track < 16) {
+        audioEngine.setStutter(track, value, interval);
+        Serial.printf("[WS] Stutter %s %dms -> Track %d\n", value ? "ON" : "OFF", interval, track);
+      }
+    } else if (doc.containsKey("pad")) {
+      int pad = doc["pad"];
+      if (pad >= 0 && pad < 24) {
+        audioEngine.setStutter(pad, value, interval);
+        Serial.printf("[WS] Stutter %s %dms -> Pad %d\n", value ? "ON" : "OFF", interval, pad);
+      }
+    }
+  }
   else if (cmd == "setSequencerVolume") {
     int volume = doc["value"];
     audioEngine.setSequencerVolume(volume);

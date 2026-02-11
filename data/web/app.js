@@ -5,7 +5,7 @@ let isConnected = false;
 let currentStep = 0;
 let tremoloIntervals = {};
 let padLoopState = {};
-let padFxState = new Array(16).fill(null); // Per-pad FX state
+let padFxState = new Array(24).fill(null); // Per-pad FX state (16 main + 8 xtra)
 let trackFxState = new Array(16).fill(null); // Per-track FX state
 let isPlaying = false;
 
@@ -34,7 +34,7 @@ let padHoldTimers = {};
 let trackMutedState = new Array(16).fill(false);
 
 // Pad filter state (stores active filter type for each pad)
-let padFilterState = new Array(16).fill(0); // 0 = FILTER_NONE
+let padFilterState = new Array(24).fill(0); // 0 = FILTER_NONE (16 main + 8 xtra)
 let trackFilterState = new Array(16).fill(0); // 0 = FILTER_NONE
 
 // Pad <-> Sequencer sync state (ALWAYS synced)
@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initHeaderMeters();
     initVolumesSection();
     initLivePadsX();
+    initFxSubtabs();
     
     // Initialize keyboard system from keyboard-controls.js first
     if (window.initKeyboardControls) {
@@ -798,7 +799,7 @@ function showPadFilterSelector(padIndex, padElement) {
     const header = document.createElement('div');
     header.className = 'pfe-header';
     header.innerHTML = `
-        <span class="pfe-pad-name">🎛️ ${padNames[padIndex]}</span>
+        <span class="pfe-pad-name">🎛️ ${padNames[padIndex] || 'XTRA ' + (padIndex - 15)}</span>
         <span class="pfe-title">SELECT FILTER</span>
         <button class="pfe-close" title="Cerrar">✕</button>
     `;
@@ -2282,6 +2283,25 @@ function setupFXControls() {
     }
     
     // ============= Lo-Fi Controls =============
+    const lofiActive = document.getElementById('lofiActive');
+    if (lofiActive) {
+        lofiActive.addEventListener('change', (e) => {
+            const active = e.target.checked;
+            toggleFxCard(e.target, active);
+            if (!active) {
+                // Reset Lo-Fi to defaults (off)
+                const bcEl = document.getElementById('bitCrush');
+                const srEl = document.getElementById('sampleRate');
+                const bcVal = document.getElementById('bitCrushValue');
+                const srVal = document.getElementById('sampleRateValue');
+                if (bcEl) { bcEl.value = 16; if (bcVal) bcVal.textContent = '16'; }
+                if (srEl) { srEl.value = 44100; if (srVal) srVal.textContent = '44100'; }
+                sendWebSocket({ cmd: 'setBitCrush', value: 16 });
+                sendWebSocket({ cmd: 'setSampleRate', value: 44100 });
+            }
+        });
+    }
+    
     const bitCrush = document.getElementById('bitCrush');
     const bitCrushValue = document.getElementById('bitCrushValue');
     if (bitCrush) {
@@ -4116,6 +4136,158 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export to window
 window.applyFilterPreset = applyFilterPreset;
+
+// ============= FX Sub-Tabs System =============
+function initFxSubtabs() {
+    const subtabBtns = document.querySelectorAll('.fx-subtab-btn');
+    subtabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.getAttribute('data-fxtab');
+            // Update active button
+            subtabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            // Update active content
+            document.querySelectorAll('.fx-subtab-content').forEach(content => {
+                if (content.id === `fxtab-${tabId}`) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+        });
+    });
+}
+
+// ============= REVERSE Filter =============
+function applyReverseFilter() {
+    // Get selected track/pad context
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    if (context.type === 'track') {
+        sendWebSocket({ cmd: 'setReverse', track: context.index, value: true });
+        if (window.showToast) window.showToast(`⏪ REVERSE ON → Track ${padNames[context.index]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+    } else {
+        sendWebSocket({ cmd: 'setReverse', pad: context.index, value: true });
+        if (window.showToast) window.showToast(`⏪ REVERSE ON → Pad ${context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+    }
+}
+
+function removeReverseFilter() {
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    if (context.type === 'track') {
+        sendWebSocket({ cmd: 'setReverse', track: context.index, value: false });
+        if (window.showToast) window.showToast(`▶️ Normal → Track ${padNames[context.index]}`, window.TOAST_TYPES?.SUCCESS, 2000);
+    } else {
+        sendWebSocket({ cmd: 'setReverse', pad: context.index, value: false });
+        if (window.showToast) window.showToast(`▶️ Normal → Pad ${context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+    }
+}
+
+// ============= HALF-SPEED / DOUBLE-SPEED Filter =============
+function applyHalfSpeedFilter() {
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 0.5 });
+    if (window.showToast) window.showToast(`🐢 HALF-SPEED → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+}
+
+function applyDoubleSpeedFilter() {
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 2.0 });
+    if (window.showToast) window.showToast(`🐇 DOUBLE-SPEED → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+}
+
+function applyNormalSpeedFilter() {
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    sendWebSocket({ cmd: 'setPitchShift', [context.type]: context.index, value: 1.0 });
+    if (window.showToast) window.showToast(`▶️ Normal Speed → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+}
+
+// ============= STUTTER Filter =============
+function applyStutterFilter(intervalMs) {
+    const context = getSelectedFilterContext();
+    if (!context) {
+        if (window.showToast) window.showToast('⚠️ Selecciona primero un track o pad', window.TOAST_TYPES?.WARNING, 3000);
+        return;
+    }
+    sendWebSocket({ cmd: 'setStutter', [context.type]: context.index, interval: intervalMs, value: true });
+    if (window.showToast) window.showToast(`🔁 STUTTER ${intervalMs}ms → ${context.type === 'track' ? padNames[context.index] : 'Pad ' + context.index}`, window.TOAST_TYPES?.SUCCESS, 2000);
+}
+
+// Helper to get current filter target context (selected track or pad)
+function getSelectedFilterContext() {
+    // Check if there's a selected track in the sequencer
+    const selectedTrack = document.querySelector('.seq-track-label.selected, .seq-label.selected');
+    if (selectedTrack) {
+        const trackIdx = parseInt(selectedTrack.dataset.track || selectedTrack.dataset.trackIndex);
+        if (!isNaN(trackIdx)) return { type: 'track', index: trackIdx };
+    }
+    // Check if there's a selected pad
+    const selectedPad = document.querySelector('.pad.selected, .pad-active-selected');
+    if (selectedPad) {
+        const padIdx = parseInt(selectedPad.dataset.pad || selectedPad.dataset.padIndex);
+        if (!isNaN(padIdx)) return { type: 'pad', index: padIdx };
+    }
+    // Fallback: use last triggered pad/track if available
+    if (typeof window.lastSelectedTrack === 'number') return { type: 'track', index: window.lastSelectedTrack };
+    if (typeof window.lastSelectedPad === 'number') return { type: 'pad', index: window.lastSelectedPad };
+    return null;
+}
+
+window.applyReverseFilter = applyReverseFilter;
+window.removeReverseFilter = removeReverseFilter;
+window.applyHalfSpeedFilter = applyHalfSpeedFilter;
+window.applyDoubleSpeedFilter = applyDoubleSpeedFilter;
+window.applyNormalSpeedFilter = applyNormalSpeedFilter;
+window.applyStutterFilter = applyStutterFilter;
+window.getSelectedFilterContext = getSelectedFilterContext;
+
+// ============= Update XTRA Pads Filter Status =============
+function updateXtraFiltersStatus() {
+    const statusEl = document.getElementById('xtraFiltersStatus');
+    if (!statusEl) return;
+    
+    if (xtraPads.length === 0) {
+        statusEl.innerHTML = '<span class="no-filters">Añade XTRA pads para aplicar filtros individuales</span>';
+        return;
+    }
+    
+    let html = '';
+    xtraPads.forEach(pad => {
+        const filterIdx = padFilterState[pad.padIndex] || 0;
+        const fx = padFxState[pad.padIndex];
+        const filterName = FILTER_TYPES[filterIdx] ? FILTER_TYPES[filterIdx].name : 'OFF';
+        const filterIcon = FILTER_TYPES[filterIdx] ? FILTER_TYPES[filterIdx].icon : '🚫';
+        const hasFx = fx && ((fx.distortion && fx.distortion > 0) || (fx.bitcrush && fx.bitcrush < 16));
+        
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span style="color:#ff6600;font-weight:bold;min-width:70px;">XTRA ${pad.padIndex - 15}</span>
+            <span style="font-size:18px;">${filterIcon}</span>
+            <span style="color:${filterIdx > 0 ? '#1abc9c' : '#666'};">${filterName}</span>
+            ${hasFx ? '<span style="color:#ff3366;font-size:11px;">🎸 FX</span>' : ''}
+        </div>`;
+    });
+    statusEl.innerHTML = html;
+}
+window.updateXtraFiltersStatus = updateXtraFiltersStatus;
 
 // ============= TRACK VOLUME MENU =============
 let activeVolumeMenu = null;

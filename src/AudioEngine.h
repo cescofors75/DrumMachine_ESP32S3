@@ -40,7 +40,10 @@ enum FilterType {
   FILTER_HIGHSHELF = 8,
   FILTER_RESONANT = 9,
   FILTER_SCRATCH = 10,
-  FILTER_TURNTABLISM = 11
+  FILTER_TURNTABLISM = 11,
+  FILTER_REVERSE = 12,
+  FILTER_HALFSPEED = 13,
+  FILTER_STUTTER = 14
 };
 
 // Distortion modes (inspired by torvalds/AudioNoise distortion.h)
@@ -273,6 +276,11 @@ public:
   static const FilterPreset* getFilterPreset(FilterType type);
   static const char* getFilterName(FilterType type);
   
+  // Reverse / Pitch Shift / Stutter
+  void setReverseSample(int padIndex, bool reverse);
+  void setTrackPitchShift(int padIndex, float pitch);
+  void setStutter(int padIndex, bool active, int intervalMs = 100);
+  
   // Volume Control
   void setMasterVolume(uint8_t volume);
   uint8_t getMasterVolume();
@@ -322,6 +330,12 @@ private:
   // Scratch / Turntablism per-pad state
   ScratchState scratchState[MAX_PADS];
   TurntablismState turntablismState[MAX_PADS];
+  
+  // Reverse / Pitch / Stutter per-pad state
+  bool sampleReversed[MAX_PADS];
+  float trackPitchShift[MAX_PADS];
+  bool stutterActive[MAX_PADS];
+  int stutterInterval[MAX_PADS];  // ms
   
   // ============= NEW: Master Effects State =============
   float* delayBuffer;                           // PSRAM-allocated circular buffer

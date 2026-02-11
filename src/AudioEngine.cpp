@@ -88,6 +88,12 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     turntablismState[i].lpState1 = 0.0f;
     turntablismState[i].lpState2 = 0.0f;
     turntablismState[i].noiseState = 67890 + i * 6271;
+    
+    // Reverse / Pitch / Stutter state
+    sampleReversed[i] = false;
+    trackPitchShift[i] = 1.0f;
+    stutterActive[i] = false;
+    stutterInterval[i] = 100;
   }
   
   // Initialize volume
@@ -280,7 +286,7 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
   voices[voiceIndex].volume = constrain((sequencerVolume * trackVolume) / 100, 0, 150);
-  voices[voiceIndex].pitchShift = 1.0f;
+  voices[voiceIndex].pitchShift = trackPitchShift[padIndex];
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = false;
@@ -299,7 +305,7 @@ void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   voices[voiceIndex].active = true;
   voices[voiceIndex].velocity = velocity;
   voices[voiceIndex].volume = constrain((liveVolume * 120) / 100, 0, 180);
-  voices[voiceIndex].pitchShift = livePitchShift;
+  voices[voiceIndex].pitchShift = (trackPitchShift[padIndex] != 1.0f) ? trackPitchShift[padIndex] : livePitchShift;
   voices[voiceIndex].loop = false;
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = true;
@@ -1384,6 +1390,66 @@ const FilterPreset* AudioEngine::getFilterPreset(FilterType type) {
 const char* AudioEngine::getFilterName(FilterType type) {
   const FilterPreset* preset = getFilterPreset(type);
   return preset ? preset->name : "Unknown";
+}
+
+// ============= REVERSE / PITCH SHIFT / STUTTER =============
+
+void AudioEngine::setReverseSample(int padIndex, bool reverse) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  if (sampleBuffers[padIndex] == nullptr || sampleLengths[padIndex] == 0) return;
+  
+  // Only reverse if state actually changes
+  if (sampleReversed[padIndex] == reverse) return;
+  sampleReversed[padIndex] = reverse;
+  
+  // Reverse the sample buffer in-place
+  int16_t* buf = sampleBuffers[padIndex];
+  uint32_t len = sampleLengths[padIndex];
+  for (uint32_t i = 0; i < len / 2; i++) {
+    int16_t temp = buf[i];
+    buf[i] = buf[len - 1 - i];
+    buf[len - 1 - i] = temp;
+  }
+  
+  Serial.printf("[AudioEngine] Sample %d %s\n", padIndex, reverse ? "REVERSED" : "NORMAL");
+}
+
+void AudioEngine::setTrackPitchShift(int padIndex, float pitch) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  trackPitchShift[padIndex] = constrain(pitch, 0.25f, 4.0f);
+  Serial.printf("[AudioEngine] Track %d pitch: %.2f\n", padIndex, trackPitchShift[padIndex]);
+}
+
+void AudioEngine::setStutter(int padIndex, bool active, int intervalMs) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  stutterActive[padIndex] = active;
+  stutterInterval[padIndex] = constrain(intervalMs, 10, 500);
+  
+  if (active) {
+    // Set up loop on the beginning of the sample
+    uint32_t stutterSamples = (SAMPLE_RATE * intervalMs) / 1000;
+    if (sampleLengths[padIndex] > 0 && stutterSamples < sampleLengths[padIndex]) {
+      // Find active voice for this pad and set loop
+      for (int v = 0; v < MAX_VOICES; v++) {
+        if (voices[v].active && voices[v].padIndex == padIndex) {
+          voices[v].loop = true;
+          voices[v].loopStart = 0;
+          voices[v].loopEnd = stutterSamples;
+          break;
+        }
+      }
+    }
+  } else {
+    // Remove loop from voices of this pad
+    for (int v = 0; v < MAX_VOICES; v++) {
+      if (voices[v].active && voices[v].padIndex == padIndex) {
+        voices[v].loop = false;
+        break;
+      }
+    }
+  }
+  
+  Serial.printf("[AudioEngine] Stutter %s pad %d interval %dms\n", active ? "ON" : "OFF", padIndex, intervalMs);
 }
 
 // ============= EXTENDED BIQUAD COEFFICIENT CALCULATION =============

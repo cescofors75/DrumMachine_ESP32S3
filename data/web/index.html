@@ -56,7 +56,8 @@
 
         <!-- Tab Navigation Bar -->
         <nav class="tab-navigation">
-            <button class="tab-btn active" data-tab="performance">🎹 LIVE</button>
+            <button class="tab-btn active" data-tab="performance">🎹 LIVE PADS</button>
+            <button class="tab-btn" data-tab="xtra-pads">🎲 XTRA PADS</button>
             <button class="tab-btn" data-tab="sequencer">🎵 SEQUENCER</button>
             <button class="tab-btn" data-tab="controls">🎛️ CONTROLES</button>
             <button class="tab-btn" data-tab="volumes">🎚️ VOLUMENES</button>
@@ -65,7 +66,7 @@
             <button class="tab-btn" data-tab="info">📊 INFO</button>
         </nav>
 
-        <!-- TAB: Performance (Live Pads + Visualizer) -->
+        <!-- TAB: Performance (Live Pads) -->
         <div id="tab-performance" class="tab-content active">
             <!-- Live Pads Section -->
             <section id="section-pads" class="pads-section" data-section="pads" data-title="Live Pads">
@@ -80,15 +81,27 @@
                     <!-- Los pads se generarán dinámicamente -->
                 </div>
             </section>
-            
-            <!-- LIVE PADS X (Independientes / Free) -->
+        </div>
+
+        <!-- TAB: XTRA PADS (Independientes / Free) -->
+        <div id="tab-xtra-pads" class="tab-content">
             <section class="pads-xtra-section" id="section-pads-xtra">
                 <div class="pads-xtra-header">
-                    <h2>LIVE PADS X</h2>
+                    <h2>XTRA PADS</h2>
                     <span class="free-badge">🎲 FREE</span>
+                    <p class="xtra-description">Pads independientes del sequencer. Sube tus propios WAV o selecciona de la librería.</p>
                 </div>
                 <div class="pads-xtra-grid" id="padsXtraGrid">
                     <!-- El primer pad "+" se genera en JS -->
+                </div>
+                
+                <!-- XTRA Pads Filter Section -->
+                <div class="xtra-filters-section">
+                    <h3>🎛️ FILTROS XTRA PADS</h3>
+                    <p class="xtra-filters-desc">Los filtros por pad (F) y efectos (FX) están disponibles directamente en cada XTRA pad.</p>
+                    <div class="xtra-filters-status" id="xtraFiltersStatus">
+                        <span class="no-filters">Añade XTRA pads para aplicar filtros individuales</span>
+                    </div>
                 </div>
             </section>
         </div>
@@ -351,6 +364,14 @@
             <section id="section-fx" class="fx-section" data-section="fx" data-title="Sound FX">
                 <h2>🎛️ FILTROS & EFECTOS</h2>
                 
+                <!-- Sub-tab navigation for FILTERS / FX -->
+                <div class="fx-subtabs">
+                    <button class="fx-subtab-btn active" data-fxtab="filters">🎚️ FILTERS</button>
+                    <button class="fx-subtab-btn" data-fxtab="masterFx">🎸 FX</button>
+                </div>
+                
+                <!-- SUB-TAB: Filters -->
+                <div class="fx-subtab-content active" id="fxtab-filters">
                 <!-- Filter Library with presets -->
                 <div class="filter-library">
                     <h3>📚 BIBLIOTECA DE FILTROS</h3>
@@ -537,9 +558,55 @@
                                 <button onclick="applyFilterPreset(8, 6000, 2.0)" class="preset-btn preset-subtle">💨 Light</button>
                             </div>
                         </div>
+                        
+                        <!-- 12: REVERSE -->
+                        <div class="filter-card filter-card-creative" data-filter="12">
+                            <div class="filter-header">
+                                <span class="filter-icon">⏪</span>
+                                <span class="filter-title">REVERSE</span>
+                                <span class="filter-key">F11</span>
+                            </div>
+                            <p class="filter-desc">Invierte el sample. Reproduce al revés para crear buildups y efectos creativos.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyReverseFilter()" class="preset-btn preset-extreme">⏪ Reverse ON</button>
+                                <button onclick="removeReverseFilter()" class="preset-btn preset-subtle">▶️ Normal</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 13: HALF-SPEED -->
+                        <div class="filter-card filter-card-creative" data-filter="13">
+                            <div class="filter-header">
+                                <span class="filter-icon">🐢</span>
+                                <span class="filter-title">HALF-SPEED</span>
+                                <span class="filter-key">F12</span>
+                            </div>
+                            <p class="filter-desc">Reduce la velocidad a la mitad. Sonido pitched-down, más grave y grueso.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyHalfSpeedFilter()" class="preset-btn preset-extreme">🐢 Half</button>
+                                <button onclick="applyDoubleSpeedFilter()" class="preset-btn preset-warm">🐇 Double</button>
+                                <button onclick="applyNormalSpeedFilter()" class="preset-btn preset-subtle">▶️ Normal</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 14: STUTTER -->
+                        <div class="filter-card filter-card-acid" data-filter="14">
+                            <div class="filter-header">
+                                <span class="filter-icon">🔁</span>
+                                <span class="filter-title">STUTTER</span>
+                            </div>
+                            <p class="filter-desc">Repite rápidamente el inicio del sample. Efecto glitch, IDM, stutter edit.</p>
+                            <div class="filter-presets">
+                                <button onclick="applyStutterFilter(50)" class="preset-btn preset-extreme">⚡ Fast</button>
+                                <button onclick="applyStutterFilter(100)" class="preset-btn preset-warm">🔁 Medium</button>
+                                <button onclick="applyStutterFilter(200)" class="preset-btn preset-subtle">🐌 Slow</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                </div><!-- end fxtab-filters -->
                 
+                <!-- SUB-TAB: Master FX -->
+                <div class="fx-subtab-content" id="fxtab-masterFx">
                 <!-- ============= NEW: Master Effects Section ============= -->
                 <div class="master-fx-section">
                     <h3>🎚️ MASTER EFFECTS <span class="fx-subtitle">(inspired by torvalds/AudioNoise)</span></h3>
@@ -688,6 +755,10 @@
                         <div class="fx-header">
                             <span class="fx-icon">📼</span>
                             <span class="fx-title">LO-FI</span>
+                            <label class="fx-toggle">
+                                <input type="checkbox" id="lofiActive">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
                         <div class="fx-controls">
                             <div class="fx-control">
@@ -701,6 +772,7 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- end fxtab-masterFx -->
                 
                 <!-- Active Filters Display -->
                 <div class="active-filters-section">

@@ -222,7 +222,76 @@ void setup() {
     Serial.println("[STEP 5] Loading all samples from families...");
     const char* families[] = {"BD", "SD", "CH", "OH", "CY", "CP", "RS", "CB", "LT", "MT", "HT", "MA", "CL", "HC", "MC", "LC"};
     
+    // ============= RED 808 KARZ - Default Sample Kit =============
+    // Mapping: filename prefix -> family index
+    // 808 BD -> BD(0), 808 SD -> SD(1), 808 HH -> CH(2), 808 OH -> OH(3),
+    // 808 CY -> CY(4), 808 CP -> CP(5), 808 RS -> RS(6), 808 COW -> CB(7),
+    // 808 LT -> LT(8), 808 MT -> MT(9), 808 HT -> HT(10), 808 MA -> MA(11),
+    // 808 CL -> CL(12), 808 HC -> HC(13), 808 MC -> MC(14), 808 LC -> LC(15)
+    struct KarzMapping {
+        const char* prefix;  // Prefix in filename (after "808 ")
+        int padIndex;        // Target pad/family index
+    };
+    const KarzMapping karzMap[] = {
+        {"BD", 0}, {"SD", 1}, {"HH", 2}, {"OH", 3},
+        {"CY", 4}, {"CP", 5}, {"RS", 6}, {"COW", 7},
+        {"LT", 8}, {"MT", 9}, {"HT", 10}, {"MA", 11},
+        {"CL", 12}, {"HC", 13}, {"MC", 14}, {"LC", 15}
+    };
+    const int karzMapSize = sizeof(karzMap) / sizeof(karzMap[0]);
+    
+    bool karzLoaded[16] = {false};
+    int karzCount = 0;
+    
+    // Try loading from RED 808 KARZ first
+    File karzDir = LittleFS.open("/RED 808 KARZ", "r");
+    if (karzDir && karzDir.isDirectory()) {
+        Serial.println("[RED 808 KARZ] Found default kit folder, loading...");
+        File kf = karzDir.openNextFile();
+        while (kf) {
+            if (!kf.isDirectory()) {
+                String kfName = kf.name();
+                int lastSlash = kfName.lastIndexOf('/');
+                if (lastSlash >= 0) kfName = kfName.substring(lastSlash + 1);
+                
+                if (isValidSampleFile(kfName)) {
+                    // Parse: "808 XX ..." -> extract XX
+                    String upper = kfName;
+                    upper.toUpperCase();
+                    
+                    for (int m = 0; m < karzMapSize; m++) {
+                        if (karzLoaded[karzMap[m].padIndex]) continue;
+                        
+                        String searchStr = String("808 ") + String(karzMap[m].prefix);
+                        if (upper.startsWith(searchStr) || upper.startsWith(String("808") + String(karzMap[m].prefix))) {
+                            String fullPath = String("/RED 808 KARZ/") + kfName;
+                            Serial.printf("  [KARZ] %s -> %s (pad %d)... ", kfName.c_str(), families[karzMap[m].padIndex], karzMap[m].padIndex);
+                            
+                            if (sampleManager.loadSample(fullPath.c_str(), karzMap[m].padIndex)) {
+                                Serial.printf("✓ (%d bytes)\n", sampleManager.getSampleLength(karzMap[m].padIndex) * 2);
+                                karzLoaded[karzMap[m].padIndex] = true;
+                                karzCount++;
+                            } else {
+                                Serial.println("✗ FAILED");
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            kf.close();
+            kf = karzDir.openNextFile();
+        }
+        karzDir.close();
+        Serial.printf("[RED 808 KARZ] Loaded %d/%d instruments from default kit\n", karzCount, 16);
+    } else {
+        Serial.println("[RED 808 KARZ] Default kit folder not found, using per-family folders");
+    }
+    
+    // Fallback: load missing instruments from individual family folders
     for (int i = 0; i < 16; i++) {
+        if (karzLoaded[i]) continue;  // Already loaded from KARZ
+        
         String path = String("/") + String(families[i]);
         Serial.printf("  [%d] %s: Opening %s... ", i, families[i], path.c_str());
         
