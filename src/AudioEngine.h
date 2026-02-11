@@ -283,6 +283,10 @@ public:
   static const FilterPreset* getFilterPreset(FilterType type);
   static const char* getFilterName(FilterType type);
   
+  // Pad-level continuous loop (for XTRA pads)
+  void setPadLoop(int padIndex, bool enabled);
+  bool isPadLooping(int padIndex);
+  
   // Reverse / Pitch Shift / Stutter
   void setReverseSample(int padIndex, bool reverse);
   void setTrackPitchShift(int padIndex, float pitch);
@@ -341,6 +345,9 @@ private:
   // Scratch / Turntablism per-pad state
   ScratchState scratchState[MAX_PADS];
   TurntablismState turntablismState[MAX_PADS];
+  
+  // Pad-level continuous loop (for XTRA pads)
+  bool padLoopEnabled[MAX_PADS];
   
   // Reverse / Pitch / Stutter per-pad state
   bool sampleReversed[MAX_PADS];

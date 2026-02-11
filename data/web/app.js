@@ -519,7 +519,13 @@ function closeLoopTypePopup() {
 }
 
 function updateLoopButtonState(padIndex) {
-    const loopBtn = document.querySelector(`.loop-btn[data-pad="${padIndex}"]`);
+    // Main pads loop button
+    let loopBtn = document.querySelector(`.loop-btn[data-pad="${padIndex}"]`);
+    // XTRA pads loop button
+    if (!loopBtn) {
+        const xtraPad = document.querySelector(`.pad-xtra[data-pad-index="${padIndex}"]`);
+        if (xtraPad) loopBtn = xtraPad.querySelector('.xtra-loop');
+    }
     if (!loopBtn) return;
     
     const state = padLoopState[padIndex];
@@ -965,7 +971,7 @@ function showPadFxPopup(padIndex, padElement) {
     const distMode = currentFx.distMode || 0;
     const bitcrush = currentFx.bitcrush || 16;
     
-    const padName = padNames[padIndex] || `Pad ${padIndex + 1}`;
+    const padName = padNames[padIndex] || `XTRA ${padIndex - 15}`;
     const popup = document.createElement('div');
     popup.id = 'padFxModal';
     popup.className = 'pad-fx-modal';
@@ -1083,8 +1089,19 @@ function clearPadFxAll(padIndex) {
 }
 
 function updatePadFxIndicator(padIndex) {
-    const pad = document.querySelector(`.pad[data-pad="${padIndex}"]`);
-    if (!pad) return;
+    let pad = document.querySelector(`.pad[data-pad="${padIndex}"]`);
+    // Also check XTRA pads
+    if (!pad) {
+        const xtraPad = document.querySelector(`.pad-xtra[data-pad-index="${padIndex}"]`);
+        if (xtraPad) {
+            const fxBtn = xtraPad.querySelector('.xtra-fx');
+            const fx = padFxState[padIndex];
+            const hasFx = fx && ((fx.distortion && fx.distortion > 0) || (fx.bitcrush && fx.bitcrush < 16));
+            if (fxBtn) fxBtn.classList.toggle('active', hasFx);
+            return;
+        }
+        return;
+    }
     let badge = pad.querySelector('.pad-fx-badge');
     const fx = padFxState[padIndex];
     const hasFx = fx && ((fx.distortion && fx.distortion > 0) || (fx.bitcrush && fx.bitcrush < 16));
@@ -1251,6 +1268,14 @@ function updatePadFilterIndicator(padIndex) {
             `;
         } else {
             indicator.style.display = 'none';
+        }
+    }
+    // Also update XTRA pad filter button indicator
+    const xtraPad = document.querySelector(`.pad-xtra[data-pad-index="${padIndex}"]`);
+    if (xtraPad) {
+        const filterBtn = xtraPad.querySelector('.xtra-filter');
+        if (filterBtn) {
+            filterBtn.classList.toggle('active', padFilterState[padIndex] > 0);
         }
     }
 }
@@ -1466,7 +1491,11 @@ function flashPad(padIndex) {
 }
 
 function updatePadLoopVisual(padIndex) {
-    const pad = document.querySelector(`[data-pad="${padIndex}"]`);
+    let pad = document.querySelector(`[data-pad="${padIndex}"]`);
+    // Also check XTRA pads
+    if (!pad) {
+        pad = document.querySelector(`.pad-xtra[data-pad-index="${padIndex}"]`);
+    }
     if (!pad) return;
     
     const state = padLoopState[padIndex];
@@ -5138,7 +5167,11 @@ function createXtraPad(padIndex, label) {
 
     // ── Controls ──
     const loopBtn = padEl.querySelector('.xtra-loop');
-    loopBtn.addEventListener('click', (e) => { e.stopPropagation(); showLoopTypePopup(padIndex); });
+    loopBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // XTRA pads: continuous audio loop (toggle directly)
+        sendWebSocket({ cmd: 'toggleLoop', track: padIndex });
+    });
 
     const filterBtn = padEl.querySelector('.xtra-filter');
     filterBtn.addEventListener('click', (e) => { e.stopPropagation(); showPadFilterSelector(padIndex, padEl); });

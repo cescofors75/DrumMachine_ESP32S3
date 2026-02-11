@@ -1129,27 +1129,48 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "toggleLoop") {
     int track = doc["track"];
-    if (track < 0 || track >= 16) return;
+    if (track < 0 || track >= 24) return;
     yield();
     
-    // If loopType is provided, set it before toggling
-    if (doc.containsKey("loopType")) {
-      int lt = doc["loopType"];
-      sequencer.setLoopType(track, (LoopType)constrain(lt, 0, 3));
+    if (track >= 16) {
+      // XTRA pads (16-23): continuous audio loop via AudioEngine
+      bool newState = !audioEngine.isPadLooping(track);
+      audioEngine.setPadLoop(track, newState);
+      // If enabling loop, also trigger the sample so it starts playing
+      if (newState) {
+        audioEngine.triggerSampleLive(track, 127);
+      }
+      
+      StaticJsonDocument<192> responseDoc;
+      responseDoc["type"] = "loopState";
+      responseDoc["track"] = track;
+      responseDoc["active"] = newState;
+      responseDoc["paused"] = false;
+      responseDoc["loopType"] = 0;
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+    } else {
+      // Sequencer tracks (0-15): step-based loop via Sequencer
+      if (doc.containsKey("loopType")) {
+        int lt = doc["loopType"];
+        sequencer.setLoopType(track, (LoopType)constrain(lt, 0, 3));
+      }
+      
+      sequencer.toggleLoop(track);
+      
+      StaticJsonDocument<192> responseDoc;
+      responseDoc["type"] = "loopState";
+      responseDoc["track"] = track;
+      responseDoc["active"] = sequencer.isLooping(track);
+      responseDoc["paused"] = sequencer.isLoopPaused(track);
+      responseDoc["loopType"] = (int)sequencer.getLoopType(track);
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
     }
-    
-    sequencer.toggleLoop(track);
-    
-    StaticJsonDocument<192> responseDoc;
-    responseDoc["type"] = "loopState";
-    responseDoc["track"] = track;
-    responseDoc["active"] = sequencer.isLooping(track);
-    responseDoc["paused"] = sequencer.isLoopPaused(track);
-    responseDoc["loopType"] = (int)sequencer.getLoopType(track);
-    
-    String output;
-    serializeJson(responseDoc, output);
-    if (ws) ws->textAll(output);
     yield();
   }
   else if (cmd == "setLoopType") {
@@ -1300,7 +1321,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int pad = doc["pad"];
     float amount = doc["amount"];
     int mode = doc.containsKey("mode") ? (int)doc["mode"] : 0;
-    if (pad >= 0 && pad < 16) {
+    if (pad >= 0 && pad < 24) {
       audioEngine.setPadDistortion(pad, amount, (DistortionMode)mode);
       StaticJsonDocument<128> resp;
       resp["type"] = "padFxSet";
@@ -1315,7 +1336,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setPadBitCrush") {
     int pad = doc["pad"];
     int bits = doc["value"];
-    if (pad >= 0 && pad < 16) {
+    if (pad >= 0 && pad < 24) {
       audioEngine.setPadBitCrush(pad, bits);
       StaticJsonDocument<128> resp;
       resp["type"] = "padFxSet";
@@ -1328,7 +1349,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearPadFX") {
     int pad = doc["pad"];
-    if (pad >= 0 && pad < 16) {
+    if (pad >= 0 && pad < 24) {
       audioEngine.clearPadFX(pad);
       StaticJsonDocument<96> resp;
       resp["type"] = "padFxCleared";
@@ -1434,7 +1455,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setScratch") {
     int track = doc["track"];
     bool value = doc["value"];
-    if (track >= 0 && track < 16) {
+    if (track >= 0 && track < 24) {
       float rate = doc.containsKey("rate") ? (float)doc["rate"] : 5.0f;
       float depth = doc.containsKey("depth") ? (float)doc["depth"] : 0.85f;
       float filter = doc.containsKey("filter") ? (float)doc["filter"] : 4000.0f;
@@ -1448,7 +1469,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setTurntablism") {
     int track = doc["track"];
     bool value = doc["value"];
-    if (track >= 0 && track < 16) {
+    if (track >= 0 && track < 24) {
       String control = doc.containsKey("control") ? doc["control"].as<String>() : "auto";
       bool autoMode = (control == "auto");
       int mode = doc.containsKey("mode") ? (int)doc["mode"] : -1;
@@ -1550,8 +1571,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   // ============= NEW: Per-Pad Filter Commands =============
   else if (cmd == "setPadFilter") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 16) {
-      Serial.printf("[WS] Invalid pad %d (must be 0-15)\n", pad);
+    if (pad < 0 || pad >= 24) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-23)\n", pad);
       return;
     }
     int filterType = doc.containsKey("type") ? doc["type"].as<int>() : doc["filterType"].as<int>();
@@ -1574,8 +1595,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   }
   else if (cmd == "clearPadFilter") {
     int pad = doc["pad"];
-    if (pad < 0 || pad >= 16) {
-      Serial.printf("[WS] Invalid pad %d (must be 0-15)\n", pad);
+    if (pad < 0 || pad >= 24) {
+      Serial.printf("[WS] Invalid pad %d (must be 0-23)\n", pad);
       return;
     }
     audioEngine.clearPadFilter(pad);

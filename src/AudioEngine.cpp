@@ -101,6 +101,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackPitchShift[i] = 1.0f;
     stutterActive[i] = false;
     stutterInterval[i] = 100;
+    padLoopEnabled[i] = false;
   }
   
   // Initialize volume
@@ -313,11 +314,34 @@ void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   voices[voiceIndex].velocity = velocity;
   voices[voiceIndex].volume = constrain((liveVolume * 120) / 100, 0, 180);
   voices[voiceIndex].pitchShift = (trackPitchShift[padIndex] != 1.0f) ? trackPitchShift[padIndex] : livePitchShift;
-  voices[voiceIndex].loop = false;
+  voices[voiceIndex].loop = padLoopEnabled[padIndex];
+  voices[voiceIndex].loopStart = 0;
+  voices[voiceIndex].loopEnd = sampleLengths[padIndex];
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = true;
   voices[voiceIndex].startAge = ++voiceAge;
   voices[voiceIndex].scratchPos = 0.0f;
+}
+
+void AudioEngine::setPadLoop(int padIndex, bool enabled) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return;
+  padLoopEnabled[padIndex] = enabled;
+  // Update any currently active voices for this pad
+  for (int i = 0; i < MAX_VOICES; i++) {
+    if (voices[i].active && voices[i].padIndex == padIndex) {
+      voices[i].loop = enabled;
+      if (enabled) {
+        voices[i].loopStart = 0;
+        voices[i].loopEnd = sampleLengths[padIndex];
+      }
+    }
+  }
+  Serial.printf("[Audio] Pad %d loop: %s\n", padIndex, enabled ? "ON" : "OFF");
+}
+
+bool AudioEngine::isPadLooping(int padIndex) {
+  if (padIndex < 0 || padIndex >= MAX_PADS) return false;
+  return padLoopEnabled[padIndex];
 }
 
 void AudioEngine::stopSample(int padIndex) {

@@ -2295,6 +2295,39 @@ body:not(.mono-mode) .pad.tremolo-active {
     color: #ff6666;
 }
 
+/* XTRA pad loop active state */
+.pad-xtra-btn.xtra-loop.active {
+    background: rgba(0, 200, 100, 0.4);
+    color: #00ff88;
+    border-color: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.4);
+    animation: xtra-loop-pulse 1s ease-in-out infinite;
+}
+
+@keyframes xtra-loop-pulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(0, 255, 136, 0.3); }
+    50% { box-shadow: 0 0 10px rgba(0, 255, 136, 0.6); }
+}
+
+/* XTRA pad looping state */
+.pad-xtra.looping {
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+/* XTRA pad filter/FX active indicators */
+.pad-xtra-btn.xtra-filter.active {
+    background: rgba(255, 165, 0, 0.4);
+    color: #ffaa00;
+    border-color: #ffaa00;
+}
+
+.pad-xtra-btn.xtra-fx.active {
+    background: rgba(255, 50, 50, 0.4);
+    color: #ff6666;
+    border-color: #ff6666;
+}
+
 .seq-step {
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
 }
