@@ -354,10 +354,21 @@ public:
   int getActiveVoices();
   float getCpuLoad();
   
+  // Peak level tracking for VU meters (per-track + master)
+  float getTrackPeak(int track);
+  float getMasterPeak();
+  void getTrackPeaks(float* outPeaks, int count);
+  
 private:
   Voice voices[MAX_VOICES];
   int16_t* sampleBuffers[MAX_PADS];
   uint32_t sampleLengths[MAX_PADS];
+  
+  // Peak level tracking
+  volatile float trackPeaks[MAX_AUDIO_TRACKS];
+  volatile float masterPeak;
+  float trackPeakDecay[MAX_AUDIO_TRACKS];
+  float masterPeakDecay;
   
   i2s_port_t i2sPort;
   int16_t mixBuffer[DMA_BUF_LEN * 2];

@@ -203,19 +203,15 @@ body {
 @keyframes bpmHeartPulse {
     0% {
         box-shadow: 0 0 12px rgba(255, 0, 0, 0.2), inset 0 0 18px rgba(255, 0, 0, 0.08);
-        transform: scale(1);
     }
     35% {
         box-shadow: 0 0 22px rgba(255, 80, 80, 0.45), inset 0 0 24px rgba(255, 80, 80, 0.2);
-        transform: scale(1.015);
     }
     60% {
         box-shadow: 0 0 14px rgba(255, 0, 0, 0.25), inset 0 0 18px rgba(255, 0, 0, 0.1);
-        transform: scale(1.005);
     }
     100% {
         box-shadow: 0 0 12px rgba(255, 0, 0, 0.2), inset 0 0 18px rgba(255, 0, 0, 0.08);
-        transform: scale(1);
     }
 }
 
@@ -298,22 +294,10 @@ body {
 /* Tab Content */
 .tab-content {
     display: none;
-    animation: fadeIn 0.3s ease-in;
 }
 
 .tab-content.active {
     display: block;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .logo {
@@ -447,10 +431,11 @@ h2 {
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    transition: all 0.05s ease-out;
+    transition: box-shadow 0.1s ease-out, border-color 0.1s ease-out;
     touch-action: manipulation;
     position: relative;
     overflow: visible;
+    contain: layout style;
 }
 
 .pad-corona {
@@ -549,7 +534,8 @@ body:not(.mono-mode) .pad[data-pad] {
     box-shadow: 0 0 25px rgba(var(--pad-rgb), 0.4), inset 0 0 25px rgba(var(--pad-rgb), 0.45);
     position: relative;
     isolation: isolate;
-    animation: padGlow 4s ease-in-out infinite alternate;
+    will-change: box-shadow, filter;
+    contain: layout style;
 }
 
 body:not(.mono-mode) .pad[data-pad]::before {
@@ -571,7 +557,6 @@ body:not(.mono-mode) .pad[data-pad].active {
     outline: 2px solid rgba(var(--pad-rgb), 0.6);
     outline-offset: -4px;
     box-shadow: 0 0 30px rgba(var(--pad-rgb), 0.95), 0 0 65px rgba(var(--pad-rgb), 0.55), inset 0 0 28px rgba(255, 255, 255, 0.55);
-    transform: scale(0.96);
 }
 
 body:not(.mono-mode) .pad[data-pad]:active::before,
@@ -648,7 +633,8 @@ body.mono-mode .pad {
         0 0 28px rgba(255, 64, 64, 0.35),
         inset 0 0 35px rgba(255, 58, 58, 0.28);
     position: relative;
-    animation: monoPadPulse 6s ease-in-out infinite alternate;
+    will-change: box-shadow, filter;
+    contain: layout style;
 }
 
 body.mono-mode .pad::before {
@@ -694,7 +680,6 @@ body.mono-mode .pad.active {
         0 0 120px rgba(255, 30, 70, 0.45),
         inset 0 0 40px rgba(255, 150, 150, 0.35),
         inset 0 -4px 10px rgba(0, 0, 0, 0.6);
-    transform: scale(0.97);
 }
 
 body.mono-mode .pad:hover {
@@ -851,11 +836,9 @@ body.mono-mode .pad.triggered {
 
 @keyframes loopBtnPulse {
     0%, 100% { 
-        transform: scale(1);
         box-shadow: 0 0 15px rgba(255, 100, 0, 0.7);
     }
     50% { 
-        transform: scale(1.05);
         box-shadow: 0 0 25px rgba(255, 100, 0, 0.9), 0 0 40px rgba(255, 100, 0, 0.5);
     }
 }
@@ -969,93 +952,81 @@ body:not(.mono-mode) .pad.tremolo-active {
 
 @keyframes keyboardTremoloPulse {
     0% {
-        transform: scale(0.98);
         filter: brightness(1.1);
     }
     50% {
-        transform: scale(0.94);
         filter: brightness(1.5);
     }
     100% {
-        transform: scale(0.98);
         filter: brightness(1.15);
     }
 }
 
 @keyframes tremoloRing {
     0% {
-        transform: scale(0.9);
         opacity: 0.7;
     }
     50% {
-        transform: scale(1.05);
         opacity: 1;
     }
     100% {
-        transform: scale(0.9);
         opacity: 0.75;
     }
 }
 
 @keyframes tremoloCorona {
     0% {
-        transform: translateY(6%) scale(0.95);
         opacity: 0.65;
     }
     50% {
-        transform: translateY(-4%) scale(1.08);
         opacity: 1;
     }
     100% {
-        transform: translateY(6%) scale(0.98);
         opacity: 0.7;
     }
 }
 
 @keyframes coronaPulse {
     0% {
-        transform: scale(0.9);
         filter: blur(12px) brightness(1.2);
+        opacity: 0.7;
     }
     50% {
-        transform: scale(1.08);
         filter: blur(14px) brightness(2);
+        opacity: 1;
     }
     100% {
-        transform: scale(0.92);
         filter: blur(12px) brightness(1.35);
+        opacity: 0.75;
     }
 }
 
 @keyframes coronaPulseSoft {
     0% {
-        transform: scale(0.95);
         filter: blur(10px) brightness(1.15);
+        opacity: 0.6;
     }
     50% {
-        transform: scale(1.04);
         filter: blur(11px) brightness(1.5);
+        opacity: 0.8;
     }
     100% {
-        transform: scale(0.96);
         filter: blur(10px) brightness(1.2);
+        opacity: 0.65;
     }
 }
 
 @keyframes padRipple {
     0% {
         box-shadow: 0 0 10px var(--red-glow);
-        transform: scale(1);
         opacity: 1;
     }
     40% {
         box-shadow: 0 0 80px var(--red-glow), 0 0 100px var(--red-primary), inset 0 0 30px rgba(255,0,0,0.8);
-        transform: scale(1.08);
         opacity: 1;
     }
     100% {
         box-shadow: 0 0 20px var(--red-glow), 0 0 30px var(--red-primary);
-        transform: scale(1);
         opacity: 0.8;
     }
 }
@@ -1063,15 +1034,12 @@ body:not(.mono-mode) .pad.tremolo-active {
 @keyframes padPulseSuccess {
     0% {
         box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-        transform: scale(1);
     }
     50% {
         box-shadow: 0 0 40px rgba(0, 255, 136, 0.8), 0 0 60px rgba(0, 255, 136, 0.6), inset 0 0 20px rgba(0, 255, 136, 0.4);
-        transform: scale(1.05);
     }
     100% {
         box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
-        transform: scale(1);
     }
 }
 
@@ -2073,7 +2041,6 @@ body:not(.mono-mode) .pad.tremolo-active {
 .seq-fx-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
-    transform: scale(1.1);
     box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
 }
 
@@ -2332,24 +2299,11 @@ body.mono-mode .seq-step.active {
 
 .seq-step.current {
     border: 2px solid #fff;
-    animation: stepPulse 0.3s ease-out;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 .seq-step.active.current {
-    animation: activeStepPulse 0.3s ease-out;
-    transform: scale(1.1);
-}
-
-@keyframes stepPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
-}
-
-@keyframes activeStepPulse {
-    0% { transform: scale(1.1); }
-    50% { transform: scale(1.25); box-shadow: 0 0 20px currentColor; }
-    100% { transform: scale(1.1); }
+    box-shadow: 0 0 12px currentColor, inset 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
 .step-indicator {
@@ -2371,7 +2325,6 @@ body.mono-mode .seq-step.active {
     background: var(--red-primary);
     box-shadow: 0 0 15px var(--red-glow), 0 0 25px var(--red-primary);
     transform: scaleY(2.5);
-    animation: dotPulse 0.5s ease-in-out infinite;
 }
 
 @keyframes dotPulse {
@@ -2441,7 +2394,6 @@ body.mono-mode .seq-step.active {
     font-family: var(--font-mono);
     line-height: 1;
     margin-bottom: 8px;
-    animation: stepPulse 0.5s ease-in-out infinite;
 }
 
 .circular-pattern-name {
@@ -2818,18 +2770,6 @@ body.mono-mode .reference-item strong {
     font-weight: bold;
     color: var(--red-primary);
     text-shadow: 0 0 10px var(--red-glow);
-    animation: bpmPulse 0.545s ease-in-out infinite; /* 110 BPM */
-}
-
-@keyframes bpmPulse {
-    0%, 85% {
-        transform: scale(1);
-        text-shadow: 0 0 10px var(--red-glow);
-    }
-    10% {
-        transform: scale(1.15);
-        text-shadow: 0 0 20px var(--red-glow), 0 0 30px var(--red-primary);
-    }
 }
 
 /* Keyboard Legend */
@@ -4039,7 +3979,7 @@ body.mono-mode .info-item {
 .filter-card-acid {
     background: linear-gradient(135deg, rgba(255, 0, 68, 0.2), rgba(180, 0, 40, 0.1));
     border-color: rgba(255, 0, 68, 0.5);
-    animation: acidGlow 3s ease-in-out infinite alternate;
+    box-shadow: 0 0 10px rgba(255, 0, 68, 0.15);
 }
 .filter-card-acid:hover { border-color: #ff0044; box-shadow: 0 5px 25px rgba(255, 0, 68, 0.4); }
 .filter-card-acid .filter-title { color: #ff3366; }

@@ -196,27 +196,25 @@ function handleWebSocketMessage(data) {
                 }
             }
             break;
-        case 'audioData':
-            break;
         case 'state':
             updateSequencerState(data);
             updateDeviceStats(data);
             if (Array.isArray(data.samples)) {
                 applySampleMetadataFromState(data.samples);
             }
-            // Load pad filter states
+            // Load pad filter states (only update DOM if changed)
             if (Array.isArray(data.padFilters)) {
                 data.padFilters.forEach((filterType, padIndex) => {
-                    if (padIndex < 16) {
+                    if (padIndex < 16 && padFilterState[padIndex] !== filterType) {
                         padFilterState[padIndex] = filterType;
                         updatePadFilterIndicator(padIndex);
                     }
                 });
             }
-            // Load track filter states
+            // Load track filter states (only update if changed)
             if (Array.isArray(data.trackFilters)) {
                 data.trackFilters.forEach((filterType, trackIndex) => {
-                    if (trackIndex < 16) {
+                    if (trackIndex < 16 && trackFilterState[trackIndex] !== filterType) {
                         trackFilterState[trackIndex] = filterType;
                     }
                 });
@@ -498,56 +496,57 @@ function handleTrackFxUpdate(data) {
     if (data.fx === 'reverse') {
         if (track < 16 && typeof trackFxEffects !== 'undefined') {
             trackFxEffects[track].reverse = !!data.value;
-            if (typeof updateTrackFxUI === 'function') updateTrackFxUI();
         }
     } else if (data.fx === 'pitch') {
         if (track < 16 && typeof trackFxEffects !== 'undefined') {
             trackFxEffects[track].pitch = parseFloat(data.value);
-            if (typeof updateTrackFxUI === 'function') updateTrackFxUI();
         }
     } else if (data.fx === 'stutter') {
         if (track < 16 && typeof trackFxEffects !== 'undefined') {
             trackFxEffects[track].stutter = !!data.value;
             trackFxEffects[track].stutterMs = data.interval || 100;
-            if (typeof updateTrackFxUI === 'function') updateTrackFxUI();
         }
     }
+    // Only update the detailed FX UI if this track is currently viewed
+    if (track === selectedFxTrack && typeof updateTrackFxUI === 'function') {
+        updateTrackFxUI();
+    }
+    updateTrackFxStatusGrid();
+    updateTrackFxBtnIndicators();
 }
 
 function loadPatternData(data) {
-    // Limpiar sequencer
-    document.querySelectorAll('.seq-step').forEach(el => {
-        el.classList.remove('active');
-    });
-    
     // Clear circular data
     circularSequencerData = Array.from({ length: 16 }, () => Array(16).fill(false));
     
-    // Cargar datos del pattern (16 tracks)
-    let activatedSteps = 0;
+    // Build a set of steps that should be active
+    const shouldBeActive = new Set();
+    
     for (let track = 0; track < 16; track++) {
-        // Las keys pueden ser strings o números
         const trackData = data[track] || data[track.toString()];
         if (trackData) {
-            let trackSteps = 0;
             trackData.forEach((active, step) => {
                 if (active) {
-                    const stepEl = document.querySelector(`[data-track="${track}"][data-step="${step}"]`);
-                    if (stepEl) {
-                        stepEl.classList.add('active');
-                        activatedSteps++;
-                        trackSteps++;
-                    } else if (track >= 8) {
-                    }
-                    // Update circular data
+                    shouldBeActive.add(`${track}-${step}`);
                     if (circularSequencerData[track]) {
                         circularSequencerData[track][step] = true;
                     }
                 }
             });
-
         }
     }
+    
+    // Single pass: only toggle steps that changed
+    document.querySelectorAll('.seq-step').forEach(el => {
+        const key = `${el.dataset.track}-${el.dataset.step}`;
+        const wantActive = shouldBeActive.has(key);
+        const isActive = el.classList.contains('active');
+        if (wantActive && !isActive) {
+            el.classList.add('active');
+        } else if (!wantActive && isActive) {
+            el.classList.remove('active');
+        }
+    });
     
     // Cargar velocidades si están disponibles
     if (data.velocities) {
@@ -1394,14 +1393,12 @@ function updatePadFilterIndicator(padIndex) {
     if (indicator) {
         const filterType = padFilterState[padIndex];
         if (filterType > 0) {
-            indicator.style.display = 'flex';
             const filter = FILTER_TYPES[filterType];
-            indicator.innerHTML = `
-                <span class="filter-icon">${filter.icon}</span>
-                <span class="filter-name">${filter.name}</span>
-            `;
+            const newHtml = `<span class="filter-icon">${filter.icon}</span><span class="filter-name">${filter.name}</span>`;
+            if (indicator.style.display !== 'flex') indicator.style.display = 'flex';
+            if (indicator.innerHTML !== newHtml) indicator.innerHTML = newHtml;
         } else {
-            indicator.style.display = 'none';
+            if (indicator.style.display !== 'none') indicator.style.display = 'none';
         }
     }
     // Also update XTRA pad filter button indicator
@@ -1510,12 +1507,16 @@ function refreshPadSampleInfo(padIndex) {
 
 function applySampleMetadataFromState(sampleList) {
     if (!Array.isArray(sampleList)) return;
+    let anyChanged = false;
     sampleList.forEach(sample => {
         const padIndex = sample.pad;
         if (typeof padIndex !== 'number' || padIndex < 0 || padIndex >= padNames.length) {
             return;
         }
+        const oldMeta = padSampleMetadata[padIndex];
         if (sample.loaded && sample.name) {
+            // Skip if name hasn't changed
+            if (oldMeta && oldMeta.filename === sample.name) return;
             const sizeBytes = typeof sample.size === 'number' ? sample.size : 0;
             padSampleMetadata[padIndex] = {
                 filename: sample.name,
@@ -1524,11 +1525,14 @@ function applySampleMetadataFromState(sampleList) {
                 quality: sample.quality || DEFAULT_SAMPLE_QUALITY
             };
         } else {
+            // Skip if already null
+            if (!oldMeta) return;
             padSampleMetadata[padIndex] = null;
         }
+        anyChanged = true;
         refreshPadSampleInfo(padIndex);
     });
-    scheduleSampleBrowserRender();
+    if (anyChanged) scheduleSampleBrowserRender();
 }
 
 function inferFormatFromName(name) {
@@ -1616,12 +1620,6 @@ function flashPad(padIndex) {
         pad.classList.add('triggered');
         setTimeout(() => pad.classList.remove('triggered'), 600);
     }
-    
-    // También resaltar la fila en el secuenciador
-    document.querySelectorAll(`.seq-step[data-track="${padIndex}"]`).forEach(step => {
-        step.style.borderColor = '#fff';
-        setTimeout(() => step.style.borderColor = '', 200);
-    });
 }
 
 function updatePadLoopVisual(padIndex) {
@@ -1839,6 +1837,7 @@ function toggleStep(track, step, element) {
     if (circularSequencerData[track]) {
         circularSequencerData[track][step] = isActive;
     }
+    if (renderCircularSequencer) renderCircularSequencer._dirty = true;
     
     sendWebSocket({
         cmd: 'setStep',
@@ -2046,6 +2045,17 @@ function handleCircularClick(event) {
 // Render circular sequencer
 function renderCircularSequencer() {
     if (!circularCtx || sequencerViewMode !== 'circular') return;
+    
+    // Only re-render when step changed or data toggled
+    if (typeof renderCircularSequencer._lastStep === 'undefined') {
+        renderCircularSequencer._lastStep = -1;
+    }
+    if (renderCircularSequencer._lastStep === currentStep && !renderCircularSequencer._dirty) {
+        circularAnimationFrame = requestAnimationFrame(renderCircularSequencer);
+        return;
+    }
+    renderCircularSequencer._lastStep = currentStep;
+    renderCircularSequencer._dirty = false;
     
     const ctx = circularCtx;
     const width = circularCanvas.width;
@@ -2636,7 +2646,10 @@ function updateLiveVolumeMeter(value) {
     }
 }
 
+let _lastStatusPlaying = null;
 function updateSequencerStatusMeter() {
+    if (_lastStatusPlaying === isPlaying) return;
+    _lastStatusPlaying = isPlaying;
     const meterValue = document.getElementById('meterSequencerStatus');
     const meterBar = document.getElementById('meterSequencerStatusBar');
     if (!meterValue || !meterBar) return;
@@ -4519,20 +4532,45 @@ function updateTrackFxStatusGrid() {
     const container = document.getElementById('trackFxStatus');
     if (!container) return;
     
-    let html = '';
+    // Build DOM once, then update in-place
+    if (!container.children.length || container.children.length !== 16) {
+        let html = '';
+        for (let i = 0; i < 16; i++) {
+            html += `<div class="track-fx-status-item" data-track="${i}">
+                <span class="status-name">${padNames[i]}</span>
+                <div class="status-fx">
+                    <span class="fx-dot" data-fx="reverse" title="Reverse"></span>
+                    <span class="fx-dot" data-fx="pitch" title="Pitch"></span>
+                    <span class="fx-dot" data-fx="stutter" title="Stutter"></span>
+                </div>
+            </div>`;
+        }
+        container.innerHTML = html;
+    }
+    
+    // Update only changed elements
     for (let i = 0; i < 16; i++) {
+        const item = container.children[i];
+        if (!item) continue;
         const fx = trackFxEffects[i];
         const hasAny = fx.reverse || fx.pitch !== 1.0 || fx.stutter;
-        html += `<div class="track-fx-status-item" style="${hasAny ? 'background:rgba(168,85,247,0.1);' : ''}">
-            <span class="status-name">${padNames[i]}</span>
-            <div class="status-fx">
-                <span class="fx-dot ${fx.reverse ? 'reverse-on' : ''}" title="Reverse"></span>
-                <span class="fx-dot ${fx.pitch !== 1.0 ? 'pitch-on' : ''}" title="Pitch ${fx.pitch.toFixed(2)}×"></span>
-                <span class="fx-dot ${fx.stutter ? 'stutter-on' : ''}" title="Stutter ${fx.stutterMs}ms"></span>
-            </div>
-        </div>`;
+        const bg = hasAny ? 'rgba(168,85,247,0.1)' : '';
+        if (item.style.background !== bg) item.style.background = bg;
+        
+        const dots = item.querySelectorAll('.fx-dot');
+        if (dots[0]) {
+            dots[0].classList.toggle('reverse-on', fx.reverse);
+            dots[0].title = 'Reverse';
+        }
+        if (dots[1]) {
+            dots[1].classList.toggle('pitch-on', fx.pitch !== 1.0);
+            dots[1].title = `Pitch ${fx.pitch.toFixed(2)}×`;
+        }
+        if (dots[2]) {
+            dots[2].classList.toggle('stutter-on', fx.stutter);
+            dots[2].title = `Stutter ${fx.stutterMs}ms`;
+        }
     }
-    container.innerHTML = html;
 }
 
 // Legacy functions - now use trackFxEffects system
@@ -4775,6 +4813,7 @@ function closeVolumeMenuOnClickOutside(e) {
 
 function updateTrackVolume(track, volume) {
     if (track >= 0 && track < 16) {
+        if (trackVolumes[track] === volume) return;
         trackVolumes[track] = volume;
         // Actualizar display si el menú está abierto para este track
         if (activeVolumeMenu && activeVolumeMenu.dataset.track === track.toString()) {

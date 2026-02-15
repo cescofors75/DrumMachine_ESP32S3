@@ -197,6 +197,12 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
   
   // Clear mix accumulator
   memset(mixAcc, 0, sizeof(mixAcc));
+  
+  // Initialize peak tracking
+  memset((void*)trackPeaks, 0, sizeof(trackPeaks));
+  memset(trackPeakDecay, 0, sizeof(trackPeakDecay));
+  masterPeak = 0.0f;
+  masterPeakDecay = 0.0f;
 }
 
 AudioEngine::~AudioEngine() {
@@ -688,6 +694,12 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
         mixAcc[i * 2 + 1] += filtered;
       }
       
+      // Track per-track peak levels for VU meters
+      if (voice.padIndex >= 0 && voice.padIndex < MAX_AUDIO_TRACKS) {
+        float absF = fabsf((float)filtered / 32768.0f);
+        if (absF > trackPeakDecay[voice.padIndex]) trackPeakDecay[voice.padIndex] = absF;
+      }
+      
       // Advance position (with pitch shift support)
       if (hasPitchShift) {
         voice.scratchPos += voice.pitchShift;
@@ -699,7 +711,11 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
   }
   
   // Process per-track live FX (echo, flanger, compressor) - SLAVE controller
+  // Update per-track peaks and apply decay
   for (int t = 0; t < MAX_AUDIO_TRACKS; t++) {
+    trackPeaks[t] = trackPeakDecay[t];
+    trackPeakDecay[t] *= 0.92f; // Fast decay ~60ms at 128-sample blocks
+    
     bool hasEcho = trackEcho[t].active && trackEchoBuffer[t];
     bool hasFlanger = trackFlanger[t].active && trackFlangerBuffers;
     bool hasComp = trackComp[t].active;
@@ -768,7 +784,16 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
     // Write stereo output (mono source)
     buffer[i * 2] = sample;
     buffer[i * 2 + 1] = sample;
+    
+    // Track master peak level for VU meter
+    float absVal = fabsf(fval);
+    if (absVal > masterPeakDecay) masterPeakDecay = absVal;
   }
+  
+  // Update master peak (atomic-safe for single writer)
+  masterPeak = masterPeakDecay;
+  // Decay master peak
+  masterPeakDecay *= 0.95f;
 }
 
 int AudioEngine::findFreeVoice() {
@@ -1037,6 +1062,24 @@ int AudioEngine::getActiveVoices() {
 
 float AudioEngine::getCpuLoad() {
   return cpuLoad * 100.0f;
+}
+
+// ============= Peak Level Tracking =============
+
+float AudioEngine::getTrackPeak(int track) {
+  if (track < 0 || track >= MAX_AUDIO_TRACKS) return 0.0f;
+  return trackPeaks[track];
+}
+
+float AudioEngine::getMasterPeak() {
+  return masterPeak;
+}
+
+void AudioEngine::getTrackPeaks(float* outPeaks, int count) {
+  int n = (count < MAX_AUDIO_TRACKS) ? count : MAX_AUDIO_TRACKS;
+  for (int i = 0; i < n; i++) {
+    outPeaks[i] = trackPeaks[i];
+  }
 }
 
 // ============= NEW: Soft Clip with Knee =============

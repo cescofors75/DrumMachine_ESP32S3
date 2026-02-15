@@ -40,7 +40,6 @@ public:
   void broadcastPadTrigger(int pad);
   void broadcastStep(int step);
   void broadcastSongPattern(int pattern, int songLength);
-  void broadcastVisualizationData();
   
   // MIDI functions
   void setMIDIController(MIDIController* controller);

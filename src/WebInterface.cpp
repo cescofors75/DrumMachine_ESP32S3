@@ -999,11 +999,6 @@ String WebInterface::getIP() {
   return WiFi.softAPIP().toString();
 }
 
-void WebInterface::broadcastVisualizationData() {
-  // Disabled - removed for performance
-  return;
-}
-
 // Procesar comandos JSON (compartido entre WebSocket y UDP)
 void WebInterface::processCommand(const JsonDocument& doc) {
   String cmd = doc["cmd"];
