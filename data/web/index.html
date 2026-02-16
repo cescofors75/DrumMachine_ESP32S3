@@ -182,6 +182,53 @@
                     </div>
                 </div>
             </section>
+
+            <!-- AI Chat Panel (inline in sequencer) -->
+            <div class="seq-chat-panel expanded" id="seqChatPanel">
+                <div class="seq-chat-header" id="seqChatToggle">
+                    <div class="seq-chat-header-left">
+                        <span class="seq-chat-icon">🤖</span>
+                        <span class="seq-chat-title">AI CHAT</span>
+                        <span class="seq-chat-status" id="seqChatStatus">●</span>
+                        <span class="chat-status-badge" id="chatStatusBadge" style="font-size:0.65em;padding:2px 8px">
+                            <span class="chat-status-dot" id="chatStatusDot"></span>
+                            <span id="chatStatusText">Offline</span>
+                        </span>
+                    </div>
+                    <div class="seq-chat-header-right">
+                        <input type="text" id="chatServerUrl" class="seq-chat-server-input" 
+                               placeholder="http://192.168.1.131:3808" 
+                               value="http://192.168.1.131:3808"
+                               onclick="event.stopPropagation()">
+                        <button class="seq-chat-connect-btn" id="chatConnectBtn" onclick="event.stopPropagation();chatConnect()" title="Conectar al servidor AI">CONECTAR</button>
+                        <button class="seq-chat-action-btn" onclick="event.stopPropagation();chatResetSession()" title="Reset sesión">🔄</button>
+                        <span class="seq-chat-badge" id="seqChatBadge" style="display:none">0</span>
+                        <button class="seq-chat-expand-btn" id="seqChatExpandBtn" title="Expandir/colapsar">▼</button>
+                    </div>
+                </div>
+                <div class="seq-chat-body" id="seqChatBody">
+                    <div class="seq-chat-feed" id="seqChatFeed">
+                        <div class="seq-chat-hint">
+                            <div style="font-size:1.8em;margin-bottom:6px">🥁</div>
+                            <div><strong>RED808 AI Agent</strong></div>
+                            <div style="margin:4px 0 10px;opacity:0.6">63 tools · 23 instrumentos · patrón, FX, mixer, song</div>
+                            <div class="seq-chat-suggestions">
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">🎵 Beat de trap 140 BPM</button>
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">🏠 House minimalista</button>
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">🥁 Breakbeat Amen</button>
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">👻 Ghost notes al hi-hat</button>
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">🤲 Humaniza el patrón</button>
+                                <button class="seq-chat-sug" onclick="event.stopPropagation();seqSuggestion(this)">🎶 Drum & bass 174 BPM</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="seq-chat-input-row">
+                        <textarea id="seqChatInput" class="seq-chat-input" placeholder="Escribe un mensaje para la IA..." rows="1"
+                            onkeydown="seqChatKeydown(event)" oninput="seqChatAutoResize(this)"></textarea>
+                        <button class="seq-chat-send" id="seqChatSendBtn" onclick="seqChatSend()" disabled>➤</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- TAB: Controls -->
@@ -978,6 +1025,12 @@
             </section>
         </div>
 
+        <!-- Hidden chat elements (needed by chat-agent.js) -->
+        <div id="chatMessages" style="display:none"></div>
+        <textarea id="chatInput" style="display:none"></textarea>
+        <button id="chatSendBtn" style="display:none"></button>
+        <div id="chatProgress" style="display:none"><div id="chatProgressFill"></div><span id="chatProgressText"></span></div>
+
         <!-- TAB: Info (Device + Instruments) -->
         <div id="tab-info" class="tab-content">
             <!-- Device Info Section -->
@@ -1055,6 +1108,7 @@
     </div>
 
     <script src="midi-import.js" defer></script>
+    <script src="chat-agent.js?v=2" defer></script>
     <script src="app.js" defer></script>
     <script src="keyboard-controls.js" defer></script>
 </body>

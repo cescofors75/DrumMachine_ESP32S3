@@ -17,6 +17,17 @@
 #define RGB_LED_PIN  48
 #define RGB_LED_NUM  1
 
+// --- WiFi: Red Doméstica (modo STA) ---
+// Pon aquí tu SSID y contraseña WiFi de casa.
+// Si se deja vacío (""), usará solo modo AP (red propia RED808).
+#define HOME_WIFI_SSID     "MIWIFI_2G_yU2f"         // ← tu WiFi doméstico, ej: "MiRedCasa"
+#define HOME_WIFI_PASS     "M6LR7zHk"         // ← contraseña WiFi
+#define HOME_WIFI_TIMEOUT  12000      // ms para intentar conectar (12s)
+
+// AP fallback (siempre disponible si STA falla)
+#define AP_SSID     "RED808"
+#define AP_PASSWORD "red808esp32"
+
 // --- OBJETOS GLOBALES ---
 AudioEngine audioEngine;
 SampleManager sampleManager;
@@ -475,14 +486,21 @@ void setup() {
     Serial.println("✓ Sequencer: 5 patrones cargados (Hip Hop, Techno, DnB, Breakbeat, House)");
     Serial.println("   Sequencer en PAUSA - presiona PLAY para iniciar");
 
-    // 5. WiFi AP
+    // 5. WiFi: STA (red doméstica) con fallback a AP
     Serial.println("\n[STEP 5] Starting WiFi...");
     
     showWiFiLED();
     delay(500);
     
-    if (webInterface.begin("RED808", "red808esp32")) {
-        Serial.print("WiFi AP OK | IP: ");
+    const char* staSSID = strlen(HOME_WIFI_SSID) > 0 ? HOME_WIFI_SSID : nullptr;
+    const char* staPass = strlen(HOME_WIFI_PASS) > 0 ? HOME_WIFI_PASS : nullptr;
+    
+    if (webInterface.begin(AP_SSID, AP_PASSWORD, staSSID, staPass, HOME_WIFI_TIMEOUT)) {
+        if (webInterface.isSTAMode()) {
+            Serial.print("WiFi STA OK | IP: ");
+        } else {
+            Serial.print("WiFi AP OK | IP: ");
+        }
         Serial.println(webInterface.getIP());
         showWebServerLED();
         delay(500);
@@ -540,7 +558,12 @@ void setup() {
     );
 
     showReadyLED();
-    Serial.println("\n=== RED808 READY - Connect to WiFi RED808, open 192.168.4.1 ===\n");
+    if (webInterface.isSTAMode()) {
+        Serial.printf("\n=== RED808 READY - STA mode, open http://%s ===\n\n",
+                      webInterface.getIP().c_str());
+    } else {
+        Serial.println("\n=== RED808 READY - Connect to WiFi RED808, open 192.168.4.1 ===\n");
+    }
 }
 
 void loop() {

@@ -31,9 +31,13 @@ public:
   WebInterface();
   ~WebInterface();
   
-  bool begin(const char* ssid, const char* password);
+  // STA mode (connect to home WiFi) with AP fallback
+  bool begin(const char* apSsid, const char* apPassword,
+             const char* staSSID = nullptr, const char* staPassword = nullptr,
+             unsigned long staTimeoutMs = 12000);
   void update();
   void handleUdp();  // Nueva función para procesar paquetes UDP
+  bool isSTAMode() const { return _staConnected; }
   
   void broadcastSequencerState();
   void sendSequencerStateToClient(AsyncWebSocketClient* client);
@@ -62,6 +66,9 @@ private:
   unsigned long lastTriggerTime;
   unsigned long lastStepChangeTime;
   unsigned long lastBroadcastTime;
+  
+  // WiFi mode tracking
+  bool _staConnected;  // true = connected to home WiFi, false = AP mode
   
   // MIDI Controller reference
   MIDIController* midiController;

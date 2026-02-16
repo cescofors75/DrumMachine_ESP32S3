@@ -1847,7 +1847,26 @@ function toggleStep(track, step, element) {
     });
 }
 
+// Throttle step updates via rAF to avoid layout thrashing
+let _pendingStep = null;
+let _stepRafScheduled = false;
+
+function _flushStepUpdate() {
+    _stepRafScheduled = false;
+    if (_pendingStep === null) return;
+    _applyStepUpdate(_pendingStep);
+    _pendingStep = null;
+}
+
 function updateCurrentStep(step) {
+    _pendingStep = step;
+    if (!_stepRafScheduled) {
+        _stepRafScheduled = true;
+        requestAnimationFrame(_flushStepUpdate);
+    }
+}
+
+function _applyStepUpdate(step) {
     if (!stepDots.length) {
         stepDots = Array.from(document.querySelectorAll('.step-dot'));
     }

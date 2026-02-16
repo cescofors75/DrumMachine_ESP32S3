@@ -233,6 +233,7 @@ WebInterface::WebInterface() {
   lastTriggerTime = 0;
   lastStepChangeTime = 0;
   lastBroadcastTime = 0;
+  _staConnected = false;
 }
 
 WebInterface::~WebInterface() {
@@ -240,45 +241,93 @@ WebInterface::~WebInterface() {
   if (ws) delete ws;
 }
 
-bool WebInterface::begin(const char* ssid, const char* password) {
+bool WebInterface::begin(const char* apSsid, const char* apPassword,
+                         const char* staSSID, const char* staPassword,
+                         unsigned long staTimeoutMs) {
   Serial.println("  Configurando WiFi...");
+  _staConnected = false;
   
   // Desactivar ahorro de energía WiFi
   WiFi.setSleep(false);
-  
   WiFi.mode(WIFI_OFF);
-  delay(50);
-  
-  WiFi.mode(WIFI_AP);
   delay(50);
   
   // Potencia TX máxima
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
   
-  // IP fija
-  IPAddress local_IP(192, 168, 4, 1);
-  IPAddress gateway(192, 168, 4, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  WiFi.softAPConfig(local_IP, gateway, subnet);
+  // ── Intentar modo STA (red doméstica) si se proporcionó SSID ──
+  if (staSSID && strlen(staSSID) > 0) {
+    Serial.printf("  [WiFi] Intentando AP+STA → %s ...\n", staSSID);
+    WiFi.mode(WIFI_AP_STA);
+    
+    // Configurar AP primero (siempre disponible)
+    IPAddress local_IP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    WiFi.softAPConfig(local_IP, gateway, subnet);
+    WiFi.softAP(apSsid, apPassword, 1, 0, 4);
+    delay(100);
+    
+    // Protocolo b/g/n y beacon para AP
+    esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    wifi_config_t conf;
+    esp_wifi_get_config(WIFI_IF_AP, &conf);
+    conf.ap.beacon_interval = 100;
+    esp_wifi_set_config(WIFI_IF_AP, &conf);
+    
+    Serial.printf("  [WiFi] ✓ AP activo → %s (IP: %s)\n", apSsid, WiFi.softAPIP().toString().c_str());
+    
+    // Ahora conectar a red doméstica
+    WiFi.begin(staSSID, staPassword);
+    
+    unsigned long t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - t0) < staTimeoutMs) {
+      delay(250);
+      Serial.print(".");
+    }
+    Serial.println();
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      _staConnected = true;
+      WiFi.setSleep(false);
+      Serial.printf("  [WiFi] ✓ STA conectado! IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("  [WiFi]   Gateway: %s  RSSI: %d dBm\n",
+                    WiFi.gatewayIP().toString().c_str(), WiFi.RSSI());
+      Serial.printf("  [WiFi]   Modo AP+STA: Surface→%s:%s  PC→%s\n",
+                    apSsid, WiFi.softAPIP().toString().c_str(),
+                    WiFi.localIP().toString().c_str());
+    } else {
+      Serial.println("  [WiFi] ✗ STA falló — AP sigue activo");
+      // AP ya está corriendo, no hay que hacer nada más
+    }
+  }
   
-  // Canal 1, SSID visible, max 4 conexiones
-  WiFi.softAP(ssid, password, 1, 0, 4);
-  delay(200);
-  
-  // Protocolo b/g/n
-  esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-  
-  // Beacon interval estándar (100ms) - más compatible con todos los dispositivos
-  wifi_config_t conf;
-  esp_wifi_get_config(WIFI_IF_AP, &conf);
-  conf.ap.beacon_interval = 100;
-  esp_wifi_set_config(WIFI_IF_AP, &conf);
-  
-  WiFi.setSleep(false);
-  
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("RED808 AP IP: ");
-  Serial.println(IP);
+  // ── Fallback: modo AP solo (sin SSID doméstico configurado) ──
+  if (!_staConnected && !(staSSID && strlen(staSSID) > 0)) {
+    Serial.printf("  [WiFi] Creando AP: %s\n", apSsid);
+    WiFi.mode(WIFI_AP);
+    delay(50);
+    
+    IPAddress local_IP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    WiFi.softAPConfig(local_IP, gateway, subnet);
+    
+    WiFi.softAP(apSsid, apPassword, 1, 0, 4);
+    delay(200);
+    
+    // Protocolo b/g/n
+    esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    
+    wifi_config_t conf;
+    esp_wifi_get_config(WIFI_IF_AP, &conf);
+    conf.ap.beacon_interval = 100;
+    esp_wifi_set_config(WIFI_IF_AP, &conf);
+    
+    WiFi.setSleep(false);
+    
+    Serial.printf("  [WiFi] ✓ AP activo → %s\n", WiFi.softAPIP().toString().c_str());
+  }
   
   // Crear servidor web
   server = new AsyncWebServer(80);
@@ -370,6 +419,17 @@ bool WebInterface::begin(const char* ssid, const char* password) {
     }
   });
   
+  server->on("/chat-agent.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/chat-agent.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/chat-agent.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/chat-agent.js", "application/javascript");
+    }
+  });
+  
   // Admin page
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
     if (LittleFS.exists("/web/admin.html.gz")) {
@@ -449,13 +509,24 @@ bool WebInterface::begin(const char* ssid, const char* password) {
     doc["psramSize"] = ESP.getPsramSize();
     doc["flashSize"] = ESP.getFlashChipSize();
     
-    // Info de WiFi
-    doc["wifiMode"] = "AP";
-    doc["ssid"] = WiFi.softAPSSID();
-    doc["ip"] = WiFi.softAPIP().toString();
-    doc["channel"] = WiFi.channel();
-    doc["txPower"] = "11dBm";
-    doc["connectedStations"] = WiFi.softAPgetStationNum();
+    // Info de WiFi (adaptado a STA o AP)
+    extern WebInterface webInterface;
+    if (webInterface.isSTAMode()) {
+      doc["wifiMode"] = "STA";
+      doc["ssid"] = WiFi.SSID();
+      doc["ip"] = WiFi.localIP().toString();
+      doc["gateway"] = WiFi.gatewayIP().toString();
+      doc["rssi"] = WiFi.RSSI();
+      doc["channel"] = WiFi.channel();
+      doc["txPower"] = "19.5dBm";
+    } else {
+      doc["wifiMode"] = "AP";
+      doc["ssid"] = WiFi.softAPSSID();
+      doc["ip"] = WiFi.softAPIP().toString();
+      doc["channel"] = WiFi.channel();
+      doc["txPower"] = "19.5dBm";
+      doc["connectedStations"] = WiFi.softAPgetStationNum();
+    }
     
     // Info de WebSocket
     if (ws) {
@@ -897,10 +968,10 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
 void WebInterface::broadcastSequencerState() {
   if (!initialized || !ws || ws->count() == 0) return;
   
-  // Rate limiting - 5 per second max
+  // Rate limiting - max 2 per second to reduce UI flickering
   static unsigned long lastBroadcast = 0;
   unsigned long now = millis();
-  if (now - lastBroadcast < 200) return;
+  if (now - lastBroadcast < 500) return;
   lastBroadcast = now;
   
   DynamicJsonDocument doc(8192);
@@ -941,6 +1012,16 @@ void WebInterface::broadcastPadTrigger(int pad) {
 
 void WebInterface::broadcastStep(int step) {
   if (!initialized || !ws || ws->count() == 0) return;
+  // Rate-limit step broadcasts to max ~16/sec (every 60ms)
+  static unsigned long lastStepBroadcast = 0;
+  static int lastStep = -1;
+  unsigned long now = millis();
+  if (now - lastStepBroadcast < 60 && step != 0) {
+    lastStep = step; // Remember for next broadcast
+    return;
+  }
+  lastStepBroadcast = now;
+  lastStep = step;
   // Ultra-compact step message for minimum latency
   char buf[32];
   int len = snprintf(buf, sizeof(buf), "{\"type\":\"step\",\"step\":%d}", step);
@@ -980,22 +1061,43 @@ void WebInterface::update() {
   static unsigned long lastWifiCheck = 0;
   if (now - lastWifiCheck > 30000) {
     lastWifiCheck = now;
-    if (WiFi.getMode() != WIFI_AP) {
-      Serial.println("[WiFi] AP mode lost! Restarting...");
-      WiFi.mode(WIFI_AP);
-      WiFi.softAP("RED808", "red808esp32", 1, 0, 4);
-      WiFi.setSleep(false);
-    }
-    int stations = WiFi.softAPgetStationNum();
-    static int lastStationCount = 0;
-    if (stations != lastStationCount) {
-      Serial.printf("[WiFi] Stations: %d\n", stations);
-      lastStationCount = stations;
+    
+    if (_staConnected) {
+      // ── Modo STA: verificar conexión al router ──
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[WiFi] STA desconectado! Reconectando...");
+        WiFi.reconnect();
+      } else {
+        static int lastRSSI = 0;
+        int rssi = WiFi.RSSI();
+        if (abs(rssi - lastRSSI) > 5) {
+          Serial.printf("[WiFi] STA OK | IP: %s | RSSI: %d dBm\n",
+                        WiFi.localIP().toString().c_str(), rssi);
+          lastRSSI = rssi;
+        }
+      }
+    } else {
+      // ── Modo AP: verificar que siga activo ──
+      if (WiFi.getMode() != WIFI_AP) {
+        Serial.println("[WiFi] AP mode lost! Restarting...");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP("RED808", "red808esp32", 1, 0, 4);
+        WiFi.setSleep(false);
+      }
+      int stations = WiFi.softAPgetStationNum();
+      static int lastStationCount = 0;
+      if (stations != lastStationCount) {
+        Serial.printf("[WiFi] AP Stations: %d\n", stations);
+        lastStationCount = stations;
+      }
     }
   }
 }
 
 String WebInterface::getIP() {
+  if (_staConnected && WiFi.status() == WL_CONNECTED) {
+    return WiFi.localIP().toString();
+  }
   return WiFi.softAPIP().toString();
 }
 
@@ -1015,6 +1117,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int step = doc["step"];
     if (track < 0 || track >= 16 || step < 0 || step >= 16) return;
     bool active = doc["active"];
+    bool silent = doc.containsKey("silent") && doc["silent"].as<bool>();
     // Support writing to a specific pattern (for multi-pattern MIDI import)
     if (doc.containsKey("pattern")) {
       int pattern = doc["pattern"].as<int>();
@@ -1027,14 +1130,16 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       }
     } else {
       sequencer.setStep(track, step, active);
-      // Notify all WS clients
-      StaticJsonDocument<128> resp;
-      resp["type"] = "stepSet";
-      resp["track"] = track;
-      resp["step"] = step;
-      resp["active"] = active;
-      String out; serializeJson(resp, out);
-      if (ws) ws->textAll(out);
+      // Only broadcast if not in silent/bulk mode
+      if (!silent) {
+        StaticJsonDocument<128> resp;
+        resp["type"] = "stepSet";
+        resp["track"] = track;
+        resp["step"] = step;
+        resp["active"] = active;
+        String out; serializeJson(resp, out);
+        if (ws) ws->textAll(out);
+      }
       yield();
     }
   }
@@ -1900,6 +2005,8 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       return;
     }
     
+    bool silent = doc.containsKey("silent") && doc["silent"].as<bool>();
+    
     // Support writing to a specific pattern
     bool isBulkImport = doc.containsKey("pattern");
     if (isBulkImport) {
@@ -1908,23 +2015,24 @@ void WebInterface::processCommand(const JsonDocument& doc) {
         sequencer.setStepVelocity(pattern, track, step, velocity);
         yield(); // Prevent watchdog reset during bulk import
       }
-      // Skip broadcast during bulk import to avoid WebSocket buffer overflow
       return;
     } else {
       sequencer.setStepVelocity(track, step, velocity);
-      yield(); // Prevent watchdog reset during bulk single-bar import
+      yield();
     }
     
-    // Broadcast to all clients (only for single-step changes, not bulk import)
-    StaticJsonDocument<128> responseDoc;
-    responseDoc["type"] = "stepVelocitySet";
-    responseDoc["track"] = track;
-    responseDoc["step"] = step;
-    responseDoc["velocity"] = velocity;
-    
-    String output;
-    serializeJson(responseDoc, output);
-    if (ws) ws->textAll(output);
+    // Broadcast to all clients (skip in silent/bulk mode)
+    if (!silent) {
+      StaticJsonDocument<128> responseDoc;
+      responseDoc["type"] = "stepVelocitySet";
+      responseDoc["track"] = track;
+      responseDoc["step"] = step;
+      responseDoc["velocity"] = velocity;
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+    }
   }
   else if (cmd == "getStepVelocity") {
     int track = doc["track"];
