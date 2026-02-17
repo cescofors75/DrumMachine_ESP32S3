@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <SD.h>
+#include <SPI.h>
 #include <Adafruit_NeoPixel.h>
 #include "AudioEngine.h"
 #include "SampleManager.h"
@@ -16,6 +18,14 @@
 // LED RGB integrado ESP32-S3
 #define RGB_LED_PIN  48
 #define RGB_LED_NUM  1
+
+// SD Card SPI pins (default ESP32-S3 SPI pins, confirmed working)
+#define SD_SCK   12
+#define SD_MISO  13
+#define SD_MOSI  11
+#define SD_CS    10
+
+bool sdCardMounted = false;
 
 // --- WiFi: Red Doméstica (modo STA) ---
 // Pon aquí tu SSID y contraseña WiFi de casa.
@@ -219,6 +229,55 @@ void setup() {
     }
     Serial.println("Audio Engine OK");
     
+    // 2b. SD Card via SPI (default ESP32-S3 pins)
+    // 2b. SD Card via SPI (default ESP32-S3 pins)
+    Serial.println("[STEP 2b] Mounting SD Card (SPI)...");
+    Serial.printf("  Pins: CS=%d, SCK=%d, MOSI=%d, MISO=%d\n", SD_CS, SD_SCK, SD_MOSI, SD_MISO);
+    
+    // Test CS pin manually first
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+    delay(50);
+    digitalWrite(SD_CS, LOW);
+    delay(50);
+    digitalWrite(SD_CS, HIGH);
+    delay(100);
+    
+    // Use explicit FSPI bus (SPI2_HOST on ESP32-S3)
+    SPIClass sdSPI(FSPI);
+    sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    
+    // Try different SPI speeds
+    uint32_t speeds[] = {4000000, 2000000, 1000000, 400000};
+    const char* names[] = {"4MHz", "2MHz", "1MHz", "400KHz"};
+    
+    for (int i = 0; i < 4 && !sdCardMounted; i++) {
+        Serial.printf("  Trying %s...\n", names[i]);
+        if (SD.begin(SD_CS, sdSPI, speeds[i])) {
+            sdCardMounted = true;
+            uint8_t cardType = SD.cardType();
+            if (cardType == CARD_NONE) {
+                Serial.println("  Card detected but type=NONE, retrying...");
+                sdCardMounted = false;
+                SD.end();
+                continue;
+            }
+            const char* typeName = cardType == CARD_MMC ? "MMC" : 
+                cardType == CARD_SD ? "SDSC" : 
+                cardType == CARD_SDHC ? "SDHC" : "UNKNOWN";
+            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+            Serial.printf("  SD Card OK! Type: %s, Size: %lluMB @ %s\n", typeName, cardSize, names[i]);
+        } else {
+            SD.end();
+            delay(200);
+        }
+    }
+    
+    if (!sdCardMounted) {
+        Serial.println("  SD Card FAIL - all speeds tried");
+        Serial.println("  Check: VCC=5V, CS->10, MOSI->11, SCK->12, MISO->13, GND->GND");
+        Serial.println("  Verify: card is FAT32, module LED blinks when powered");
+    }
 
 
     Serial.println("[STEP 3] Initializing Sample Manager...");

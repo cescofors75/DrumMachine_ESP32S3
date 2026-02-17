@@ -9,6 +9,9 @@ let padFxState = new Array(24).fill(null); // Per-pad FX state (16 main + 8 xtra
 let trackFxState = new Array(16).fill(null); // Per-track FX state
 let isPlaying = false;
 
+// Sync LEDs: when ON, live pads flash in rhythm with sequencer
+let syncLedsEnabled = false;
+
 // Sequencer caches
 let stepDots = [];
 let stepColumns = Array.from({ length: 16 }, () => []);
@@ -121,6 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initSampleBrowser();
     initInstrumentTabs();
     initTabSystem(); // Tab navigation system
+    initSyncLeds(); // Sync LEDs toggle
+    initSDCard(); // SD Card browser
 });
 
 // WebSocket Connection
@@ -419,6 +424,21 @@ function handleWebSocketMessage(data) {
             if (data.track !== undefined && data.fx) {
                 console.log(`[WS] Track ${data.track} live FX: ${data.fx} ${data.active ? 'ON' : 'OFF'}`);
             }
+            break;
+
+        case 'xtraSampleList':
+            // Handle XTRA sample library list
+            if (typeof window._handleXtraSampleList === 'function') {
+                window._handleXtraSampleList(data);
+            }
+            break;
+
+        case 'sdStatus':
+            if (typeof handleSDStatus === 'function') handleSDStatus(data);
+            break;
+
+        case 'sdFileList':
+            if (typeof handleSDFileList === 'function') handleSDFileList(data);
             break;
     }
     
@@ -1897,6 +1917,19 @@ function _applyStepUpdate(step) {
     nextColumn.forEach(el => el.classList.add('current'));
 
     lastCurrentStep = step;
+
+    // === SYNC LEDS: flash live pads in rhythm with sequencer ===
+    if (syncLedsEnabled && isPlaying) {
+        for (let track = 0; track < 16; track++) {
+            if (circularSequencerData[track] && circularSequencerData[track][step]) {
+                const pad = document.querySelector(`.pad[data-pad="${track}"]`);
+                if (pad) {
+                    pad.classList.add('sync-flash');
+                    setTimeout(() => pad.classList.remove('sync-flash'), 120);
+                }
+            }
+        }
+    }
 }
 
 // Toggle between grid and circular view
@@ -2698,6 +2731,21 @@ function syncLedMonoMode() {
     });
 }
 
+// === SYNC LEDS TOGGLE ===
+function initSyncLeds() {
+    const toggle = document.getElementById('syncLedsToggle');
+    if (toggle) {
+        toggle.addEventListener('change', (e) => {
+            syncLedsEnabled = e.target.checked;
+            if (window.showToast && window.TOAST_TYPES) {
+                window.showToast(
+                    syncLedsEnabled ? '💡 Sync LEDs ON — pads flash con sequencer' : '💡 Sync LEDs OFF',
+                    window.TOAST_TYPES.INFO, 1500
+                );
+            }
+        });
+    }
+}
 
 
 function updateSequencerState(data) {
@@ -4929,19 +4977,85 @@ function showXtraPadPicker() {
     const modal = document.createElement('div');
     modal.className = 'sample-modal';
     modal.innerHTML = `
-        <div class="sample-modal-content" style="max-width:380px;">
-            <h3 style="margin:0 0 8px;">📤 Upload WAV → XTRA Pad</h3>
-            <p style="color:#aaa;margin:0 0 14px;font-size:11px;">Pads independientes (no Sequencer). Slot ${freeSlot - 15}/8</p>
-            <div id="xtraUploadZone" style="border:2px dashed #ff6600;border-radius:10px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;">
-                <div style="font-size:42px;margin-bottom:8px;">📂</div>
-                <div style="color:#ff6600;font-weight:bold;font-size:15px;" id="xtraUploadMsg">Click to select WAV file</div>
-                <div style="color:#666;font-size:10px;margin-top:6px;">Max 2MB · WAV format</div>
+        <div class="sample-modal-content" style="max-width:440px;">
+            <h3 style="margin:0 0 8px;">🎲 XTRA Pad — Slot ${freeSlot - 15}/8</h3>
+            <p style="color:#aaa;margin:0 0 14px;font-size:11px;">Pads independientes (no Sequencer). Elige sample de la librería o sube un WAV.</p>
+            
+            <!-- XTRA Library Browser -->
+            <div id="xtraLibrarySection" style="margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="color:#ff6600;font-weight:bold;font-size:13px;">📚 LIBRERÍA XTRA</span>
+                    <button id="xtraRefreshBtn" style="background:#333;border:1px solid #555;color:#aaa;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">🔄</button>
+                </div>
+                <div id="xtraLibraryList" style="max-height:180px;overflow-y:auto;border:1px solid #333;border-radius:8px;background:#111;padding:4px;">
+                    <div style="text-align:center;color:#666;padding:16px;font-size:12px;">⏳ Cargando samples...</div>
+                </div>
+            </div>
+            
+            <!-- Upload Zone -->
+            <div id="xtraUploadZone" style="border:2px dashed #ff6600;border-radius:10px;padding:18px 16px;text-align:center;cursor:pointer;transition:all .2s;">
+                <div style="font-size:28px;margin-bottom:4px;">📤</div>
+                <div style="color:#ff6600;font-weight:bold;font-size:13px;" id="xtraUploadMsg">Click para subir WAV</div>
+                <div style="color:#666;font-size:10px;margin-top:4px;">Max 2MB · WAV format</div>
             </div>
             <div style="margin-top:12px;text-align:right;">
-                <button class="btn-close-modal">Cancel</button>
+                <button class="btn-close-modal">Cancelar</button>
             </div>
         </div>
     `;
+
+    // Request XTRA samples list
+    sendWebSocket({ cmd: 'getXtraSamples' });
+    
+    // Listen for xtraSampleList response
+    const xtraListHandler = (event) => {
+        if (typeof event.data !== 'string') return;
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'xtraSampleList') {
+                ws.removeEventListener('message', xtraListHandler);
+                const listEl = modal.querySelector('#xtraLibraryList');
+                if (!listEl) return;
+                
+                if (!data.samples || data.samples.length === 0) {
+                    listEl.innerHTML = '<div style="text-align:center;color:#666;padding:16px;font-size:12px;">📭 No hay samples en /xtra<br><span style="font-size:10px;">Sube WAV con el botón de abajo</span></div>';
+                    return;
+                }
+                
+                listEl.innerHTML = '';
+                data.samples.forEach(sample => {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #222;cursor:pointer;transition:background 0.15s;border-radius:4px;';
+                    item.innerHTML = `
+                        <div>
+                            <div style="color:#eee;font-size:12px;font-weight:bold;">${sample.name}</div>
+                            <div style="color:#666;font-size:10px;">${(sample.size / 1024).toFixed(1)} KB</div>
+                        </div>
+                        <button style="background:#ff6600;border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">CARGAR</button>
+                    `;
+                    item.addEventListener('mouseenter', () => item.style.background = '#1a1a1a');
+                    item.addEventListener('mouseleave', () => item.style.background = '');
+                    item.querySelector('button').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        sendWebSocket({ cmd: 'loadXtraSample', filename: sample.name, pad: freeSlot });
+                        createXtraPad(freeSlot, sample.name.replace(/\.wav$/i, ''));
+                        modal.remove();
+                        if (window.showToast) window.showToast(`✅ ${sample.name} → XTRA ${freeSlot - 15}`, window.TOAST_TYPES?.SUCCESS, 2000);
+                    });
+                    listEl.appendChild(item);
+                });
+            }
+        } catch(e) {}
+    };
+    if (ws) ws.addEventListener('message', xtraListHandler);
+    
+    // Refresh button
+    modal.querySelector('#xtraRefreshBtn').addEventListener('click', () => {
+        const listEl = modal.querySelector('#xtraLibraryList');
+        if (listEl) listEl.innerHTML = '<div style="text-align:center;color:#666;padding:16px;font-size:12px;">⏳ Cargando samples...</div>';
+        if (ws) ws.addEventListener('message', xtraListHandler);
+        sendWebSocket({ cmd: 'getXtraSamples' });
+    });
 
     const uploadZone = modal.querySelector('#xtraUploadZone');
     const uploadMsg = modal.querySelector('#xtraUploadMsg');
@@ -4980,13 +5094,13 @@ function showXtraPadPicker() {
                         }, 300);
                     } else {
                         if (window.showToast) window.showToast(`❌ ${data.message || 'Error'}`, window.TOAST_TYPES?.ERROR, 3000);
-                        uploadMsg.textContent = 'Click to select WAV file';
+                        uploadMsg.textContent = 'Click para subir WAV';
                         uploadZone.style.pointerEvents = ''; uploadZone.style.opacity = '';
                     }
                 })
                 .catch(err => {
                     if (window.showToast) window.showToast(`❌ ${err.message}`, window.TOAST_TYPES?.ERROR, 3000);
-                    uploadMsg.textContent = 'Click to select WAV file';
+                    uploadMsg.textContent = 'Click para subir WAV';
                     uploadZone.style.pointerEvents = ''; uploadZone.style.opacity = '';
                 });
         });
@@ -4995,8 +5109,16 @@ function showXtraPadPicker() {
         setTimeout(() => input.remove(), 1000);
     });
 
-    modal.querySelector('.btn-close-modal').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('.btn-close-modal').addEventListener('click', () => {
+        if (ws) ws.removeEventListener('message', xtraListHandler);
+        modal.remove();
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            if (ws) ws.removeEventListener('message', xtraListHandler);
+            modal.remove();
+        }
+    });
     document.body.appendChild(modal);
 }
 
@@ -5220,3 +5342,160 @@ window.initVolumesSection = initVolumesSection;
 window.updateVolumeBar = updateVolumeBar;
 window.updateVolumeMutedState = updateVolumeMutedState;
 window.updateMasterVolumeDisplays = updateMasterVolumeDisplays;
+
+// ============================================
+// SD CARD BROWSER
+// ============================================
+let sdCurrentPath = '/';
+let sdMounted = false;
+
+function initSDCard() {
+    const refreshBtn = document.getElementById('sdRefreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            sendWebSocket({ cmd: 'getSDStatus' });
+        });
+    }
+    
+    // Request SD status on init
+    setTimeout(() => {
+        if (isConnected) sendWebSocket({ cmd: 'getSDStatus' });
+    }, 2000);
+}
+
+function handleSDStatus(data) {
+    sdMounted = data.mounted;
+    const statusDot = document.getElementById('sdStatusDot');
+    const statusText = document.getElementById('sdStatusText');
+    const noCard = document.getElementById('sdNoCard');
+    const browser = document.getElementById('sdBrowser');
+    const info = document.getElementById('sdCardInfo');
+    
+    if (sdMounted) {
+        if (statusDot) statusDot.style.background = '#00ff88';
+        if (statusText) statusText.textContent = 'SD Card OK';
+        if (noCard) noCard.style.display = 'none';
+        if (browser) browser.style.display = '';
+        if (info) {
+            info.style.display = 'flex';
+            const total = data.totalMB || 0;
+            const used = data.usedMB || 0;
+            const free = total - used;
+            document.getElementById('sdTotalSize').textContent = `${total} MB`;
+            document.getElementById('sdUsedSize').textContent = `${used} MB`;
+            document.getElementById('sdFreeSize').textContent = `${free} MB`;
+        }
+        // Browse root
+        sdBrowse('/');
+    } else {
+        if (statusDot) statusDot.style.background = '#ff4444';
+        if (statusText) statusText.textContent = 'No SD Card';
+        if (noCard) noCard.style.display = '';
+        if (browser) browser.style.display = 'none';
+        if (info) info.style.display = 'none';
+    }
+}
+
+function sdBrowse(path) {
+    sdCurrentPath = path;
+    sendWebSocket({ cmd: 'getSDFiles', path: path });
+    updateSDBreadcrumb(path);
+}
+
+function updateSDBreadcrumb(path) {
+    const bc = document.getElementById('sdBreadcrumb');
+    if (!bc) return;
+    bc.innerHTML = '';
+    
+    const parts = path.split('/').filter(p => p);
+    let accumulated = '/';
+    
+    const root = document.createElement('span');
+    root.className = 'sd-crumb sd-crumb-root';
+    root.textContent = '📁 /';
+    root.style.cursor = 'pointer';
+    root.addEventListener('click', () => sdBrowse('/'));
+    bc.appendChild(root);
+    
+    parts.forEach((part, i) => {
+        accumulated += part + '/';
+        const sep = document.createElement('span');
+        sep.textContent = ' › ';
+        sep.style.color = '#555';
+        bc.appendChild(sep);
+        
+        const crumb = document.createElement('span');
+        crumb.className = 'sd-crumb';
+        crumb.textContent = part;
+        crumb.style.cursor = 'pointer';
+        const crumbPath = accumulated;
+        crumb.addEventListener('click', () => sdBrowse(crumbPath));
+        bc.appendChild(crumb);
+    });
+}
+
+function handleSDFileList(data) {
+    const list = document.getElementById('sdFileList');
+    if (!list) return;
+    
+    if (data.error) {
+        list.innerHTML = `<div class="sd-error">❌ ${data.error}</div>`;
+        return;
+    }
+    
+    list.innerHTML = '';
+    const folders = data.folders || [];
+    const files = data.files || [];
+    
+    // Parent directory link
+    if (sdCurrentPath !== '/') {
+        const parentPath = sdCurrentPath.replace(/\/[^/]+\/$/, '/') || '/';
+        const parentItem = document.createElement('div');
+        parentItem.className = 'sd-item sd-folder';
+        parentItem.innerHTML = '<span class="sd-item-icon">⬆️</span><span class="sd-item-name">..</span>';
+        parentItem.addEventListener('click', () => sdBrowse(parentPath));
+        list.appendChild(parentItem);
+    }
+    
+    // Folders
+    folders.forEach(folder => {
+        const item = document.createElement('div');
+        item.className = 'sd-item sd-folder';
+        item.innerHTML = `<span class="sd-item-icon">📁</span><span class="sd-item-name">${folder}</span>`;
+        const folderPath = sdCurrentPath + (sdCurrentPath.endsWith('/') ? '' : '/') + folder + '/';
+        item.addEventListener('click', () => sdBrowse(folderPath));
+        list.appendChild(item);
+    });
+    
+    // Files
+    files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'sd-item sd-file';
+        const sizeKB = (file.size / 1024).toFixed(1);
+        item.innerHTML = `
+            <span class="sd-item-icon">🎵</span>
+            <div class="sd-item-info">
+                <span class="sd-item-name">${file.name}</span>
+                <span class="sd-item-size">${sizeKB} KB</span>
+            </div>
+            <button class="sd-load-btn" title="Cargar en pad seleccionado">CARGAR</button>
+        `;
+        item.querySelector('.sd-load-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetPad = parseInt(document.getElementById('sdTargetPad').value);
+            const filePath = sdCurrentPath + (sdCurrentPath.endsWith('/') ? '' : '/') + file.name;
+            sendWebSocket({ cmd: 'loadSDSample', path: filePath, pad: targetPad });
+            if (window.showToast) {
+                const padName = targetPad < 16 ? padNames[targetPad] : `XTRA ${targetPad - 15}`;
+                window.showToast(`⏳ Cargando ${file.name} → ${padName}...`, window.TOAST_TYPES?.INFO, 3000);
+            }
+        });
+        list.appendChild(item);
+    });
+    
+    if (folders.length === 0 && files.length === 0) {
+        list.innerHTML = '<div class="sd-empty">📭 Carpeta vacía</div>';
+    }
+}
+
+window.initSDCard = initSDCard;

@@ -1242,6 +1242,70 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       if (ws) ws->textAll(output);
     }
   }
+  // === XTRA PADS: list samples from /xtra folder ===
+  else if (cmd == "getXtraSamples") {
+    StaticJsonDocument<2048> responseDoc;
+    responseDoc["type"] = "xtraSampleList";
+    
+    File dir = LittleFS.open("/xtra", "r");
+    if (dir && dir.isDirectory()) {
+      JsonArray samples = responseDoc.createNestedArray("samples");
+      File file = dir.openNextFile();
+      int count = 0;
+      while (file) {
+        if (!file.isDirectory()) {
+          String filename = file.name();
+          int lastSlash = filename.lastIndexOf('/');
+          if (lastSlash >= 0) filename = filename.substring(lastSlash + 1);
+          
+          if (isSupportedSampleFile(filename)) {
+            JsonObject sampleObj = samples.createNestedObject();
+            sampleObj["name"] = filename;
+            sampleObj["size"] = file.size();
+            count++;
+            if (count % 3 == 0) yield();
+          }
+        }
+        file.close();
+        file = dir.openNextFile();
+      }
+      dir.close();
+      Serial.printf("[getXtraSamples] Found %d samples in /xtra\n", count);
+    } else {
+      // Create /xtra if it doesn't exist
+      LittleFS.mkdir("/xtra");
+      responseDoc.createNestedArray("samples");
+      Serial.println("[getXtraSamples] /xtra folder created (empty)");
+    }
+    
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  // === XTRA PADS: load sample from /xtra to a pad ===
+  else if (cmd == "loadXtraSample") {
+    const char* filename = doc["filename"];
+    int padIndex = doc["pad"];
+    if (padIndex < 16 || padIndex >= 24) return;
+    
+    String fullPath = String("/xtra/") + String(filename);
+    yield();
+    
+    if (sampleManager.loadSample(fullPath.c_str(), padIndex)) {
+      StaticJsonDocument<256> responseDoc;
+      responseDoc["type"] = "sampleLoaded";
+      responseDoc["pad"] = padIndex;
+      responseDoc["filename"] = filename;
+      responseDoc["size"] = sampleManager.getSampleLength(padIndex) * 2;
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+      Serial.printf("[loadXtraSample] Loaded %s -> pad %d\n", fullPath.c_str(), padIndex);
+    } else {
+      Serial.printf("[loadXtraSample] FAILED: %s -> pad %d\n", fullPath.c_str(), padIndex);
+    }
+  }
   else if (cmd == "mute") {
     int track = doc["track"];
     if (track < 0 || track >= 16) return;
@@ -1343,6 +1407,135 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     resp["type"] = "ledMode"; resp["mono"] = monoMode;
     String out; serializeJson(resp, out);
     if (ws) ws->textAll(out);
+  }
+  // === SD CARD: check if mounted ===
+  else if (cmd == "getSDStatus") {
+    extern bool sdCardMounted;
+    StaticJsonDocument<128> resp;
+    resp["type"] = "sdStatus";
+    resp["mounted"] = sdCardMounted;
+    if (sdCardMounted) {
+      resp["totalMB"] = (int)(SD.totalBytes() / (1024 * 1024));
+      resp["usedMB"] = (int)(SD.usedBytes() / (1024 * 1024));
+    }
+    String out; serializeJson(resp, out);
+    if (ws) ws->textAll(out);
+  }
+  // === SD CARD: list folders/files ===
+  else if (cmd == "getSDFiles") {
+    extern bool sdCardMounted;
+    const char* path = doc.containsKey("path") ? doc["path"].as<const char*>() : "/";
+    
+    DynamicJsonDocument resp(4096);
+    resp["type"] = "sdFileList";
+    resp["path"] = path;
+    
+    if (!sdCardMounted) {
+      resp["error"] = "SD card not mounted";
+    } else {
+      File dir = SD.open(path);
+      if (dir && dir.isDirectory()) {
+        JsonArray folders = resp.createNestedArray("folders");
+        JsonArray files = resp.createNestedArray("files");
+        File entry = dir.openNextFile();
+        int count = 0;
+        while (entry && count < 100) {
+          String name = entry.name();
+          int lastSlash = name.lastIndexOf('/');
+          if (lastSlash >= 0) name = name.substring(lastSlash + 1);
+          
+          if (entry.isDirectory()) {
+            folders.add(name);
+          } else {
+            if (isSupportedSampleFile(name)) {
+              JsonObject f = files.createNestedObject();
+              f["name"] = name;
+              f["size"] = entry.size();
+            }
+          }
+          count++;
+          entry.close();
+          entry = dir.openNextFile();
+          if (count % 5 == 0) yield();
+        }
+        dir.close();
+      } else {
+        resp["error"] = "Cannot open path";
+      }
+    }
+    
+    String out; serializeJson(resp, out);
+    if (ws) ws->textAll(out);
+  }
+  // === SD CARD: load sample from SD to pad ===
+  else if (cmd == "loadSDSample") {
+    extern bool sdCardMounted;
+    const char* filepath = doc["path"];
+    int padIndex = doc["pad"];
+    if (padIndex < 0 || padIndex >= 24) return;
+    
+    if (!sdCardMounted) {
+      Serial.println("[SD] Cannot load - SD not mounted");
+      return;
+    }
+    
+    yield();
+    
+    // Read from SD card and write to a temp file on LittleFS, then load
+    File sdFile = SD.open(filepath, "r");
+    if (!sdFile) {
+      Serial.printf("[SD] Cannot open: %s\n", filepath);
+      return;
+    }
+    
+    // Extract filename
+    String fname = String(filepath);
+    int lastSlash = fname.lastIndexOf('/');
+    if (lastSlash >= 0) fname = fname.substring(lastSlash + 1);
+    
+    // Write to LittleFS temp location
+    String tempPath = "/sdtmp_" + fname;
+    File tmpFile = LittleFS.open(tempPath, "w");
+    if (!tmpFile) {
+      sdFile.close();
+      Serial.println("[SD] Cannot create temp file");
+      return;
+    }
+    
+    // Copy data in chunks
+    uint8_t buf[512];
+    size_t totalCopied = 0;
+    while (sdFile.available()) {
+      size_t bytesRead = sdFile.read(buf, sizeof(buf));
+      tmpFile.write(buf, bytesRead);
+      totalCopied += bytesRead;
+      if (totalCopied % 4096 == 0) yield();
+    }
+    sdFile.close();
+    tmpFile.close();
+    
+    Serial.printf("[SD] Copied %d bytes to temp: %s\n", totalCopied, tempPath.c_str());
+    
+    // Load the sample from temp file
+    if (sampleManager.loadSample(tempPath.c_str(), padIndex)) {
+      // Delete temp file after loading to PSRAM
+      LittleFS.remove(tempPath);
+      
+      StaticJsonDocument<256> responseDoc;
+      responseDoc["type"] = "sampleLoaded";
+      responseDoc["pad"] = padIndex;
+      responseDoc["filename"] = fname;
+      responseDoc["size"] = sampleManager.getSampleLength(padIndex) * 2;
+      responseDoc["source"] = "sdcard";
+      
+      String output;
+      serializeJson(responseDoc, output);
+      if (ws) ws->textAll(output);
+      Serial.printf("[SD] Loaded %s -> pad %d OK\n", filepath, padIndex);
+    } else {
+      LittleFS.remove(tempPath);
+      Serial.printf("[SD] Load FAILED: %s -> pad %d\n", filepath, padIndex);
+    }
   }
   else if (cmd == "setFilter") {
     int type = doc["type"];
