@@ -154,8 +154,16 @@ function initWebSocket() {
         console.error('WebSocket Error:', error);
     };
     
+    ws.binaryType = 'arraybuffer';  // Enable binary messages for audio levels
     ws.onmessage = (event) => {
-        if (typeof event.data !== 'string') return; // Skip binary messages
+        // Handle binary audio level data (0xAA header)
+        if (event.data instanceof ArrayBuffer) {
+            if (typeof handleWaveformBinaryMessage === 'function') {
+                handleWaveformBinaryMessage(event);
+            }
+            return;
+        }
+        if (typeof event.data !== 'string') return;
         const data = JSON.parse(event.data);
         // Handle bulk ACK for MIDI import
         if (data.type === 'bulkAck' && typeof window._bulkAckCallback === 'function') {
@@ -263,6 +271,10 @@ function handleWebSocketMessage(data) {
             break;
         case 'sampleLoaded':
             updatePadInfo(data);
+            // Invalidate waveform cache for this pad
+            if (typeof SampleWaveform !== 'undefined' && data.pad !== undefined) {
+                SampleWaveform.clearCache(data.pad);
+            }
             break;
         case 'trackFilterSet':
             if (data.success) {
@@ -3274,10 +3286,20 @@ function displaySampleList(data) {
     modal.innerHTML = `
         <div class="sample-modal-content">
             <h3>Select ${family} Sample for Pad ${padIndex + 1}</h3>
+            <div class="sample-modal-waveform">
+                <div class="waveform-preview-label">📊 FORMA DE ONDA</div>
+                <canvas id="samplePreviewWaveform" class="sample-preview-canvas" width="320" height="80"></canvas>
+                <div class="waveform-preview-info" id="samplePreviewInfo">Selecciona un sample para previsualizar</div>
+            </div>
             <div class="sample-list"></div>
             <button class="btn-close-modal">Close</button>
         </div>
     `;
+    
+    // Show current pad waveform if already loaded
+    if (typeof previewSampleWaveform === 'function') {
+        setTimeout(() => previewSampleWaveform(padIndex), 100);
+    }
     
     const sampleList = modal.querySelector('.sample-list');
     

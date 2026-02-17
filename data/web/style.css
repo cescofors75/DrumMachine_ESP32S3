@@ -8573,3 +8573,170 @@ body.midi-dialog-open .midi-import-overlay * {
     .sd-item { padding: 6px 8px; }
     .sd-file-list { max-height: 300px; }
 }
+
+/* ============================================
+ * WAVEFORM VISUALIZER STYLES
+ * ============================================ */
+
+/* --- Sample Browser/Selector Waveform --- */
+.sample-modal-waveform {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.waveform-preview-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.sample-preview-canvas {
+  width: 100%;
+  max-width: 320px;
+  height: 80px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,255,136,0.15);
+  display: block;
+  margin: 0 auto;
+  image-rendering: pixelated;
+}
+.waveform-preview-info {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 4px;
+  font-family: monospace;
+}
+.waveform-canvas {
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.1);
+  image-rendering: pixelated;
+}
+.browser-waveform-container {
+  margin-top: 4px;
+}
+.browser-waveform-container .waveform-canvas {
+  width: 100%;
+  max-width: 160px;
+  height: 40px;
+}
+
+/* --- Mixer Mini-Scopes (Volumes Tab) --- */
+.mini-scope-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: center;
+}
+.mini-scope-canvas {
+  width: 60px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.8);
+  image-rendering: pixelated;
+}
+.vu-meter-canvas {
+  width: 8px;
+  height: 60px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.9);
+  image-rendering: pixelated;
+}
+.vu-meter-canvas.master-vu {
+  width: 12px;
+  height: 40px;
+  margin-left: 8px;
+}
+/* Glow effect on active tracks */
+.mini-scope-container canvas {
+  transition: box-shadow 0.3s ease;
+}
+.track-volume-card:hover .mini-scope-canvas {
+  box-shadow: 0 0 8px rgba(0,255,136,0.3);
+}
+.track-volume-card:hover .vu-meter-canvas {
+  box-shadow: 0 0 6px rgba(0,255,136,0.2);
+}
+
+/* --- FX Dual Scope --- */
+.fx-scope-section {
+  background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(20,20,40,0.6));
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.fx-scope-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.fx-scope-title {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.fx-scope-label {
+  font-size: 13px;
+  font-weight: bold;
+  font-family: monospace;
+  color: #ff3366;
+}
+.fx-dual-scope-canvas {
+  width: 100%;
+  max-width: 400px;
+  height: 80px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,255,136,0.15);
+  display: block;
+  margin: 0 auto;
+  background: rgba(0,0,0,0.85);
+  image-rendering: pixelated;
+}
+.fx-scope-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 6px;
+  font-size: 10px;
+  font-family: monospace;
+}
+.fx-legend-in {
+  color: #00ff88;
+}
+.fx-legend-out {
+  color: #ff3366;
+}
+
+/* --- Responsive adjustments --- */
+@media (max-width: 600px) {
+  .mini-scope-canvas {
+    width: 48px;
+    height: 20px;
+  }
+  .vu-meter-canvas {
+    width: 6px;
+    height: 48px;
+  }
+  .fx-dual-scope-canvas {
+    height: 60px;
+  }
+  .sample-preview-canvas {
+    height: 60px;
+  }
+}
+@media (min-width: 768px) {
+  .fx-dual-scope-canvas {
+    max-width: 500px;
+    height: 100px;
+  }
+}
+

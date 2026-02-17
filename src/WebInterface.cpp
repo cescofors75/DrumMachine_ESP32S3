@@ -430,6 +430,17 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
     }
   });
   
+  server->on("/waveform-visualizer.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/waveform-visualizer.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/waveform-visualizer.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/waveform-visualizer.js", "application/javascript");
+    }
+  });
+  
   // Admin page
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
     if (LittleFS.exists("/web/admin.html.gz")) {
@@ -634,6 +645,70 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
       }
     }
   );
+  
+  // Endpoint para obtener forma de onda de un sample cargado (para visualizador)
+  server->on("/api/waveform", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (!request->hasParam("pad")) {
+      request->send(400, "application/json", "{\"error\":\"Missing pad parameter\"}");
+      return;
+    }
+    int pad = request->getParam("pad")->value().toInt();
+    if (pad < 0 || pad >= MAX_SAMPLES) {
+      request->send(400, "application/json", "{\"error\":\"Invalid pad\"}");
+      return;
+    }
+    if (!sampleManager.isSampleLoaded(pad)) {
+      request->send(404, "application/json", "{\"error\":\"No sample loaded\"}");
+      return;
+    }
+    
+    int points = 200; // Default resolution
+    if (request->hasParam("points")) {
+      points = request->getParam("points")->value().toInt();
+      if (points < 20) points = 20;
+      if (points > 400) points = 400;
+    }
+    
+    // Get waveform peaks (pairs: max, min per point)
+    int8_t* peaks = (int8_t*)malloc(points * 2);
+    if (!peaks) {
+      request->send(500, "application/json", "{\"error\":\"Memory\"}");
+      return;
+    }
+    
+    int actualPoints = sampleManager.getWaveformPeaks(pad, peaks, points);
+    
+    // Build compact JSON response
+    uint32_t sampleLen = sampleManager.getSampleLength(pad);
+    float durationMs = (sampleLen * 1000.0f) / SAMPLE_RATE;
+    
+    // Use chunked response to avoid large buffer allocation
+    String json = "{\"pad\":";
+    json += pad;
+    json += ",\"name\":\"";
+    json += sampleManager.getSampleName(pad);
+    json += "\",\"samples\":";
+    json += sampleLen;
+    json += ",\"duration\":";
+    json += String(durationMs, 1);
+    json += ",\"points\":";
+    json += actualPoints;
+    json += ",\"peaks\":[";
+    
+    for (int i = 0; i < actualPoints; i++) {
+      if (i > 0) json += ",";
+      json += "[";
+      json += (int)peaks[i * 2];      // max (positive)
+      json += ",";
+      json += (int)peaks[i * 2 + 1];  // min (negative)
+      json += "]";
+      if (i % 20 == 19) yield(); // Yield cada 20 puntos
+    }
+    json += "]}";
+    
+    free(peaks);
+    request->send(200, "application/json", json);
+  });
   
   server->begin();
   Serial.println("✓ RED808 Web Server iniciado");
@@ -1042,6 +1117,28 @@ void WebInterface::update() {
   if (!initialized || !ws || !server) return;
   
   unsigned long now = millis();
+  
+  // Broadcast audio levels cada 50ms (20fps) — protocolo binario ultra-eficiente
+  static unsigned long lastAudioLevels = 0;
+  if (now - lastAudioLevels >= 50 && ws->count() > 0) {
+    lastAudioLevels = now;
+    
+    // Binary protocol: [0xAA][16 track peaks 0-255][master peak 0-255] = 18 bytes
+    uint8_t levelBuf[18];
+    levelBuf[0] = 0xAA;  // Magic byte: audio levels message
+    
+    float peaks[16];
+    audioEngine.getTrackPeaks(peaks, 16);
+    for (int i = 0; i < 16; i++) {
+      float p = peaks[i];
+      if (p < 0.0f) p = 0.0f;
+      if (p > 1.0f) p = 1.0f;
+      levelBuf[i + 1] = (uint8_t)(p * 255.0f);
+    }
+    levelBuf[17] = (uint8_t)(audioEngine.getMasterPeak() * 255.0f);
+    
+    ws->binaryAll(levelBuf, 18);
+  }
   
   // Limpiar WebSocket clients desconectados cada 2 segundos
   static unsigned long lastWsCleanup = 0;

@@ -310,3 +310,38 @@ int SampleManager::getLoadedSamplesCount() {
 size_t SampleManager::getTotalMemoryUsed() {
   return getTotalPSRAMUsed();
 }
+
+int16_t* SampleManager::getSampleBuffer(int padIndex) {
+  if (padIndex < 0 || padIndex >= MAX_SAMPLES) return nullptr;
+  return sampleBuffers[padIndex];
+}
+
+int SampleManager::getWaveformPeaks(int padIndex, int8_t* outPeaks, int maxPoints) {
+  if (padIndex < 0 || padIndex >= MAX_SAMPLES || !sampleBuffers[padIndex] || maxPoints <= 0) return 0;
+  
+  uint32_t len = sampleLengths[padIndex];
+  if (len == 0) return 0;
+  
+  int points = (maxPoints > 200) ? 200 : maxPoints;
+  uint32_t samplesPerPoint = len / points;
+  if (samplesPerPoint == 0) samplesPerPoint = 1;
+  
+  for (int i = 0; i < points; i++) {
+    uint32_t start = i * samplesPerPoint;
+    uint32_t end = start + samplesPerPoint;
+    if (end > len) end = len;
+    
+    int16_t maxVal = 0;
+    int16_t minVal = 0;
+    for (uint32_t j = start; j < end; j++) {
+      int16_t s = sampleBuffers[padIndex][j];
+      if (s > maxVal) maxVal = s;
+      if (s < minVal) minVal = s;
+    }
+    // Scale 16-bit to 8-bit signed (-128..127)
+    // Use the peak (max of abs(min), abs(max)) for upper, negative for lower
+    outPeaks[i * 2]     = (int8_t)(maxVal >> 8);  // positive peak
+    outPeaks[i * 2 + 1] = (int8_t)(minVal >> 8);  // negative peak
+  }
+  return points;
+}

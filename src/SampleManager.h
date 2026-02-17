@@ -50,6 +50,10 @@ public:
   const char* getSampleName(int padIndex);
   int getLoadedSamplesCount();
   
+  // Waveform data access (for visualizer)
+  int16_t* getSampleBuffer(int padIndex);
+  int getWaveformPeaks(int padIndex, int8_t* outPeaks, int maxPoints);
+  
   // Memory info
   size_t getTotalPSRAMUsed();
   size_t getTotalMemoryUsed(); // Alias para compatibilidad
