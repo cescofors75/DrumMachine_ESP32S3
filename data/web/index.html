@@ -143,6 +143,11 @@
                             <span class="seq-btn-icon">📂</span>
                             <span class="seq-btn-label">MIDI</span>
                         </button>
+                        <button id="aiToggleBtn" class="seq-btn seq-btn-ai-toggle" title="Activar/Desactivar AI Chat">
+                            <span class="seq-btn-bg"></span>
+                            <span class="seq-btn-icon">🤖</span>
+                            <span class="seq-btn-label">AI OFF</span>
+                        </button>
                         <span class="sync-badge">🔗 SYNCED</span>
                         <div class="pattern-display">
                             <span class="pattern-label">PATTERN</span>
@@ -189,8 +194,8 @@
                 </div>
             </section>
 
-            <!-- AI Chat Panel (inline in sequencer) -->
-            <div class="seq-chat-panel expanded" id="seqChatPanel">
+            <!-- AI Chat Panel (inline in sequencer) - hidden by default -->
+            <div class="seq-chat-panel ai-disabled" id="seqChatPanel">
                 <div class="seq-chat-header" id="seqChatToggle">
                     <div class="seq-chat-header-left">
                         <span class="seq-chat-icon">🤖</span>

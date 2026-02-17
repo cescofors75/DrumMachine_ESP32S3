@@ -6257,6 +6257,27 @@ body.midi-dialog-open .midi-import-overlay * {
     box-shadow: 0 0 20px rgba(33, 150, 243, 0.5) !important;
 }
 
+/* Sequencer AI Toggle Button */
+.seq-btn-ai-toggle {
+    background: linear-gradient(145deg, #2a1a1a, #1a0d0d) !important;
+    border-color: #555 !important;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+}
+
+.seq-btn-ai-toggle:hover {
+    opacity: 1;
+    border-color: #4caf50 !important;
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.3) !important;
+}
+
+.seq-btn-ai-toggle.active {
+    background: linear-gradient(145deg, #1a3a1a, #0d2a0d) !important;
+    border-color: #4caf50 !important;
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.5) !important;
+}
+
 /* MIDI Import responsive */
 @media (max-width: 768px) {
     .midi-import-dialog {
@@ -7937,7 +7958,10 @@ body.midi-dialog-open .midi-import-overlay * {
     border-radius: 10px;
     background: rgba(10, 10, 15, 0.92);
     overflow: hidden;
-    transition: border-color 0.3s;
+    transition: border-color 0.3s, max-height 0.4s ease, opacity 0.3s, margin 0.3s;
+}
+.seq-chat-panel.ai-disabled {
+    display: none;
 }
 .seq-chat-panel.active {
     border-color: rgba(76, 175, 80, 0.4);
@@ -8677,6 +8701,28 @@ body.midi-dialog-open .midi-import-overlay * {
   gap: 8px;
   margin-top: 12px;
   justify-content: center;
+}
+.btn-preview-play {
+  background: linear-gradient(135deg, #00cc66, #00ff88);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  min-width: 90px;
+}
+.btn-preview-play:hover:not(:disabled) {
+  transform: scale(1.03);
+  box-shadow: 0 0 12px rgba(0,255,136,0.5);
+}
+.btn-preview-play:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 .btn-trim-load {
   background: linear-gradient(135deg, #ff3366, #ff6633);

@@ -629,8 +629,14 @@ void loop() {
     // Stats cada 10 segundos (reducido para menos overhead)
     static uint32_t lastStats = 0;
     if (millis() - lastStats > 10000) {
-        Serial.printf("Uptime: %ds | Heap: %d | PSRAM: %d\n", 
-                      millis()/1000, ESP.getFreeHeap(), ESP.getFreePsram());
+        Serial.printf("Uptime: %ds | Heap: %d (min:%d) | PSRAM: %d | WS clients: %d\n", 
+                      millis()/1000, ESP.getFreeHeap(), ESP.getMinFreeHeap(), 
+                      ESP.getFreePsram(), 0);
+        
+        // Warn if heap is dangerously low
+        if (ESP.getFreeHeap() < 30000) {
+            Serial.println("⚠️ WARNING: Low heap memory!");
+        }
         lastStats = millis();
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // loop() no hace nada crítico

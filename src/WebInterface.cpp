@@ -70,45 +70,39 @@ static void populateStateDocument(DynamicJsonDocument& doc) {
   doc["psramFree"] = sampleManager.getFreePSRAM();
   doc["songMode"] = sequencer.isSongMode();
   doc["songLength"] = sequencer.getSongLength();
+  doc["heap"] = ESP.getFreeHeap();
 
-  yield(); // Yield temprano
+  JsonArray loopActive = doc.createNestedArray("loopActive");
+  JsonArray loopPaused = doc.createNestedArray("loopPaused");
+  for (int track = 0; track < MAX_TRACKS; track++) {
+    loopActive.add(sequencer.isLooping(track));
+    loopPaused.add(sequencer.isLoopPaused(track));
+  }
 
-    JsonArray loopActive = doc.createNestedArray("loopActive");
-    JsonArray loopPaused = doc.createNestedArray("loopPaused");
-    for (int track = 0; track < MAX_TRACKS; track++) {
-      loopActive.add(sequencer.isLooping(track));
-      loopPaused.add(sequencer.isLoopPaused(track));
-      if (track % 4 == 3) yield(); // Yield cada 4 tracks
-    }
+  JsonArray trackMuted = doc.createNestedArray("trackMuted");
+  for (int track = 0; track < MAX_TRACKS; track++) {
+    trackMuted.add(sequencer.isTrackMuted(track));
+  }
+  
+  JsonArray trackVolumes = doc.createNestedArray("trackVolumes");
+  for (int track = 0; track < MAX_TRACKS; track++) {
+    trackVolumes.add(sequencer.getTrackVolume(track));
+  }
 
-    JsonArray trackMuted = doc.createNestedArray("trackMuted");
-    for (int track = 0; track < MAX_TRACKS; track++) {
-      trackMuted.add(sequencer.isTrackMuted(track));
-    }
-    
-    JsonArray trackVolumes = doc.createNestedArray("trackVolumes");
-    for (int track = 0; track < MAX_TRACKS; track++) {
-      trackVolumes.add(sequencer.getTrackVolume(track));
-    }
-
-  yield(); // Yield antes de samples (operación pesada)
-
+  // Compact samples: only send loaded sample info (not empty pads)
   JsonArray sampleArray = doc.createNestedArray("samples");
   for (int pad = 0; pad < MAX_SAMPLES; pad++) {
-    JsonObject sampleObj = sampleArray.createNestedObject();
-    sampleObj["pad"] = pad;
     bool loaded = sampleManager.isSampleLoaded(pad);
-    sampleObj["loaded"] = loaded;
     if (loaded) {
+      JsonObject sampleObj = sampleArray.createNestedObject();
+      sampleObj["pad"] = pad;
+      sampleObj["loaded"] = true;
       const char* name = sampleManager.getSampleName(pad);
       sampleObj["name"] = name ? name : "";
       sampleObj["size"] = sampleManager.getSampleLength(pad) * 2;
       sampleObj["format"] = detectSampleFormat(name);
     }
-    if (pad % 4 == 3) yield(); // Yield cada 4 samples
   }
-  
-  yield(); // Yield antes de filters
   
   // Send pad filter states (for live pads)
   JsonArray padFilters = doc.createNestedArray("padFilters");
@@ -123,12 +117,41 @@ static void populateStateDocument(DynamicJsonDocument& doc) {
     FilterType filterType = audioEngine.getTrackFilter(track);
     trackFilters.add((int)filterType);
   }
-  
-  yield(); // Yield final
 }
 
 static bool isClientReady(AsyncWebSocketClient* client) {
   return client != nullptr && client->status() == WS_CONNECTED;
+}
+
+// Cache of sample counts per family — avoid scanning filesystem in WS callback
+static int cachedSampleCounts[16] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+static const char* sampleFamilies[] = {"BD", "SD", "CH", "OH", "CP", "CB", "RS", "CL", "MA", "CY", "HT", "LT", "MC", "MT", "HC", "LC"};
+
+static void rebuildSampleCountCache() {
+  for (int i = 0; i < 16; i++) {
+    String path = String("/") + String(sampleFamilies[i]);
+    int count = 0;
+    
+    File dir = LittleFS.open(path);
+    if (dir && dir.isDirectory()) {
+      File file = dir.openNextFile();
+      while (file) {
+        if (!file.isDirectory()) {
+          String fullName = file.name();
+          int lastSlash = fullName.lastIndexOf('/');
+          String fileName = lastSlash >= 0 ? fullName.substring(lastSlash + 1) : fullName;
+          if (isSupportedSampleFile(fileName)) {
+            count++;
+          }
+        }
+        file.close();
+        file = dir.openNextFile();
+      }
+      dir.close();
+    }
+    cachedSampleCounts[i] = count;
+  }
+  Serial.println("[SampleCount] Cache rebuilt");
 }
 
 static void sendSampleCounts(AsyncWebSocketClient* client) {
@@ -137,89 +160,23 @@ static void sendSampleCounts(AsyncWebSocketClient* client) {
     return;
   }
   
-  // Verificar que LittleFS está montado
-  if (!LittleFS.begin(false)) {
-    Serial.println("[sendSampleCounts] ERROR: LittleFS not mounted!");
-    return;
+  // Build cache on first request
+  if (cachedSampleCounts[0] < 0) {
+    rebuildSampleCountCache();
   }
   
   StaticJsonDocument<512> sampleCountDoc;
   sampleCountDoc["type"] = "sampleCounts";
-  const char* families[] = {"BD", "SD", "CH", "OH", "CP", "CB", "RS", "CL", "MA", "CY", "HT", "LT", "MC", "MT", "HC", "LC"};
-  
-  // Serial.println("[SampleCount] === Counting samples in LittleFS ==="); // Comentado para performance
-  int totalFiles = 0;
   
   for (int i = 0; i < 16; i++) {
-    String path = String("/") + String(families[i]);
-    int count = 0;
-    
-    File dir = LittleFS.open(path);
-    if (!dir) {
-      // Serial.printf("[SampleCount] WARN: Cannot open %s\n", path.c_str()); // Comentado
-      sampleCountDoc[families[i]] = 0;
-      yield();
-      continue;
-    }
-    
-    if (!dir.isDirectory()) {
-      // Serial.printf("[SampleCount] WARN: %s is not a directory\n", path.c_str()); // Comentado
-      dir.close();
-      sampleCountDoc[families[i]] = 0;
-      yield();
-      continue;
-    }
-    
-    // Iterar archivos en el directorio
-    File file = dir.openNextFile();
-    int fileCount = 0;
-    while (file) {
-      fileCount++;
-      if (!file.isDirectory()) {
-        // Obtener nombre del archivo
-        String fullName = file.name();
-        String fileName = fullName;
-        
-        // Extraer solo el nombre del archivo si incluye ruta
-        int lastSlash = fullName.lastIndexOf('/');
-        if (lastSlash >= 0) {
-          fileName = fullName.substring(lastSlash + 1);
-        }
-        
-        // Verificar si es un archivo de audio soportado
-        if (isSupportedSampleFile(fileName)) {
-          count++;
-        }
-      }
-      file.close();
-      
-      // Yield cada 5 archivos para evitar watchdog
-      if (fileCount % 5 == 0) {
-        yield();
-      }
-      
-      file = dir.openNextFile();
-    }
-    dir.close();
-    
-    sampleCountDoc[families[i]] = count;
-    totalFiles += count;
-    // Serial.printf("[SampleCount] %s: %d files\n", families[i], count); // Comentado
-    
-    // Yield después de cada familia
-    yield();
+    sampleCountDoc[sampleFamilies[i]] = cachedSampleCounts[i];
   }
-  
-  // Serial.printf("[SampleCount] === TOTAL: %d samples ===\n", totalFiles); // Comentado
   
   String countOutput;
   serializeJson(sampleCountDoc, countOutput);
   
   if (isClientReady(client)) {
     client->text(countOutput);
-    // Serial.printf("[SampleCount] Sent to client %u\n", client->id()); // Comentado
-  } else {
-    Serial.println("[sendSampleCounts] Client disconnected before sending data");
   }
 }
 
@@ -290,9 +247,14 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
     if (WiFi.status() == WL_CONNECTED) {
       _staConnected = true;
       WiFi.setSleep(false);
-      Serial.printf("  [WiFi] ✓ STA conectado! IP: %s\n", WiFi.localIP().toString().c_str());
+      
+      // Reconfigure AP to match STA channel (avoids channel conflicts in AP+STA mode)
+      uint8_t staChannel = WiFi.channel();
+      WiFi.softAP(apSsid, apPassword, staChannel, 0, 4);
+      Serial.printf("  [WiFi] ✓ STA conectado! IP: %s (ch:%d)\n", WiFi.localIP().toString().c_str(), staChannel);
       Serial.printf("  [WiFi]   Gateway: %s  RSSI: %d dBm\n",
                     WiFi.gatewayIP().toString().c_str(), WiFi.RSSI());
+      Serial.printf("  [WiFi]   AP reconfigured to channel %d to match STA\n", staChannel);
       Serial.printf("  [WiFi]   Modo AP+STA: Surface→%s:%s  PC→%s\n",
                     apSsid, WiFi.softAPIP().toString().c_str(),
                     WiFi.localIP().toString().c_str());
@@ -690,9 +652,10 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
           sampleRate = header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
           bitsPerSample = header[34] | (header[35] << 8);
           
-          // Find data chunk
+          // Find data chunk (with safety limit to prevent infinite loop)
           file.seek(36);
-          while (file.available() >= 8) {
+          int chunkSearchLimit = 20;  // Max 20 chunks to search
+          while (file.available() >= 8 && chunkSearchLimit-- > 0) {
             char chunkId[4];
             uint32_t chunkSize;
             if (file.read((uint8_t*)chunkId, 4) != 4) break;
@@ -702,6 +665,7 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
               dataSize = chunkSize;
               break;
             }
+            if (chunkSize == 0) break;  // Prevent infinite loop on corrupted WAV
             file.seek(file.position() + chunkSize);
           }
         }
@@ -733,7 +697,10 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
       if (lastSlash >= 0) name = name.substring(lastSlash + 1);
       
       // Build response while reading file in chunks
-      String json = "{\"file\":\"";
+      // Pre-reserve String to avoid repeated reallocs (~14 bytes per point)
+      String json;
+      json.reserve(200 + actualPoints * 14);
+      json = "{\"file\":\"";
       json += name;
       json += "\",\"samples\":";
       json += totalSamples;
@@ -745,9 +712,14 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
       json += actualPoints;
       json += ",\"peaks\":[";
       
-      // Read peaks in small chunks to minimize memory
-      const int CHUNK_SAMPLES = 512;
-      int16_t chunkBuf[CHUNK_SAMPLES * 2]; // *2 for stereo
+      // Read peaks in small chunks — heap allocated to avoid stack overflow in async handler
+      const int CHUNK_SAMPLES = 256;  // Reduced for safety
+      int16_t* chunkBuf = (int16_t*)malloc(CHUNK_SAMPLES * 2 * sizeof(int16_t));
+      if (!chunkBuf) {
+        file.close();
+        request->send(500, "application/json", "{\"error\":\"Memory\"}");
+        return;
+      }
       
       file.seek(dataOffset);
       
@@ -789,6 +761,7 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
       }
       json += "]}";
       
+      free(chunkBuf);
       file.close();
       request->send(200, "application/json", json);
       return;
@@ -870,15 +843,14 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
 void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
                                      AwsEventType type, void *arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_CONNECT) {
-    // ⚠️ LÍMITE DE 2 CLIENTES para máximo rendimiento
-    if (ws->count() > 2) {
-      Serial.printf("❌ WebSocket: MAX CLIENTS (2) reached, rejecting client #%u\n", client->id());
+    // ⚠️ LÍMITE DE 3 CLIENTES para estabilidad
+    if (ws->count() > 3) {
+      Serial.printf("[WS] MAX CLIENTS reached, rejecting #%u\n", client->id());
       client->close(1008, "Max clients reached");
       return;
     }
     
-    Serial.printf("✅ WS Client #%u connected (%u/%u)\n", client->id(), ws->count(), 2);
-    yield();
+    Serial.printf("[WS] Client #%u connected (%u total)\n", client->id(), ws->count());
     
     StaticJsonDocument<512> basicState;
     basicState["type"] = "connected";
@@ -890,30 +862,29 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
     String output;
     serializeJson(basicState, output);
     
-    if (ws->count() > 1) {
-      delay(100);
-      yield();
+    if (isClientReady(client)) {
+      client->text(output);
     }
-    
-    client->text(output);
-    yield();
   } else if (type == WS_EVT_DISCONNECT) {
-    Serial.printf("🔌 WS Client #%u disconnected (%u clients)\n", client->id(), ws->count() - 1);
-    yield();
+    unsigned int remaining = ws->count();
+    Serial.printf("[WS] Client #%u disconnected (%u remaining)\n", client->id(), remaining > 0 ? remaining - 1 : 0);
   } else if (type == WS_EVT_DATA) {
     AwsFrameInfo *info = (AwsFrameInfo*)arg;
     
     // --- Frame reassembly for fragmented WebSocket messages ---
-    // setBulk JSON (~2KB) exceeds TCP MSS (1460 bytes) and arrives in chunks
     static uint8_t* _wsReassemblyBuf = nullptr;
     static size_t _wsReassemblySize = 0;
     bool _wsFreeAfter = false;
+    
+    // Safe buffer variables (used for WS_TEXT to avoid data[len]=0 overflow)
+    char* safeData = nullptr;
+    bool safeFreeNeeded = false;
     
     if (!(info->final && info->index == 0 && info->len == len)) {
       // Fragmented frame - reassemble chunks into complete message
       if (info->index == 0) {
         if (_wsReassemblyBuf) { free(_wsReassemblyBuf); _wsReassemblyBuf = nullptr; }
-        _wsReassemblyBuf = (uint8_t*)malloc(info->len + 1);
+        _wsReassemblyBuf = (uint8_t*)malloc(info->len + 2); // +2 for null terminator safety
         if (!_wsReassemblyBuf) {
           Serial.printf("[WS] ALLOC FAIL reassembly: %u bytes\n", info->len);
           return;
@@ -924,29 +895,50 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
         memcpy(_wsReassemblyBuf + info->index, data, len);
       }
       if (info->final && (info->index + len) == info->len && _wsReassemblyBuf) {
+        _wsReassemblyBuf[_wsReassemblySize] = 0; // Safe null-terminate
         data = _wsReassemblyBuf;
         len = _wsReassemblySize;
         _wsFreeAfter = true;
-        Serial.printf("[WS] Reassembled frame: %u bytes\n", len);
       } else {
         return; // Still accumulating chunks
       }
     }
       
-      // 1. MANEJO DE BINARIO (Baja latencia para Triggers)
-      if (info->opcode == WS_BINARY) {
-        // Protocolo: [0x90, PAD, VEL]
-        if (len == 3 && data[0] == 0x90) {
-           int pad = data[1];
-           int velocity = data[2];
-           triggerPadWithLED(pad, velocity);
-           // Opcional: Broadcast para feedback visual en otros clientes
-           // broadcastPadTrigger(pad); 
-        }
+    // 1. MANEJO DE BINARIO (Baja latencia para Triggers)
+    if (info->opcode == WS_BINARY) {
+      // Protocolo: [0x90, PAD, VEL]
+      if (len == 3 && data[0] == 0x90) {
+         int pad = data[1];
+         int velocity = data[2];
+         triggerPadWithLED(pad, velocity);
       }
-      // 2. MANEJO DE TEXTO (JSON normal)
-      else if (info->opcode == WS_TEXT) {
-        data[len] = 0;
+    }
+    // 2. MANEJO DE TEXTO (JSON normal)
+    else if (info->opcode == WS_TEXT) {
+      // Reject if heap critically low — prevent crash during JSON processing
+      if (ESP.getFreeHeap() < 15000) {
+        Serial.printf("[WS] CRITICAL: Heap=%d, dropping message\n", ESP.getFreeHeap());
+        if (_wsFreeAfter && _wsReassemblyBuf) { free(_wsReassemblyBuf); _wsReassemblyBuf = nullptr; }
+        return;
+      }
+      
+      // SAFE null-terminate: copy to buffer with extra byte instead of data[len]=0
+      if (_wsFreeAfter) {
+        // Already in our reassembly buffer which has +2 bytes — already null-terminated above
+        safeData = (char*)data;
+      } else {
+        // Non-fragmented message: copy to safe buffer
+        safeData = (char*)malloc(len + 1);
+        if (!safeData) {
+          Serial.println("[WS] ALLOC FAIL safe buffer");
+          return;
+        }
+        memcpy(safeData, data, len);
+        safeData[len] = 0;
+        safeFreeNeeded = true;
+      }
+      // Point data to safe null-terminated buffer for JSON parsing
+      data = (uint8_t*)safeData;
         
         // Check for bulk pattern command (needs larger JSON doc)
         if (len > 400 && strstr((char*)data, "\"setBulk\"") != nullptr) {
@@ -998,6 +990,8 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           if (_wsFreeAfter && _wsReassemblyBuf) {
             free(_wsReassemblyBuf);
             _wsReassemblyBuf = nullptr;
+          } else if (safeFreeNeeded) {
+            free(safeData);
           }
           return; // Already handled
         }
@@ -1014,7 +1008,7 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           
           if (cmd == "getPattern") {
             int pattern = sequencer.getCurrentPattern();
-            DynamicJsonDocument responseDoc(8192);
+            DynamicJsonDocument responseDoc(6144);  // ~4KB needed for 16x16 steps+vels
             responseDoc["type"] = "pattern";
             responseDoc["index"] = pattern;
             
@@ -1044,32 +1038,28 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             }
           }
           else if (cmd == "init") {
-            // Cliente solicita inicialización completa (se llama después de conectar)
-            Serial.printf("[init] Client %u requesting full initialization\n", client->id());
+            // Cliente solicita inicialización completa
+            Serial.printf("[init] Client %u | Heap: %d\n", client->id(), ESP.getFreeHeap());
             
-            // Yield antes de operación pesada
-            yield();
-            
-            // Delay mayor si hay múltiples clientes
-            if (ws->count() > 1) {
-              delay(150);
-              yield();
+            // Only send state if we have enough heap
+            if (ESP.getFreeHeap() > 30000 && isClientReady(client)) {
+              sendSequencerStateToClient(client);
+            } else {
+              Serial.println("[init] Low heap, sending minimal state");
+              // Send minimal state
+              StaticJsonDocument<256> mini;
+              mini["type"] = "state";
+              mini["playing"] = sequencer.isPlaying();
+              mini["tempo"] = sequencer.getTempo();
+              mini["pattern"] = sequencer.getCurrentPattern();
+              mini["samplesLoaded"] = sampleManager.getLoadedSamplesCount();
+              String miniOut;
+              serializeJson(mini, miniOut);
+              if (isClientReady(client)) client->text(miniOut);
             }
-            
-            // 1. Enviar solo estado del sequencer (sin patrón)
-            yield(); // Give time to other tasks
-            sendSequencerStateToClient(client);
-            delay(100); // Aumentado delay para estabilidad con múltiples clientes
-            yield();
-            
-            // 2. Cliente solicitará patrón con getPattern cuando esté listo
-            // NO enviamos patrón automáticamente para evitar overflow
-            
-            // 3. Cliente solicitará samples con getSampleCounts cuando esté listo
-            Serial.println("[init] Complete. Client should request pattern and samples next.");
 
-            // 4. Enviar estado de MIDI scan
-            if (midiController) {
+            // Enviar estado de MIDI scan
+            if (midiController && isClientReady(client)) {
               StaticJsonDocument<128> midiScanDoc;
               midiScanDoc["type"] = "midiScan";
               midiScanDoc["enabled"] = midiController->isScanEnabled();
@@ -1093,10 +1083,12 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
             // Verificar que LittleFS está montado
             if (!LittleFS.begin(false)) {
               Serial.println("[getSamples] ERROR: LittleFS not mounted!");
+              if (safeFreeNeeded) free(safeData);
+              if (_wsFreeAfter && _wsReassemblyBuf) { free(_wsReassemblyBuf); _wsReassemblyBuf = nullptr; }
               return;
             }
             
-            StaticJsonDocument<2048> responseDoc;
+            DynamicJsonDocument responseDoc(4096);  // Heap-allocated, flexible size
             responseDoc["type"] = "sampleList";
             responseDoc["family"] = family;
             responseDoc["pad"] = padIndex;
@@ -1174,6 +1166,10 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
           // Comandos restantes ya procesados por processCommand()
         }
       }
+    // Cleanup safe buffer if we allocated one (non-fragmented path)
+    if (safeFreeNeeded) {
+      free(safeData);
+    }
     // Cleanup reassembly buffer after processing
     if (_wsFreeAfter && _wsReassemblyBuf) {
       free(_wsReassemblyBuf);
@@ -1191,6 +1187,12 @@ void WebInterface::broadcastSequencerState() {
   if (now - lastBroadcast < 500) return;
   lastBroadcast = now;
   
+  // Protect against low heap — state doc + string need ~12KB total
+  if (ESP.getFreeHeap() < 30000) {
+    Serial.println("[WS] Low heap, skipping broadcast");
+    return;
+  }
+  
   DynamicJsonDocument doc(8192);
   populateStateDocument(doc);
   
@@ -1202,6 +1204,12 @@ void WebInterface::broadcastSequencerState() {
 void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
   if (!initialized || !ws || !isClientReady(client)) return;
   
+  // Protect against low heap — state doc needs ~6KB
+  if (ESP.getFreeHeap() < 30000) {
+    Serial.println("[WS] Low heap, skipping state send");
+    return;
+  }
+  
   DynamicJsonDocument doc(8192);
   populateStateDocument(doc);
   
@@ -1211,12 +1219,10 @@ void WebInterface::sendSequencerStateToClient(AsyncWebSocketClient* client) {
 }
 
 void WebInterface::broadcastPadTrigger(int pad) {
-  if (!initialized || !ws) return;
+  if (!initialized || !ws || ws->count() == 0) return;
   
-  // No broadcast si hay múltiples clientes para reducir tráfico
-  if (ws->count() > 2) {
-    return;
-  }
+  // Skip broadcast if heap is low
+  if (ESP.getFreeHeap() < 20000) return;
   
   StaticJsonDocument<128> doc;
   doc["type"] = "pad";
@@ -1260,32 +1266,40 @@ void WebInterface::update() {
   
   unsigned long now = millis();
   
-  // Broadcast audio levels cada 50ms (20fps) — protocolo binario ultra-eficiente
+  // Broadcast audio levels cada 100ms (10fps) — protocolo binario ultra-eficiente
   static unsigned long lastAudioLevels = 0;
-  if (now - lastAudioLevels >= 50 && ws->count() > 0) {
+  if (now - lastAudioLevels >= 100 && ws->count() > 0) {
     lastAudioLevels = now;
     
-    // Binary protocol: [0xAA][16 track peaks 0-255][master peak 0-255] = 18 bytes
-    uint8_t levelBuf[18];
-    levelBuf[0] = 0xAA;  // Magic byte: audio levels message
-    
-    float peaks[16];
-    audioEngine.getTrackPeaks(peaks, 16);
-    for (int i = 0; i < 16; i++) {
-      float p = peaks[i];
-      if (p < 0.0f) p = 0.0f;
-      if (p > 1.0f) p = 1.0f;
-      levelBuf[i + 1] = (uint8_t)(p * 255.0f);
+    // Check heap health before broadcasting — skip if low memory
+    if (ESP.getFreeHeap() < 20000) {
+      // Low memory — skip this broadcast cycle
+    } else {
+      // Binary protocol: [0xAA][16 track peaks 0-255][master peak 0-255] = 18 bytes
+      uint8_t levelBuf[18];
+      levelBuf[0] = 0xAA;  // Magic byte: audio levels message
+      
+      float peaks[16];
+      audioEngine.getTrackPeaks(peaks, 16);
+      for (int i = 0; i < 16; i++) {
+        float p = peaks[i];
+        if (p < 0.0f) p = 0.0f;
+        if (p > 1.0f) p = 1.0f;
+        levelBuf[i + 1] = (uint8_t)(p * 255.0f);
+      }
+      float mp = audioEngine.getMasterPeak();
+      if (mp < 0.0f) mp = 0.0f;
+      if (mp > 1.0f) mp = 1.0f;
+      levelBuf[17] = (uint8_t)(mp * 255.0f);
+      
+      ws->binaryAll(levelBuf, 18);
     }
-    levelBuf[17] = (uint8_t)(audioEngine.getMasterPeak() * 255.0f);
-    
-    ws->binaryAll(levelBuf, 18);
   }
   
   // Limpiar WebSocket clients desconectados cada 2 segundos
   static unsigned long lastWsCleanup = 0;
   if (now - lastWsCleanup > 2000) {
-    ws->cleanupClients(4);  // Max 4 clients
+    ws->cleanupClients(3);  // Match max client limit
     lastWsCleanup = now;
   }
   
@@ -1429,13 +1443,13 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     int pattern = doc["index"];
     sequencer.selectPattern(pattern);
     
-    yield();
+    // Protect against low heap — skip state broadcast, send only pattern
+    if (ESP.getFreeHeap() > 30000) {
+      broadcastSequencerState();
+    }
     
-    // Enviar estado actualizado
-    broadcastSequencerState();
-    
-    // Enviar datos del patrón (matriz de steps)
-    DynamicJsonDocument patternDoc(8192);
+    // Enviar datos del patrón (matriz de steps) — use 6KB (actually needs ~4KB)
+    DynamicJsonDocument patternDoc(6144);
     patternDoc["type"] = "pattern";
     patternDoc["index"] = pattern;
     
@@ -1456,7 +1470,7 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     
     String patternOutput;
     serializeJson(patternDoc, patternOutput);
-    ws->textAll(patternOutput);
+    if (ws && ws->count() > 0) ws->textAll(patternOutput);
   }
   else if (cmd == "loadSample") {
     const char* family = doc["family"];
@@ -2683,7 +2697,7 @@ void WebInterface::setMIDIController(MIDIController* controller) {
 }
 
 void WebInterface::broadcastMIDIMessage(const MIDIMessage& msg) {
-  if (!initialized || !ws) return;
+  if (!initialized || !ws || ws->count() == 0) return;
   
   // Throttling: solo broadcast cada 100ms para baja latencia
   static uint32_t lastBroadcastTime = 0;
@@ -2727,7 +2741,7 @@ void WebInterface::broadcastMIDIMessage(const MIDIMessage& msg) {
 }
 
 void WebInterface::broadcastMIDIDeviceStatus(bool connected, const MIDIDeviceInfo& info) {
-  if (!initialized || !ws) return;
+  if (!initialized || !ws || ws->count() == 0) return;
   
   StaticJsonDocument<512> doc;
   doc["type"] = "midiDevice";

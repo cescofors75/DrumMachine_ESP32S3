@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabSystem(); // Tab navigation system
     initSyncLeds(); // Sync LEDs toggle
     initSDCard(); // SD Card browser
+    initAiToggle(); // AI Chat toggle (off by default)
 });
 
 // WebSocket Connection
@@ -2744,6 +2745,33 @@ function syncLedMonoMode() {
 }
 
 // === SYNC LEDS TOGGLE ===
+// ============= AI Chat Toggle =============
+function initAiToggle() {
+    const btn = document.getElementById('aiToggleBtn');
+    const panel = document.getElementById('seqChatPanel');
+    if (!btn || !panel) return;
+
+    let aiEnabled = false;
+
+    btn.addEventListener('click', () => {
+        aiEnabled = !aiEnabled;
+        const label = btn.querySelector('.seq-btn-label');
+        if (aiEnabled) {
+            panel.classList.remove('ai-disabled');
+            panel.classList.add('expanded');
+            btn.classList.add('active');
+            if (label) label.textContent = 'AI ON';
+            // Auto-connect chat on first enable
+            if (window.chatConnect) window.chatConnect();
+        } else {
+            panel.classList.add('ai-disabled');
+            panel.classList.remove('expanded');
+            btn.classList.remove('active');
+            if (label) label.textContent = 'AI OFF';
+        }
+    });
+}
+
 function initSyncLeds() {
     const toggle = document.getElementById('syncLedsToggle');
     if (toggle) {
@@ -3301,6 +3329,7 @@ function displaySampleList(data) {
             </div>
             <div class="sample-list"></div>
             <div class="sample-modal-actions">
+                <button class="btn-preview-play" id="btnPreviewPlay" disabled>▶ PLAY</button>
                 <button class="btn-trim-load" id="btnTrimLoad" disabled>✂️ TRIM & LOAD</button>
                 <button class="btn-close-modal">Cerrar</button>
             </div>
@@ -3369,6 +3398,7 @@ function displaySampleList(data) {
                             info.textContent = `${sample.name} · ${dur}s · ${data.samples} samples`;
                         }
                         modal.querySelector('#btnTrimLoad').disabled = false;
+                        modal.querySelector('#btnPreviewPlay').disabled = false;
                     }
                 })
                 .catch(() => {
@@ -3376,6 +3406,24 @@ function displaySampleList(data) {
                 });
         });
         sampleList.appendChild(sampleItem);
+    });
+    
+    // Preview Play button — loads with trim and auto-triggers
+    modal.querySelector('#btnPreviewPlay').addEventListener('click', () => {
+        if (!wfState.selectedFile) return;
+        const btn = modal.querySelector('#btnPreviewPlay');
+        btn.textContent = '⏳ ...';
+        btn.disabled = true;
+        loadSampleToPad(padIndex, family, wfState.selectedFile, true, wfState.startNorm, wfState.endNorm);
+        // Re-enable after sample loads (~400ms)
+        setTimeout(() => {
+            btn.textContent = '▶ PLAY';
+            btn.disabled = false;
+            // Refresh waveform from loaded pad to show trimmed result
+            if (typeof SampleWaveform !== 'undefined') {
+                SampleWaveform.clearCache(padIndex);
+            }
+        }, 500);
     });
     
     // Trim & Load button

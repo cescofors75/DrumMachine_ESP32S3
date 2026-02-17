@@ -105,7 +105,13 @@ console.log('%c[chat-agent.js] SCRIPT LOADED', 'color:#0ff;font-weight:bold;font
                 if (btn) btn.disabled = !input.value.trim();
             });
         }
-        if (saved) setTimeout(() => chatConnect(), 500);
+        if (saved) {
+            // Only auto-connect if AI panel is enabled
+            const panel = document.getElementById('seqChatPanel');
+            if (panel && !panel.classList.contains('ai-disabled')) {
+                setTimeout(() => chatConnect(), 500);
+            }
+        }
     }
 
     // ---- Helpers ----
@@ -1429,7 +1435,7 @@ console.log('%c[chat-agent.js] SCRIPT LOADED', 'color:#0ff;font-weight:bold;font
     // Mirrors all chat events to the compact feed inside the
     // sequencer tab so you can watch changes in real-time.
     // ════════════════════════════════════════════════════════════
-    let seqChatExpanded = true;
+    let seqChatExpanded = false;
     let seqMsgCount = 0;
 
     function initSeqChatPanel() {
