@@ -125,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initInstrumentTabs();
     initTabSystem(); // Tab navigation system
     initSyncLeds(); // Sync LEDs toggle
-    initSDCard(); // SD Card browser
     initAiToggle(); // AI Chat toggle (off by default)
 });
 
@@ -444,14 +443,6 @@ function handleWebSocketMessage(data) {
             if (typeof window._handleXtraSampleList === 'function') {
                 window._handleXtraSampleList(data);
             }
-            break;
-
-        case 'sdStatus':
-            if (typeof handleSDStatus === 'function') handleSDStatus(data);
-            break;
-
-        case 'sdFileList':
-            if (typeof handleSDFileList === 'function') handleSDFileList(data);
             break;
     }
     
@@ -5482,163 +5473,6 @@ window.initVolumesSection = initVolumesSection;
 window.updateVolumeBar = updateVolumeBar;
 window.updateVolumeMutedState = updateVolumeMutedState;
 window.updateMasterVolumeDisplays = updateMasterVolumeDisplays;
-
-// ============================================
-// SD CARD BROWSER
-// ============================================
-let sdCurrentPath = '/';
-let sdMounted = false;
-
-function initSDCard() {
-    const refreshBtn = document.getElementById('sdRefreshBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            sendWebSocket({ cmd: 'getSDStatus' });
-        });
-    }
-    
-    // Request SD status on init
-    setTimeout(() => {
-        if (isConnected) sendWebSocket({ cmd: 'getSDStatus' });
-    }, 2000);
-}
-
-function handleSDStatus(data) {
-    sdMounted = data.mounted;
-    const statusDot = document.getElementById('sdStatusDot');
-    const statusText = document.getElementById('sdStatusText');
-    const noCard = document.getElementById('sdNoCard');
-    const browser = document.getElementById('sdBrowser');
-    const info = document.getElementById('sdCardInfo');
-    
-    if (sdMounted) {
-        if (statusDot) statusDot.style.background = '#00ff88';
-        if (statusText) statusText.textContent = 'SD Card OK';
-        if (noCard) noCard.style.display = 'none';
-        if (browser) browser.style.display = '';
-        if (info) {
-            info.style.display = 'flex';
-            const total = data.totalMB || 0;
-            const used = data.usedMB || 0;
-            const free = total - used;
-            document.getElementById('sdTotalSize').textContent = `${total} MB`;
-            document.getElementById('sdUsedSize').textContent = `${used} MB`;
-            document.getElementById('sdFreeSize').textContent = `${free} MB`;
-        }
-        // Browse root
-        sdBrowse('/');
-    } else {
-        if (statusDot) statusDot.style.background = '#ff4444';
-        if (statusText) statusText.textContent = 'No SD Card';
-        if (noCard) noCard.style.display = '';
-        if (browser) browser.style.display = 'none';
-        if (info) info.style.display = 'none';
-    }
-}
-
-function sdBrowse(path) {
-    sdCurrentPath = path;
-    sendWebSocket({ cmd: 'getSDFiles', path: path });
-    updateSDBreadcrumb(path);
-}
-
-function updateSDBreadcrumb(path) {
-    const bc = document.getElementById('sdBreadcrumb');
-    if (!bc) return;
-    bc.innerHTML = '';
-    
-    const parts = path.split('/').filter(p => p);
-    let accumulated = '/';
-    
-    const root = document.createElement('span');
-    root.className = 'sd-crumb sd-crumb-root';
-    root.textContent = '📁 /';
-    root.style.cursor = 'pointer';
-    root.addEventListener('click', () => sdBrowse('/'));
-    bc.appendChild(root);
-    
-    parts.forEach((part, i) => {
-        accumulated += part + '/';
-        const sep = document.createElement('span');
-        sep.textContent = ' › ';
-        sep.style.color = '#555';
-        bc.appendChild(sep);
-        
-        const crumb = document.createElement('span');
-        crumb.className = 'sd-crumb';
-        crumb.textContent = part;
-        crumb.style.cursor = 'pointer';
-        const crumbPath = accumulated;
-        crumb.addEventListener('click', () => sdBrowse(crumbPath));
-        bc.appendChild(crumb);
-    });
-}
-
-function handleSDFileList(data) {
-    const list = document.getElementById('sdFileList');
-    if (!list) return;
-    
-    if (data.error) {
-        list.innerHTML = `<div class="sd-error">❌ ${data.error}</div>`;
-        return;
-    }
-    
-    list.innerHTML = '';
-    const folders = data.folders || [];
-    const files = data.files || [];
-    
-    // Parent directory link
-    if (sdCurrentPath !== '/') {
-        const parentPath = sdCurrentPath.replace(/\/[^/]+\/$/, '/') || '/';
-        const parentItem = document.createElement('div');
-        parentItem.className = 'sd-item sd-folder';
-        parentItem.innerHTML = '<span class="sd-item-icon">⬆️</span><span class="sd-item-name">..</span>';
-        parentItem.addEventListener('click', () => sdBrowse(parentPath));
-        list.appendChild(parentItem);
-    }
-    
-    // Folders
-    folders.forEach(folder => {
-        const item = document.createElement('div');
-        item.className = 'sd-item sd-folder';
-        item.innerHTML = `<span class="sd-item-icon">📁</span><span class="sd-item-name">${folder}</span>`;
-        const folderPath = sdCurrentPath + (sdCurrentPath.endsWith('/') ? '' : '/') + folder + '/';
-        item.addEventListener('click', () => sdBrowse(folderPath));
-        list.appendChild(item);
-    });
-    
-    // Files
-    files.forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'sd-item sd-file';
-        const sizeKB = (file.size / 1024).toFixed(1);
-        item.innerHTML = `
-            <span class="sd-item-icon">🎵</span>
-            <div class="sd-item-info">
-                <span class="sd-item-name">${file.name}</span>
-                <span class="sd-item-size">${sizeKB} KB</span>
-            </div>
-            <button class="sd-load-btn" title="Cargar en pad seleccionado">CARGAR</button>
-        `;
-        item.querySelector('.sd-load-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const targetPad = parseInt(document.getElementById('sdTargetPad').value);
-            const filePath = sdCurrentPath + (sdCurrentPath.endsWith('/') ? '' : '/') + file.name;
-            sendWebSocket({ cmd: 'loadSDSample', path: filePath, pad: targetPad });
-            if (window.showToast) {
-                const padName = targetPad < 16 ? padNames[targetPad] : `XTRA ${targetPad - 15}`;
-                window.showToast(`⏳ Cargando ${file.name} → ${padName}...`, window.TOAST_TYPES?.INFO, 3000);
-            }
-        });
-        list.appendChild(item);
-    });
-    
-    if (folders.length === 0 && files.length === 0) {
-        list.innerHTML = '<div class="sd-empty">📭 Carpeta vacía</div>';
-    }
-}
-
-window.initSDCard = initSDCard;
 
 // ============================================
 // WAVEFORM MARKER HELPERS (drag start/end)

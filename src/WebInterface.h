@@ -12,7 +12,6 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncWebSocket.h>
 #include <LittleFS.h>
-#include <SD.h>
 #include <SPI.h>
 #include <ArduinoJson.h>
 #include <map>

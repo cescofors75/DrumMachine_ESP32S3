@@ -62,7 +62,6 @@
             <button class="tab-btn" data-tab="controls">🎛️ CONTROLES</button>
             <button class="tab-btn" data-tab="volumes">🎚️ VOLUMENES</button>
             <button class="tab-btn" data-tab="fx">🔊 FX</button>
-            <button class="tab-btn" data-tab="sdcard">💾 SD CARD</button>
             <button class="tab-btn" data-tab="midi">🎹 MIDI</button>
             <button class="tab-btn" data-tab="info">📊 INFO</button>
         </nav>
@@ -853,85 +852,6 @@
                             <strong>Ver Activos:</strong>
                             <p>Los filtros activos se muestran<br>con badges en pads y tracks</p>
                         </div>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- TAB: SD CARD -->
-        <div id="tab-sdcard" class="tab-content">
-            <section class="sdcard-section" id="section-sdcard">
-                <div class="sdcard-header">
-                    <h2>💾 SD CARD BROWSER</h2>
-                    <div class="sdcard-status" id="sdCardStatus">
-                        <span class="sd-status-dot" id="sdStatusDot"></span>
-                        <span id="sdStatusText">Checking...</span>
-                    </div>
-                    <button id="sdRefreshBtn" class="btn btn-sd-refresh" title="Refresh">🔄 Refresh</button>
-                </div>
-                
-                <div class="sdcard-info" id="sdCardInfo" style="display:none;">
-                    <div class="sd-info-card">
-                        <span class="sd-info-label">Total</span>
-                        <span class="sd-info-value" id="sdTotalSize">—</span>
-                    </div>
-                    <div class="sd-info-card">
-                        <span class="sd-info-label">Usado</span>
-                        <span class="sd-info-value" id="sdUsedSize">—</span>
-                    </div>
-                    <div class="sd-info-card">
-                        <span class="sd-info-label">Libre</span>
-                        <span class="sd-info-value" id="sdFreeSize">—</span>
-                    </div>
-                </div>
-
-                <div class="sdcard-no-card" id="sdNoCard">
-                    <div style="font-size:48px;margin-bottom:12px;">💾</div>
-                    <h3>No SD Card Detected</h3>
-                    <p>Inserta una tarjeta SD con samples WAV para cargarlos en los pads.</p>
-                    <div class="sd-wiring-hint">
-                        <strong>Conexiones SPI:</strong><br>
-                        CS → GPIO 10 | MOSI → GPIO 11 | SCK → GPIO 12 | MISO → GPIO 13
-                    </div>
-                </div>
-
-                <div class="sdcard-browser" id="sdBrowser" style="display:none;">
-                    <div class="sd-breadcrumb" id="sdBreadcrumb">
-                        <span class="sd-crumb sd-crumb-root" data-path="/">📁 /</span>
-                    </div>
-                    
-                    <div class="sd-pad-selector">
-                        <label>Cargar en pad:</label>
-                        <select id="sdTargetPad" class="sd-pad-select">
-                            <option value="0">BD (0)</option>
-                            <option value="1">SD (1)</option>
-                            <option value="2">CH (2)</option>
-                            <option value="3">OH (3)</option>
-                            <option value="4">CY (4)</option>
-                            <option value="5">CP (5)</option>
-                            <option value="6">RS (6)</option>
-                            <option value="7">CB (7)</option>
-                            <option value="8">LT (8)</option>
-                            <option value="9">MT (9)</option>
-                            <option value="10">HT (10)</option>
-                            <option value="11">MA (11)</option>
-                            <option value="12">CL (12)</option>
-                            <option value="13">HC (13)</option>
-                            <option value="14">MC (14)</option>
-                            <option value="15">LC (15)</option>
-                            <option value="16">XTRA 1</option>
-                            <option value="17">XTRA 2</option>
-                            <option value="18">XTRA 3</option>
-                            <option value="19">XTRA 4</option>
-                            <option value="20">XTRA 5</option>
-                            <option value="21">XTRA 6</option>
-                            <option value="22">XTRA 7</option>
-                            <option value="23">XTRA 8</option>
-                        </select>
-                    </div>
-
-                    <div class="sd-file-list" id="sdFileList">
-                        <!-- Files rendered dynamically -->
                     </div>
                 </div>
             </section>

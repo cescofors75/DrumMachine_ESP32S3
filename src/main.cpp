@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <LittleFS.h>
-#include <SD.h>
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
 #include "AudioEngine.h"
@@ -19,19 +18,16 @@
 #define RGB_LED_PIN  48
 #define RGB_LED_NUM  1
 
-// SD Card SPI pins (default ESP32-S3 SPI pins, confirmed working)
-#define SD_SCK   12
-#define SD_MISO  13
-#define SD_MOSI  11
-#define SD_CS    10
 
-bool sdCardMounted = false;
 
 // --- WiFi: Red Doméstica (modo STA) ---
 // Pon aquí tu SSID y contraseña WiFi de casa.
 // Si se deja vacío (""), usará solo modo AP (red propia RED808).
-#define HOME_WIFI_SSID     "MIWIFI_2G_yU2f"         // ← tu WiFi doméstico, ej: "MiRedCasa"
-#define HOME_WIFI_PASS     "M6LR7zHk"         // ← contraseña WiFi
+//#define HOME_WIFI_SSID     "MIWIFI_2G_yU2f"         // ← tu WiFi doméstico, ej: "MiRedCasa"
+//#define HOME_WIFI_PASS     "M6LR7zHk"         // ← contraseña WiFi
+#define HOME_WIFI_SSID     "iPhone de Francesc "         // ← tu WiFi doméstico, ej: "MiRedCasa"
+#define HOME_WIFI_PASS     "gp5zoiqszdy9j"         // ← contraseña WiFi
+
 #define HOME_WIFI_TIMEOUT  12000      // ms para intentar conectar (12s)
 
 // AP fallback (siempre disponible si STA falla)
@@ -47,24 +43,24 @@ WebInterface webInterface;
 MIDIController midiController;
 Adafruit_NeoPixel rgbLed(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Colores por instrumento - 16 instrumentos RGB (GRB para NeoPixel)
+// Colores por instrumento - 16 instrumentos RGB (formato 0xRRGGBB estándar)
 const uint32_t instrumentColors[16] = {
-    0x00FF00,  // 0: BD (KICK) - Rojo
-    0xA5FF00,  // 1: SD (SNARE) - Naranja
+    0xFF0000,  // 0: BD (KICK) - Rojo
+    0xFFA500,  // 1: SD (SNARE) - Naranja
     0xFFFF00,  // 2: CH (CL-HAT) - Amarillo
-    0xFF00FF,  // 3: OH (OP-HAT) - Cian
-    0x00FFFF,  // 4: CY (CYMBAL) - Magenta
-    0xFF0000,  // 5: CP (CLAP) - Verde
-    0xCE38FF,  // 6: RS (RIMSHOT) - Verde agua
-    0x4D48FF,  // 7: CB (COWBELL) - Azul
-    0x0080FF,  // 8: LT (LOW TOM) - Azul real
-    0x00FFAA,  // 9: MT (MID TOM) - Rosa
-    0x80FF00,  // 10: HT (HIGH TOM) - Lima
-    0xFFFF80,  // 11: MA (MARACAS) - Blanco cálido
-    0x40FF80,  // 12: CL (CLAVES) - Coral
-    0xFF8000,  // 13: HC (HI CONGA) - Turquesa
-    0xFF4000,  // 14: MC (MID CONGA) - Verde esmeralda
-    0xFF0080   // 15: LC (LOW CONGA) - Púrpura
+    0x00FFFF,  // 3: OH (OP-HAT) - Cian
+    0xE6194B,  // 4: CY (CYMBAL) - Carmín
+    0xFF00FF,  // 5: CP (CLAP) - Magenta
+    0x00FF00,  // 6: RS (RIMSHOT) - Verde
+    0xF58231,  // 7: CB (COWBELL) - Naranja oscuro
+    0x911EB4,  // 8: LT (LOW TOM) - Púrpura
+    0x46F0F0,  // 9: MT (MID TOM) - Turquesa
+    0xF032E6,  // 10: HT (HIGH TOM) - Rosa
+    0xBCF60C,  // 11: MA (MARACAS) - Lima
+    0x38CEFF,  // 12: CL (CLAVES) - Azul claro
+    0xFABEBE,  // 13: HC (HI CONGA) - Rosa pálido
+    0x008080,  // 14: MC (MID CONGA) - Teal
+    0x484DFF   // 15: LC (LOW CONGA) - Azul índigo
 };
 
 // Utility to detect supported audio sample files (.raw or .wav)
@@ -229,57 +225,6 @@ void setup() {
     }
     Serial.println("Audio Engine OK");
     
-    // 2b. SD Card via SPI (default ESP32-S3 pins)
-    // 2b. SD Card via SPI (default ESP32-S3 pins)
-    Serial.println("[STEP 2b] Mounting SD Card (SPI)...");
-    Serial.printf("  Pins: CS=%d, SCK=%d, MOSI=%d, MISO=%d\n", SD_CS, SD_SCK, SD_MOSI, SD_MISO);
-    
-    // Test CS pin manually first
-    pinMode(SD_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH);
-    delay(50);
-    digitalWrite(SD_CS, LOW);
-    delay(50);
-    digitalWrite(SD_CS, HIGH);
-    delay(100);
-    
-    // Use explicit FSPI bus (SPI2_HOST on ESP32-S3)
-    SPIClass sdSPI(FSPI);
-    sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    
-    // Try different SPI speeds
-    uint32_t speeds[] = {4000000, 2000000, 1000000, 400000};
-    const char* names[] = {"4MHz", "2MHz", "1MHz", "400KHz"};
-    
-    for (int i = 0; i < 4 && !sdCardMounted; i++) {
-        Serial.printf("  Trying %s...\n", names[i]);
-        if (SD.begin(SD_CS, sdSPI, speeds[i])) {
-            sdCardMounted = true;
-            uint8_t cardType = SD.cardType();
-            if (cardType == CARD_NONE) {
-                Serial.println("  Card detected but type=NONE, retrying...");
-                sdCardMounted = false;
-                SD.end();
-                continue;
-            }
-            const char* typeName = cardType == CARD_MMC ? "MMC" : 
-                cardType == CARD_SD ? "SDSC" : 
-                cardType == CARD_SDHC ? "SDHC" : "UNKNOWN";
-            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-            Serial.printf("  SD Card OK! Type: %s, Size: %lluMB @ %s\n", typeName, cardSize, names[i]);
-        } else {
-            SD.end();
-            delay(200);
-        }
-    }
-    
-    if (!sdCardMounted) {
-        Serial.println("  SD Card FAIL - all speeds tried");
-        Serial.println("  Check: VCC=5V, CS->10, MOSI->11, SCK->12, MISO->13, GND->GND");
-        Serial.println("  Verify: card is FAT32, module LED blinks when powered");
-    }
-
-
     Serial.println("[STEP 3] Initializing Sample Manager...");
     Serial.flush();
     
