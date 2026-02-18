@@ -23,10 +23,10 @@
 // --- WiFi: Red Doméstica (modo STA) ---
 // Pon aquí tu SSID y contraseña WiFi de casa.
 // Si se deja vacío (""), usará solo modo AP (red propia RED808).
-//#define HOME_WIFI_SSID     "MIWIFI_2G_yU2f"         // ← tu WiFi doméstico, ej: "MiRedCasa"
-//#define HOME_WIFI_PASS     "M6LR7zHk"         // ← contraseña WiFi
-#define HOME_WIFI_SSID     "iPhone de Francesc "         // ← tu WiFi doméstico, ej: "MiRedCasa"
-#define HOME_WIFI_PASS     "gp5zoiqszdy9j"         // ← contraseña WiFi
+#define HOME_WIFI_SSID     "MIWIFI_2G_yU2f"         // ← tu WiFi doméstico, ej: "MiRedCasa"
+#define HOME_WIFI_PASS     "M6LR7zHk"         // ← contraseña WiFi
+//#define HOME_WIFI_SSID     "iPhone de Francesc "         // ← tu WiFi doméstico, ej: "MiRedCasa"
+//#define HOME_WIFI_PASS     "gp5zoiqszdy9j"         // ← contraseña WiFi
 
 #define HOME_WIFI_TIMEOUT  12000      // ms para intentar conectar (12s)
 

@@ -14,7 +14,7 @@
 #define MIDI_CHANNEL_PRESSURE 0xD0
 #define MIDI_PITCH_BEND 0xE0
 
-#define MAX_MIDI_MAPPINGS 24  // Soporte hasta 24 mapeos de notas MIDI (GM Drum Map)
+#define MAX_MIDI_MAPPINGS 32  // 16 pads + hasta 16 notas alias GM
 
 struct MIDIMessage {
   uint8_t type;       // Message type (0x80-0xF0)

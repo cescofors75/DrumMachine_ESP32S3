@@ -606,45 +606,66 @@ void MIDIController::clearMapping(uint8_t note) {
 
 void MIDIController::resetToDefaultMapping() {
   mappingCount = 0;
-  
-  // Mapeo General MIDI Drum Map (estándar GM)
-  // Pad 0: BD = Note 36 (C1)  Bass Drum 1
-  // Pad 1: SD = Note 38 (D1)  Acoustic Snare
-  // Pad 2: CH = Note 42 (F#1) Closed Hi-Hat
-  // Pad 3: OH = Note 46 (A#1) Open Hi-Hat
-  // Pad 4: CP = Note 39 (D#1) Hand Clap
-  // Pad 5: RS = Note 37 (C#1) Side Stick
-  // Pad 6: CL = Note 75 (D#4) Claves
-  // Pad 7: CY = Note 49 (C#2) Crash Cymbal 1
-  const uint8_t gmDrumNotes[] = {36, 38, 42, 46, 39, 37, 75, 49};
-  
-  for (int i = 0; i < 8; i++) {
-    noteMappings[i].note = gmDrumNotes[i];
-    noteMappings[i].pad = i;
+
+  // ================================================================
+  // Mapa General MIDI Drum (GM) completo para los 16 pads RED808
+  // ================================================================
+  // Pad  0: BD  (Bass Drum)      → 36 C1  (Acoustic Bass Drum)
+  // Pad  1: SD  (Snare)          → 38 D1  (Acoustic Snare)
+  // Pad  2: CH  (Closed Hi-Hat)  → 42 F#1 (Closed Hi-Hat)
+  // Pad  3: OH  (Open Hi-Hat)    → 46 A#1 (Open Hi-Hat)
+  // Pad  4: CY  (Cymbal)         → 49 C#2 (Crash Cymbal 1)
+  // Pad  5: CP  (Clap)           → 39 D#1 (Hand Clap)
+  // Pad  6: RS  (Rimshot)        → 37 C#1 (Side Stick / Rimshot)
+  // Pad  7: CB  (Cowbell)        → 56 G#2 (Cowbell)
+  // Pad  8: LT  (Low Tom)        → 41 F1  (Low Floor Tom)
+  // Pad  9: MT  (Mid Tom)        → 47 B1  (Low-Mid Tom)
+  // Pad 10: HT  (High Tom)       → 50 D2  (High Tom)
+  // Pad 11: MA  (Maracas)        → 70 A#3 (Maracas)
+  // Pad 12: CL  (Claves)         → 75 D#4 (Claves)
+  // Pad 13: HC  (Hi Conga)       → 62 D3  (Mute Hi Conga)
+  // Pad 14: MC  (Mid Conga)      → 63 D#3 (Open Hi Conga)
+  // Pad 15: LC  (Low Conga)      → 64 E3  (Low Conga)
+
+  struct { uint8_t note; int8_t pad; } defaultMap[16] = {
+    {36, 0},  // BD  - Acoustic Bass Drum
+    {38, 1},  // SD  - Acoustic Snare
+    {42, 2},  // CH  - Closed Hi-Hat
+    {46, 3},  // OH  - Open Hi-Hat
+    {49, 4},  // CY  - Crash Cymbal 1
+    {39, 5},  // CP  - Hand Clap
+    {37, 6},  // RS  - Side Stick
+    {56, 7},  // CB  - Cowbell
+    {41, 8},  // LT  - Low Floor Tom
+    {47, 9},  // MT  - Low-Mid Tom
+    {50, 10}, // HT  - High Tom
+    {70, 11}, // MA  - Maracas
+    {75, 12}, // CL  - Claves
+    {62, 13}, // HC  - Mute Hi Conga
+    {63, 14}, // MC  - Open Hi Conga
+    {64, 15}  // LC  - Low Conga
+  };
+
+  for (int i = 0; i < 16; i++) {
+    noteMappings[i].note    = defaultMap[i].note;
+    noteMappings[i].pad     = defaultMap[i].pad;
     noteMappings[i].enabled = true;
   }
-  mappingCount = 8;
-  
-  // Mapeos adicionales GM (notas alternativas al mismo pad)
-  // Note 35 (B0) = Acoustic Bass Drum → BD
-  noteMappings[mappingCount++] = {35, 0, true};
-  // Note 40 (E1) = Electric Snare → SD
-  noteMappings[mappingCount++] = {40, 1, true};
-  // Note 44 (G#1) = Pedal Hi-Hat → CH
-  noteMappings[mappingCount++] = {44, 2, true};
-  // Note 51 (D#2) = Ride Cymbal 1 → CY
-  noteMappings[mappingCount++] = {51, 7, true};
-  // Note 57 (A2) = Crash Cymbal 2 → CY
-  noteMappings[mappingCount++] = {57, 7, true};
-  // Note 56 (G#2) = Cowbell → RS (similar percussion)
-  noteMappings[mappingCount++] = {56, 5, true};
-  // Note 41 (F1) = Low Floor Tom → CL (mapped to available)
-  noteMappings[mappingCount++] = {41, 6, true};
-  // Note 43 (G1) = High Floor Tom → CL 
-  noteMappings[mappingCount++] = {43, 6, true};
-  
-  Serial.println("[MIDI Mapping] Reset to GM Drum Map standard");
-  Serial.println("  36=BD, 38=SD, 42=CH, 46=OH, 39=CP, 37=RS, 75=CL, 49=CY");
+  mappingCount = 16;
+
+  // Notas alternativas GM (alias → mismo pad)
+  noteMappings[mappingCount++] = {35, 0, true};  // Acoustic Bass Drum 2 → BD
+  noteMappings[mappingCount++] = {40, 1, true};  // Electric Snare       → SD
+  noteMappings[mappingCount++] = {44, 2, true};  // Pedal Hi-Hat         → CH
+  noteMappings[mappingCount++] = {51, 4, true};  // Ride Cymbal 1        → CY
+  noteMappings[mappingCount++] = {57, 4, true};  // Crash Cymbal 2       → CY
+  noteMappings[mappingCount++] = {59, 4, true};  // Ride Cymbal 2        → CY
+  noteMappings[mappingCount++] = {43, 8, true};  // High Floor Tom       → LT
+  noteMappings[mappingCount++] = {45, 9, true};  // Low Tom              → MT
+
+  Serial.println("[MIDI Mapping] Reset to GM Drum Map (16 pads)");
+  Serial.println("  BD=36, SD=38, CH=42, OH=46, CY=49, CP=39, RS=37, CB=56");
+  Serial.println("  LT=41, MT=47, HT=50, MA=70, CL=75, HC=62, MC=63, LC=64");
 }
 
 const MIDINoteMapping* MIDIController::getAllMappings(int& count) const {

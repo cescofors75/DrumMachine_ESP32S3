@@ -4018,25 +4018,18 @@ function handleMIDIMessage(data) {
 function animateNoteVelocity(note, velocity) {
     const item = document.querySelector(`.mapping-item[data-note="${note}"]`);
     if (!item) return;
-    
     const velocityFill = item.querySelector('.velocity-fill');
+    if (!velocityFill) return;
     const percent = Math.round((velocity / 127) * 100);
     velocityFill.style.width = `${percent}%`;
-    
-    // Reset after 500ms
-    setTimeout(() => {
-        velocityFill.style.width = '0%';
-    }, 500);
+    setTimeout(() => { velocityFill.style.width = '0%'; }, 500);
 }
 
 function highlightMappingItem(note) {
     const item = document.querySelector(`.mapping-item[data-note="${note}"]`);
     if (!item) return;
-    
     item.classList.add('active');
-    setTimeout(() => {
-        item.classList.remove('active');
-    }, 300);
+    setTimeout(() => { item.classList.remove('active'); }, 300);
 }
 
 function updateMIDIMonitorDisplay() {
@@ -4053,6 +4046,10 @@ function updateMIDIMonitorDisplay() {
     // Esto evita el parpadeo y duplicación
     if (midiMessagesQueue.length > 0) {
         const latestMsg = midiMessagesQueue[0];
+        
+        // Aplicar filtro
+        if (midiMonitorFilter !== 'all' && latestMsg.messageType !== midiMonitorFilter) return;
+        
         const entry = createMIDIMessageEntry(latestMsg);
         
         // Insertar al inicio (más nuevo arriba)
@@ -4319,6 +4316,35 @@ function handleUploadComplete(data) {
 
 let isEditingMapping = false;
 let originalMappings = {};
+let midiMonitorFilter = 'all';
+
+// Presets de mapeo MIDI para diferentes controladores
+const MIDI_MAPPING_PRESETS = {
+    gm: [
+        {pad:0, note:36}, {pad:1, note:38}, {pad:2, note:42}, {pad:3, note:46},
+        {pad:4, note:49}, {pad:5, note:39}, {pad:6, note:37}, {pad:7, note:56},
+        {pad:8, note:41}, {pad:9, note:47}, {pad:10, note:50}, {pad:11, note:70},
+        {pad:12, note:75}, {pad:13, note:62}, {pad:14, note:63}, {pad:15, note:64}
+    ],
+    roland: [
+        // Roland TR-8S / TD pads
+        {pad:0, note:36}, {pad:1, note:38}, {pad:2, note:42}, {pad:3, note:46},
+        {pad:4, note:49}, {pad:5, note:39}, {pad:6, note:37}, {pad:7, note:56},
+        {pad:8, note:43}, {pad:9, note:47}, {pad:10, note:48}, {pad:11, note:70},
+        {pad:12, note:75}, {pad:13, note:62}, {pad:14, note:63}, {pad:15, note:64}
+    ],
+    mpc: [
+        // Akai MPC default pad layout (A01-A16 = 60-75)
+        {pad:0, note:60}, {pad:1, note:61}, {pad:2, note:62}, {pad:3, note:63},
+        {pad:4, note:64}, {pad:5, note:65}, {pad:6, note:66}, {pad:7, note:67},
+        {pad:8, note:68}, {pad:9, note:69}, {pad:10, note:70}, {pad:11, note:71},
+        {pad:12, note:72}, {pad:13, note:73}, {pad:14, note:74}, {pad:15, note:75}
+    ]
+};
+
+function setMidiMonitorFilter(filter) {
+    midiMonitorFilter = filter;
+}
 
 async function loadMIDIMapping() {
     try {
@@ -4326,20 +4352,29 @@ async function loadMIDIMapping() {
         const data = await response.json();
         
         if (data.mappings) {
-            // Actualizar el grid con los mapeos actuales
-            data.mappings.forEach(mapping => {
-                const item = document.querySelector(`.mapping-item[data-pad="${mapping.pad}"]`);
-                if (item) {
-                    const badge = item.querySelector('.note-badge');
-                    badge.textContent = mapping.note;
-                    item.dataset.note = mapping.note;
-                    
-                    // Actualizar nombre de nota
-                    const noteName = getNoteNameFromNumber(mapping.note);
-                    item.querySelector('.note-name').textContent = noteName;
-                }
+            // Solo actualizar los pads 0-15 (mapeos principales, no alias)
+            const primaryMappings = data.mappings.filter(m => m.pad >= 0 && m.pad <= 15);
+            // Crear mapa pad→note para búsqueda rápida
+            const padNoteMap = {};
+            // En caso de múltiples notas por pad, usar la primera
+            primaryMappings.forEach(m => {
+                if (padNoteMap[m.pad] === undefined) padNoteMap[m.pad] = m.note;
             });
             
+            for (let pad = 0; pad <= 15; pad++) {
+                const item = document.querySelector(`.mapping-item[data-pad="${pad}"]`);
+                if (!item) continue;
+                const note = padNoteMap[pad];
+                if (note === undefined) continue;
+                
+                const input = item.querySelector('.note-input');
+                if (input) {
+                    input.value = note;
+                    item.dataset.note = note;
+                }
+                const nameEl = item.querySelector('.note-name');
+                if (nameEl) nameEl.textContent = getNoteNameFromNumber(note);
+            }
         }
     } catch (error) {
         console.error('[MIDI Mapping] Error loading:', error);
@@ -4349,160 +4384,176 @@ async function loadMIDIMapping() {
 function toggleMappingEdit() {
     isEditingMapping = !isEditingMapping;
     
-    const editBtn = document.getElementById('editMappingBtn');
-    const resetBtn = document.getElementById('resetMappingBtn');
-    const saveBtn = document.getElementById('saveMappingBtn');
-    const badges = document.querySelectorAll('.note-badge.editable');
+    const editBtn   = document.getElementById('editMappingBtn');
+    const resetBtn  = document.getElementById('resetMappingBtn');
+    const saveBtn   = document.getElementById('saveMappingBtn');
+    const cancelBtn = document.getElementById('cancelMappingBtn');
+    const presets   = document.getElementById('mappingPresets');
     const mappingGrid = document.getElementById('mappingGrid');
+    const inputs    = document.querySelectorAll('.note-input');
     
     if (isEditingMapping) {
-        // Modo edición activado
-        editBtn.style.display = 'none';
+        editBtn.style.display  = 'none';
         resetBtn.style.display = 'inline-block';
-        saveBtn.style.display = 'inline-block';
+        saveBtn.style.display  = 'inline-block';
+        cancelBtn.style.display = 'inline-block';
+        if (presets) presets.style.display = 'flex';
         mappingGrid.classList.add('editing');
         
-        // Guardar valores originales
-        badges.forEach(badge => {
-            const item = badge.closest('.mapping-item');
-            originalMappings[item.dataset.pad] = badge.textContent;
-            badge.contentEditable = 'true';
-            badge.classList.add('editing');
+        // Guardar valores originales y habilitar inputs
+        inputs.forEach(input => {
+            const item = input.closest('.mapping-item');
+            originalMappings[item.dataset.pad] = input.value;
+            input.disabled = false;
+            input.classList.add('editing');
+            // Actualizar note-name en tiempo real mientras se escribe
+            input.addEventListener('input', onNoteInputChange);
         });
         
-        if (window.showToast) {
-            window.showToast('✏️ Modo edición activado - Haz clic en las notas para editarlas', window.TOAST_TYPES.INFO, 3000);
-        }
+        if (window.showToast) window.showToast('✏️ Modo edición — cambia notas 0-127 y pulsa Guardar', window.TOAST_TYPES?.INFO, 3000);
     } else {
-        // Cancelar edición
-        editBtn.style.display = 'inline-block';
-        resetBtn.style.display = 'none';
-        saveBtn.style.display = 'none';
-        mappingGrid.classList.remove('editing');
-        
-        // Restaurar valores originales
-        badges.forEach(badge => {
-            const item = badge.closest('.mapping-item');
-            badge.textContent = originalMappings[item.dataset.pad];
-            badge.contentEditable = 'false';
-            badge.classList.remove('editing');
+        // Cancelar → restaurar
+        inputs.forEach(input => {
+            const item = input.closest('.mapping-item');
+            input.value = originalMappings[item.dataset.pad] ?? input.value;
+            item.dataset.note = input.value;
+            input.disabled = true;
+            input.classList.remove('editing');
+            input.removeEventListener('input', onNoteInputChange);
+            const nameEl = item.querySelector('.note-name');
+            if (nameEl) nameEl.textContent = getNoteNameFromNumber(parseInt(input.value));
         });
-        
+        editBtn.style.display   = 'inline-block';
+        resetBtn.style.display  = 'none';
+        saveBtn.style.display   = 'none';
+        cancelBtn.style.display = 'none';
+        if (presets) presets.style.display = 'none';
+        mappingGrid.classList.remove('editing');
         originalMappings = {};
     }
 }
 
+function cancelMappingEdit() {
+    if (isEditingMapping) toggleMappingEdit(); // restaura y sale del modo edición
+}
+
+function onNoteInputChange(e) {
+    const input = e.target;
+    const val = parseInt(input.value);
+    const item = input.closest('.mapping-item');
+    const nameEl = item.querySelector('.note-name');
+    if (!isNaN(val) && val >= 0 && val <= 127) {
+        input.classList.remove('error');
+        if (nameEl) nameEl.textContent = getNoteNameFromNumber(val);
+    } else {
+        input.classList.add('error');
+        if (nameEl) nameEl.textContent = '—';
+    }
+}
+
+function applyMappingPreset(name) {
+    const preset = MIDI_MAPPING_PRESETS[name];
+    if (!preset) return;
+    
+    preset.forEach(({pad, note}) => {
+        const item = document.querySelector(`.mapping-item[data-pad="${pad}"]`);
+        if (!item) return;
+        const input = item.querySelector('.note-input');
+        const nameEl = item.querySelector('.note-name');
+        if (input) { input.value = note; input.classList.remove('error'); }
+        if (nameEl) nameEl.textContent = getNoteNameFromNumber(note);
+    });
+    
+    if (window.showToast) window.showToast(`✅ Preset "${name.toUpperCase()}" aplicado — pulsa Guardar para confirmar`, window.TOAST_TYPES?.INFO, 3000);
+}
+
 async function saveMIDIMapping() {
-    const badges = document.querySelectorAll('.note-badge.editable');
+    const inputs = document.querySelectorAll('.note-input');
     const mappings = [];
     let hasErrors = false;
     
-    // Validar y recopilar mappings
-    badges.forEach(badge => {
-        const item = badge.closest('.mapping-item');
-        const pad = parseInt(item.dataset.pad);
-        const note = parseInt(badge.textContent.trim());
+    inputs.forEach(input => {
+        const item = input.closest('.mapping-item');
+        const pad  = parseInt(item.dataset.pad);
+        const note = parseInt(input.value);
         
         if (isNaN(note) || note < 0 || note > 127) {
-            badge.classList.add('error');
+            input.classList.add('error');
             hasErrors = true;
             return;
         }
-        
-        badge.classList.remove('error');
+        input.classList.remove('error');
         mappings.push({ note, pad });
     });
     
     if (hasErrors) {
-        if (window.showToast) {
-            window.showToast('❌ Notas inválidas (deben ser 0-127)', window.TOAST_TYPES.ERROR, 3000);
-        }
+        if (window.showToast) window.showToast('❌ Notas inválidas (0-127)', window.TOAST_TYPES?.ERROR, 3000);
         return;
     }
     
-    // Enviar cada mapeo al servidor
     try {
         for (const mapping of mappings) {
-            const response = await fetch('/api/midi/mapping', {
+            const resp = await fetch('/api/midi/mapping', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(mapping)
             });
-            
-            if (!response.ok) {
-                throw new Error(`Failed to save mapping for pad ${mapping.pad}`);
-            }
+            if (!resp.ok) throw new Error(`Pad ${mapping.pad}`);
         }
         
-        // Actualizar nombres de notas
-        badges.forEach(badge => {
-            const note = parseInt(badge.textContent.trim());
-            const item = badge.closest('.mapping-item');
-            const noteName = getNoteNameFromNumber(note);
-            item.querySelector('.note-name').textContent = noteName;
+        // Actualizar dataset y note-names
+        inputs.forEach(input => {
+            const item = input.closest('.mapping-item');
+            const note = parseInt(input.value);
             item.dataset.note = note;
+            const nameEl = item.querySelector('.note-name');
+            if (nameEl) nameEl.textContent = getNoteNameFromNumber(note);
         });
         
-        // Salir del modo edición
-        toggleMappingEdit();
+        // Salir modo edición (sin restaurar valores)
+        isEditingMapping = true;  // forzar a que toggleMappingEdit lo desactive
+        cancelMappingEdit();
+        // Reactivar botón Editar
+        const editBtn = document.getElementById('editMappingBtn');
+        if (editBtn) editBtn.style.display = 'inline-block';
         
-        if (window.showToast) {
-            window.showToast('✅ Mapeo MIDI guardado correctamente', window.TOAST_TYPES.SUCCESS, 3000);
-        }
+        if (window.showToast) window.showToast('✅ Mapeo MIDI guardado', window.TOAST_TYPES?.SUCCESS, 3000);
     } catch (error) {
         console.error('[MIDI Mapping] Error saving:', error);
-        if (window.showToast) {
-            window.showToast('❌ Error al guardar mapeo', window.TOAST_TYPES.ERROR, 3000);
-        }
+        if (window.showToast) window.showToast('❌ Error al guardar mapeo', window.TOAST_TYPES?.ERROR, 3000);
     }
 }
 
 async function resetMIDIMapping() {
-    if (!confirm('¿Resetear el mapeo MIDI a los valores por defecto (36-43)?')) {
-        return;
-    }
+    if (!confirm('¿Resetear el mapeo MIDI al mapa GM estándar (16 pads)?')) return;
     
     try {
-        const response = await fetch('/api/midi/mapping', {
+        const resp = await fetch('/api/midi/mapping', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reset: true })
         });
         
-        if (response.ok) {
-            // Recargar mapeo desde el servidor
+        if (resp.ok) {
             await loadMIDIMapping();
-            
-            // Salir del modo edición
-            if (isEditingMapping) {
-                toggleMappingEdit();
-            }
-            
-            if (window.showToast) {
-                window.showToast('🔄 Mapeo MIDI reseteado a valores por defecto', window.TOAST_TYPES.SUCCESS, 3000);
-            }
+            if (window.showToast) window.showToast('🔄 Mapeo reseteado a GM (16 pads)', window.TOAST_TYPES?.SUCCESS, 3000);
         } else {
             throw new Error('Reset failed');
         }
     } catch (error) {
         console.error('[MIDI Mapping] Error resetting:', error);
-        if (window.showToast) {
-            window.showToast('❌ Error al resetear mapeo', window.TOAST_TYPES.ERROR, 3000);
-        }
+        if (window.showToast) window.showToast('❌ Error al resetear mapeo', window.TOAST_TYPES?.ERROR, 3000);
     }
 }
 
-// Cargar mapeo al iniciar la página MIDI
+// Cargar mapeo al abrir la tab MIDI
 document.addEventListener('DOMContentLoaded', () => {
-    // Cargar mapeo cuando se abre la tab MIDI
     const midiTab = document.querySelector('[data-tab="midi"]');
     if (midiTab) {
         midiTab.addEventListener('click', () => {
             setTimeout(loadMIDIMapping, 100);
         });
     }
-    
-    // Cargar inmediatamente si ya estamos en la tab MIDI
     if (window.location.hash === '#midi' || document.getElementById('tab-midi')?.classList.contains('active')) {
         setTimeout(loadMIDIMapping, 500);
     }

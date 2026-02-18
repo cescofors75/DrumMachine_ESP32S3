@@ -947,67 +947,220 @@
                             </div>
                         </div>
 
-                        <!-- MIDI Mapping Card -->
+                        <!-- MIDI Note Mapping Card -->
                         <div class="dashboard-card mapping-card">
                             <div class="card-header">
                                 <h3><span class="card-icon">🗺️</span> Note Mapping</h3>
                                 <div class="mapping-controls">
                                     <button class="mapping-btn" id="editMappingBtn" onclick="toggleMappingEdit()">✏️ Editar</button>
-                                    <button class="mapping-btn secondary" id="resetMappingBtn" onclick="resetMIDIMapping()" style="display:none;">🔄 Reset</button>
+                                    <button class="mapping-btn secondary" id="resetMappingBtn" onclick="resetMIDIMapping()" style="display:none;">🔄 Reset GM</button>
                                     <button class="mapping-btn primary" id="saveMappingBtn" onclick="saveMIDIMapping()" style="display:none;">💾 Guardar</button>
+                                    <button class="mapping-btn" id="cancelMappingBtn" onclick="cancelMappingEdit()" style="display:none;">✖ Cancelar</button>
                                 </div>
                             </div>
                             <div class="card-body">
+                                <!-- Preset selector (visible en modo edición) -->
+                                <div class="mapping-presets" id="mappingPresets" style="display:none;">
+                                    <span class="preset-label">Presets:</span>
+                                    <button class="preset-btn" onclick="applyMappingPreset('gm')">🎼 GM</button>
+                                    <button class="preset-btn" onclick="applyMappingPreset('roland')">🥁 Roland</button>
+                                    <button class="preset-btn" onclick="applyMappingPreset('mpc')">⬛ MPC</button>
+                                    <button class="preset-btn" onclick="applyMappingPreset('custom')">⚙️ Custom</button>
+                                </div>
+                                <!-- Mapping grid 16 pads -->
                                 <div class="mapping-grid" id="mappingGrid">
+                                    <!-- BD → note 36 C1 -->
                                     <div class="mapping-item" data-pad="0" data-note="36">
-                                        <span class="note-badge editable" contenteditable="false">36</span>
-                                        <span class="note-name">C1</span>
+                                        <span class="pad-color-dot" style="background:rgb(255,0,0)"></span>
                                         <span class="pad-target">BD</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="36" disabled>
+                                            <span class="note-name">C1</span>
+                                        </div>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
+                                    <!-- SD → 38 D1 -->
                                     <div class="mapping-item" data-pad="1" data-note="38">
-                                        <span class="note-badge editable" contenteditable="false">38</span>
-                                        <span class="note-name">D1</span>
+                                        <span class="pad-color-dot" style="background:rgb(255,165,0)"></span>
                                         <span class="pad-target">SD</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="38" disabled>
+                                            <span class="note-name">D1</span>
+                                        </div>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
+                                    <!-- CH → 42 F#1 -->
                                     <div class="mapping-item" data-pad="2" data-note="42">
-                                        <span class="note-badge editable" contenteditable="false">42</span>
-                                        <span class="note-name">F#1</span>
+                                        <span class="pad-color-dot" style="background:rgb(255,255,0)"></span>
                                         <span class="pad-target">CH</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="42" disabled>
+                                            <span class="note-name">F#1</span>
+                                        </div>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
+                                    <!-- OH → 46 A#1 -->
                                     <div class="mapping-item" data-pad="3" data-note="46">
-                                        <span class="note-badge editable" contenteditable="false">46</span>
-                                        <span class="note-name">A#1</span>
+                                        <span class="pad-color-dot" style="background:rgb(0,255,255)"></span>
                                         <span class="pad-target">OH</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="46" disabled>
+                                            <span class="note-name">A#1</span>
+                                        </div>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
-                                    <div class="mapping-item" data-pad="4" data-note="39">
-                                        <span class="note-badge editable" contenteditable="false">39</span>
-                                        <span class="note-name">D#1</span>
-                                        <span class="pad-target">CP</span>
-                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
-                                    </div>
-                                    <div class="mapping-item" data-pad="5" data-note="37">
-                                        <span class="note-badge editable" contenteditable="false">37</span>
-                                        <span class="note-name">C#1</span>
-                                        <span class="pad-target">RS</span>
-                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
-                                    </div>
-                                    <div class="mapping-item" data-pad="6" data-note="75">
-                                        <span class="note-badge editable" contenteditable="false">75</span>
-                                        <span class="note-name">D#4</span>
-                                        <span class="pad-target">CL</span>
-                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
-                                    </div>
-                                    <div class="mapping-item" data-pad="7" data-note="49">
-                                        <span class="note-badge editable" contenteditable="false">49</span>
-                                        <span class="note-name">C#2</span>
+                                    <!-- CY → 49 C#2 -->
+                                    <div class="mapping-item" data-pad="4" data-note="49">
+                                        <span class="pad-color-dot" style="background:rgb(230,25,75)"></span>
                                         <span class="pad-target">CY</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="49" disabled>
+                                            <span class="note-name">C#2</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- CP → 39 D#1 -->
+                                    <div class="mapping-item" data-pad="5" data-note="39">
+                                        <span class="pad-color-dot" style="background:rgb(255,0,255)"></span>
+                                        <span class="pad-target">CP</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="39" disabled>
+                                            <span class="note-name">D#1</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- RS → 37 C#1 -->
+                                    <div class="mapping-item" data-pad="6" data-note="37">
+                                        <span class="pad-color-dot" style="background:rgb(0,255,0)"></span>
+                                        <span class="pad-target">RS</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="37" disabled>
+                                            <span class="note-name">C#1</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- CB → 56 G#2 -->
+                                    <div class="mapping-item" data-pad="7" data-note="56">
+                                        <span class="pad-color-dot" style="background:rgb(245,130,49)"></span>
+                                        <span class="pad-target">CB</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="56" disabled>
+                                            <span class="note-name">G#2</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- LT → 41 F1 -->
+                                    <div class="mapping-item" data-pad="8" data-note="41">
+                                        <span class="pad-color-dot" style="background:rgb(145,30,180)"></span>
+                                        <span class="pad-target">LT</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="41" disabled>
+                                            <span class="note-name">F1</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- MT → 47 B1 -->
+                                    <div class="mapping-item" data-pad="9" data-note="47">
+                                        <span class="pad-color-dot" style="background:rgb(70,240,240)"></span>
+                                        <span class="pad-target">MT</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="47" disabled>
+                                            <span class="note-name">B1</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- HT → 50 D2 -->
+                                    <div class="mapping-item" data-pad="10" data-note="50">
+                                        <span class="pad-color-dot" style="background:rgb(240,50,230)"></span>
+                                        <span class="pad-target">HT</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="50" disabled>
+                                            <span class="note-name">D2</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- MA → 70 A#3 -->
+                                    <div class="mapping-item" data-pad="11" data-note="70">
+                                        <span class="pad-color-dot" style="background:rgb(188,246,12)"></span>
+                                        <span class="pad-target">MA</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="70" disabled>
+                                            <span class="note-name">A#3</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- CL → 75 D#4 -->
+                                    <div class="mapping-item" data-pad="12" data-note="75">
+                                        <span class="pad-color-dot" style="background:rgb(56,206,255)"></span>
+                                        <span class="pad-target">CL</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="75" disabled>
+                                            <span class="note-name">D#4</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- HC → 62 D3 -->
+                                    <div class="mapping-item" data-pad="13" data-note="62">
+                                        <span class="pad-color-dot" style="background:rgb(250,190,190)"></span>
+                                        <span class="pad-target">HC</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="62" disabled>
+                                            <span class="note-name">D3</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- MC → 63 D#3 -->
+                                    <div class="mapping-item" data-pad="14" data-note="63">
+                                        <span class="pad-color-dot" style="background:rgb(0,128,128)"></span>
+                                        <span class="pad-target">MC</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="63" disabled>
+                                            <span class="note-name">D#3</span>
+                                        </div>
+                                        <div class="velocity-bar"><div class="velocity-fill"></div></div>
+                                    </div>
+                                    <!-- LC → 64 E3 -->
+                                    <div class="mapping-item" data-pad="15" data-note="64">
+                                        <span class="pad-color-dot" style="background:rgb(72,77,255)"></span>
+                                        <span class="pad-target">LC</span>
+                                        <div class="note-input-group">
+                                            <input class="note-input" type="number" min="0" max="127" value="64" disabled>
+                                            <span class="note-name">E3</span>
+                                        </div>
                                         <div class="velocity-bar"><div class="velocity-fill"></div></div>
                                     </div>
                                 </div>
+                                <!-- GM Reference table (always visible) -->
+                                <details class="gm-reference">
+                                    <summary>📖 Referencia GM Drum Map</summary>
+                                    <div class="gm-table">
+                                        <div class="gm-row header"><span>Nota</span><span>Nombre GM</span><span>Pad</span></div>
+                                        <div class="gm-row"><span>35</span><span>Acoustic Bass Drum</span><span>BD</span></div>
+                                        <div class="gm-row"><span>36</span><span>Bass Drum 1</span><span>BD</span></div>
+                                        <div class="gm-row"><span>37</span><span>Side Stick / Rimshot</span><span>RS</span></div>
+                                        <div class="gm-row"><span>38</span><span>Acoustic Snare</span><span>SD</span></div>
+                                        <div class="gm-row"><span>39</span><span>Hand Clap</span><span>CP</span></div>
+                                        <div class="gm-row"><span>40</span><span>Electric Snare</span><span>SD</span></div>
+                                        <div class="gm-row"><span>41</span><span>Low Floor Tom</span><span>LT</span></div>
+                                        <div class="gm-row"><span>42</span><span>Closed Hi-Hat</span><span>CH</span></div>
+                                        <div class="gm-row"><span>43</span><span>High Floor Tom</span><span>LT</span></div>
+                                        <div class="gm-row"><span>44</span><span>Pedal Hi-Hat</span><span>CH</span></div>
+                                        <div class="gm-row"><span>45</span><span>Low Tom</span><span>MT</span></div>
+                                        <div class="gm-row"><span>46</span><span>Open Hi-Hat</span><span>OH</span></div>
+                                        <div class="gm-row"><span>47</span><span>Low-Mid Tom</span><span>MT</span></div>
+                                        <div class="gm-row"><span>48</span><span>Hi-Mid Tom</span><span>HT</span></div>
+                                        <div class="gm-row"><span>49</span><span>Crash Cymbal 1</span><span>CY</span></div>
+                                        <div class="gm-row"><span>50</span><span>High Tom</span><span>HT</span></div>
+                                        <div class="gm-row"><span>51</span><span>Ride Cymbal 1</span><span>CY</span></div>
+                                        <div class="gm-row"><span>56</span><span>Cowbell</span><span>CB</span></div>
+                                        <div class="gm-row"><span>57</span><span>Crash Cymbal 2</span><span>CY</span></div>
+                                        <div class="gm-row"><span>62</span><span>Mute Hi Conga</span><span>HC</span></div>
+                                        <div class="gm-row"><span>63</span><span>Open Hi Conga</span><span>MC</span></div>
+                                        <div class="gm-row"><span>64</span><span>Low Conga</span><span>LC</span></div>
+                                        <div class="gm-row"><span>70</span><span>Maracas</span><span>MA</span></div>
+                                        <div class="gm-row"><span>75</span><span>Claves</span><span>CL</span></div>
+                                    </div>
+                                </details>
                             </div>
                         </div>
                     </div>
@@ -1017,7 +1170,16 @@
                         <div class="dashboard-card monitor-card">
                             <div class="card-header">
                                 <h3><span class="card-icon">📡</span> Monitor en Tiempo Real</h3>
-                                <button class="clear-monitor-btn" id="clearMidiMonitor">🗑️ Limpiar</button>
+                                <div class="monitor-filter-row">
+                                    <select id="midiMonitorFilter" class="monitor-filter-select" onchange="setMidiMonitorFilter(this.value)">
+                                        <option value="all">Todos</option>
+                                        <option value="noteOn">Note On</option>
+                                        <option value="noteOff">Note Off</option>
+                                        <option value="cc">CC</option>
+                                        <option value="pitchBend">Pitch Bend</option>
+                                    </select>
+                                    <button class="clear-monitor-btn" id="clearMidiMonitor">🗑️</button>
+                                </div>
                             </div>
                             <div class="card-body">
                                 <div class="monitor-display" id="midiMonitor">

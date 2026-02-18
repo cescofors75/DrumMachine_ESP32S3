@@ -4610,151 +4610,248 @@ body.mono-mode .info-item {
 /* MIDI Mapping Card */
 .mapping-grid {
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .mapping-item {
     display: grid;
-    grid-template-columns: 45px 50px 1fr 100px;
+    grid-template-columns: 14px 34px 1fr 80px;
     align-items: center;
-    gap: 12px;
-    padding: 12px 15px;
-    background: rgba(0, 170, 255, 0.08);
-    border-radius: 10px;
-    border: 1px solid rgba(0, 170, 255, 0.2);
+    gap: 9px;
+    padding: 8px 12px;
+    background: rgba(0, 170, 255, 0.07);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 170, 255, 0.18);
     transition: all 0.2s ease;
 }
 
 .mapping-item:hover {
-    background: rgba(0, 170, 255, 0.15);
-    border-color: rgba(0, 170, 255, 0.4);
-    transform: translateX(5px);
+    background: rgba(0, 170, 255, 0.14);
+    border-color: rgba(0, 170, 255, 0.38);
+    transform: translateX(3px);
 }
 
 .mapping-item.active {
-    background: rgba(0, 255, 136, 0.2);
-    border-color: rgba(0, 255, 136, 0.6);
-    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+    background: rgba(0, 255, 136, 0.18);
+    border-color: rgba(0, 255, 136, 0.55);
+    box-shadow: 0 0 14px rgba(0, 255, 136, 0.25);
     animation: note-flash 0.3s ease;
 }
 
 @keyframes note-flash {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+    50% { transform: scale(1.03); }
 }
 
-.note-badge {
-    background: linear-gradient(135deg, #00aaff, #0088cc);
-    color: white;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-weight: 700;
-    font-size: 0.9em;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(0, 170, 255, 0.4);
-    transition: all 0.2s ease;
+/* Color dot del pad */
+.pad-color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 4px currentColor;
 }
 
-/* Mapping Editor Styles */
-.note-badge.editable.editing {
-    background: linear-gradient(135deg, #ff6600, #ff9900);
-    cursor: text;
-    outline: 2px solid rgba(255, 153, 0, 0.5);
-    animation: pulse-edit 1.5s infinite;
-}
-
-.note-badge.editable.editing:focus {
-    outline: 2px solid #ff9900;
-    box-shadow: 0 0 20px rgba(255, 153, 0, 0.6);
-}
-
-.note-badge.error {
-    background: linear-gradient(135deg, #ff0000, #cc0000);
-    animation: shake 0.3s;
-}
-
-@keyframes pulse-edit {
-    0%, 100% { box-shadow: 0 2px 8px rgba(255, 153, 0, 0.4); }
-    50% { box-shadow: 0 4px 16px rgba(255, 153, 0, 0.8); }
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
-
-.mapping-grid.editing .mapping-item {
-    border-color: rgba(255, 153, 0, 0.3);
-}
-
-.mapping-controls {
-    display: flex;
-    gap: 8px;
-}
-
-.mapping-btn {
-    padding: 6px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    background: rgba(0, 170, 255, 0.3);
-    color: white;
-    cursor: pointer;
-    font-size: 0.85em;
-    font-weight: 600;
-    transition: all 0.2s;
-}
-
-.mapping-btn:hover {
-    background: rgba(0, 170, 255, 0.5);
-    transform: scale(1.05);
-}
-
-.mapping-btn.primary {
-    background: rgba(0, 255, 136, 0.3);
-    border-color: rgba(0, 255, 136, 0.5);
-}
-
-.mapping-btn.primary:hover {
-    background: rgba(0, 255, 136, 0.5);
-}
-
-.mapping-btn.secondary {
-    background: rgba(255, 153, 0, 0.3);
-    border-color: rgba(255, 153, 0, 0.5);
-}
-
-.mapping-btn.secondary:hover {
-    background: rgba(255, 153, 0, 0.5);
-}
-
-.note-name {
-    color: rgba(255, 255, 255, 0.8);
-    font-weight: 600;
-    font-size: 0.85em;
-}
-
+/* Pad name */
 .pad-target {
     color: #00ff88;
     font-weight: 700;
-    font-size: 1em;
+    font-size: 0.9em;
+    text-align: center;
 }
 
+/* Note input group */
+.note-input-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.note-input {
+    width: 52px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0, 170, 255, 0.35);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9em;
+    padding: 4px 6px;
+    border-radius: 5px;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+.note-input::-webkit-outer-spin-button,
+.note-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.note-input:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+.note-input.editing {
+    background: rgba(255, 102, 0, 0.2);
+    border-color: rgba(255, 153, 0, 0.7);
+    cursor: text;
+}
+.note-input.editing:focus {
+    outline: none;
+    border-color: #ff9900;
+    box-shadow: 0 0 10px rgba(255,153,0,0.5);
+}
+.note-input.error {
+    border-color: #ff3333;
+    background: rgba(255, 0, 0, 0.2);
+    animation: shake 0.3s;
+}
+
+.note-name {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.78em;
+    min-width: 30px;
+}
+
+/* Velocity bar */
 .velocity-bar {
-    height: 8px;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 4px;
+    height: 6px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 3px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255,255,255,0.08);
 }
 
 .velocity-fill {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #ff00aa, #ff6666);
-    border-radius: 3px;
+    border-radius: 2px;
     transition: width 0.15s ease;
-    box-shadow: 0 0 10px rgba(255, 0, 170, 0.6);
+    box-shadow: 0 0 8px rgba(255,0,170,0.5);
+}
+
+/* Preset buttons row */
+.mapping-presets {
+    display: none;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.preset-label {
+    font-size: 0.8em;
+    color: rgba(255,255,255,0.45);
+    margin-right: 4px;
+}
+
+.preset-btn {
+    padding: 4px 11px;
+    background: rgba(255,153,0,0.15);
+    border: 1px solid rgba(255,153,0,0.35);
+    color: #ffaa33;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.preset-btn:hover {
+    background: rgba(255,153,0,0.32);
+    transform: scale(1.06);
+}
+
+/* GM Reference table */
+.gm-reference {
+    margin-top: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.gm-reference summary {
+    padding: 8px 12px;
+    font-size: 0.82em;
+    color: rgba(255,255,255,0.55);
+    cursor: pointer;
+    background: rgba(0,0,0,0.25);
+    user-select: none;
+}
+
+.gm-reference summary:hover { color: rgba(255,255,255,0.85); }
+
+.gm-table {
+    padding: 6px 4px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.gm-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 0.78em;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.gm-row.header {
+    color: rgba(255,255,255,0.4);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.72em;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.gm-row span:first-child { color: #00aaff; font-weight: 600; }
+.gm-row span:last-child  { color: #00ff88; font-weight: 700; text-align: center; }
+.gm-row span:nth-child(2){ color: rgba(255,255,255,0.7); }
+
+/* Mapping controls */
+.mapping-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.mapping-btn {
+    padding: 5px 10px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 6px;
+    background: rgba(0,170,255,0.25);
+    color: white;
+    cursor: pointer;
+    font-size: 0.8em;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.mapping-btn:hover { background: rgba(0,170,255,0.45); transform: scale(1.04); }
+.mapping-btn.primary  { background: rgba(0,255,136,0.25); border-color: rgba(0,255,136,0.45); }
+.mapping-btn.primary:hover { background: rgba(0,255,136,0.45); }
+.mapping-btn.secondary { background: rgba(255,153,0,0.25); border-color: rgba(255,153,0,0.45); }
+.mapping-btn.secondary:hover { background: rgba(255,153,0,0.45); }
+
+.mapping-grid.editing .mapping-item {
+    border-color: rgba(255,153,0,0.28);
+}
+
+/* Monitor filter row */
+.monitor-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.monitor-filter-select {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    padding: 4px 7px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
 }
 
 /* Live Monitor */
@@ -4772,20 +4869,16 @@ body.mono-mode .info-item {
 }
 
 .clear-monitor-btn {
-    padding: 6px 12px;
-    background: rgba(255, 68, 68, 0.3);
-    border: 1px solid rgba(255, 68, 68, 0.5);
+    padding: 5px 10px;
+    background: rgba(255,68,68,0.25);
+    border: 1px solid rgba(255,68,68,0.45);
     border-radius: 6px;
     color: white;
     cursor: pointer;
     font-size: 0.85em;
     transition: all 0.2s;
 }
-
-.clear-monitor-btn:hover {
-    background: rgba(255, 68, 68, 0.5);
-    transform: scale(1.05);
-}
+.clear-monitor-btn:hover { background: rgba(255,68,68,0.45); transform: scale(1.04); }
 
 .monitor-display {
     flex: 1;
