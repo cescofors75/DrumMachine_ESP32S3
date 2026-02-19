@@ -184,6 +184,19 @@ struct TrackCompressorState {
     float envelope;
 };
 
+// Sidechain PRO (kick/trigger ducking across destination tracks)
+struct SidechainState {
+  bool active;
+  int sourceTrack;
+  uint16_t destinationMask;
+  float amount;
+  float knee;
+  float attackCoeff;
+  float releaseCoeff;
+  float envelope[MAX_AUDIO_TRACKS];
+  uint16_t holdSamples[MAX_AUDIO_TRACKS];
+};
+
 // Scratch effect state (per-pad, vinyl scratch simulation)
 struct ScratchState {
   float lfoPhase;       // LFO phase accumulator
@@ -322,6 +335,12 @@ public:
   bool getTrackEchoActive(int track) const;
   bool getTrackFlangerActive(int track) const;
   bool getTrackCompressorActive(int track) const;
+
+  // Sidechain PRO
+  void setSidechain(bool active, int sourceTrack, uint16_t destinationMask,
+                    float amount, float attackMs, float releaseMs, float knee);
+  void triggerSidechain(int sourceTrack, uint8_t velocity = 127);
+  void clearSidechain();
   
   // Filter Presets
   static const FilterPreset* getFilterPreset(FilterType type);
@@ -423,6 +442,7 @@ private:
   TrackEchoState trackEcho[MAX_AUDIO_TRACKS];
   TrackFlangerState trackFlanger[MAX_AUDIO_TRACKS];
   TrackCompressorState trackComp[MAX_AUDIO_TRACKS];
+  SidechainState sidechain;
   float* trackEchoBuffer[MAX_AUDIO_TRACKS];    // PSRAM per-track echo buffers (lazy alloc)
   float* trackFlangerBuffers;                   // PSRAM: 16 × TRACK_FLANGER_BUF
   float* trackFxInputBuf;                       // PSRAM: 16 × DMA_BUF_LEN

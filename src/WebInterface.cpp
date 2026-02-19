@@ -1154,6 +1154,18 @@ void WebInterface::onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient
                 trackNL.add(sequencer.getStepNoteLen(track, step));
               }
             }
+
+            JsonObject volumeLocksObj = responseDoc.createNestedObject("volumeLocks");
+            for (int track = 0; track < 16; track++) {
+              JsonArray trackLocks = volumeLocksObj.createNestedArray(String(track));
+              for (int step = 0; step < 16; step++) {
+                if (sequencer.hasStepVolumeLock(track, step)) {
+                  trackLocks.add(sequencer.getStepVolumeLock(track, step));
+                } else {
+                  trackLocks.add(-1);
+                }
+              }
+            }
             
             String output;
             serializeJson(responseDoc, output);
@@ -1595,6 +1607,18 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       JsonArray trackVels = velocitiesObj.createNestedArray(String(track));
       for (int step = 0; step < 16; step++) {
         trackVels.add(sequencer.getStepVelocity(track, step));
+      }
+    }
+
+    JsonObject volumeLocksObj = patternDoc.createNestedObject("volumeLocks");
+    for (int track = 0; track < 16; track++) {
+      JsonArray trackLocks = volumeLocksObj.createNestedArray(String(track));
+      for (int step = 0; step < 16; step++) {
+        if (sequencer.hasStepVolumeLock(track, step)) {
+          trackLocks.add(sequencer.getStepVolumeLock(track, step));
+        } else {
+          trackLocks.add(-1);
+        }
       }
     }
     
@@ -2301,6 +2325,37 @@ void WebInterface::processCommand(const JsonDocument& doc) {
       if (ws) ws->textAll(out);
     }
   }
+  else if (cmd == "setSidechainPro") {
+    bool active = doc.containsKey("active") ? doc["active"].as<bool>() : true;
+    int source = doc.containsKey("source") ? doc["source"].as<int>() : 0;
+    float amountPct = doc.containsKey("amount") ? doc["amount"].as<float>() : 50.0f;
+    float attackMs = doc.containsKey("attack") ? doc["attack"].as<float>() : 6.0f;
+    float releaseMs = doc.containsKey("release") ? doc["release"].as<float>() : 180.0f;
+    float knee = doc.containsKey("knee") ? doc["knee"].as<float>() : 0.4f;
+
+    uint16_t mask = 0;
+    if (doc.containsKey("destinations")) {
+      JsonArrayConst dest = doc["destinations"].as<JsonArrayConst>();
+      for (JsonVariantConst v : dest) {
+        int t = v.as<int>();
+        if (t >= 0 && t < 16 && t != source) mask |= (1U << t);
+      }
+    }
+
+    audioEngine.setSidechain(active, source, mask, amountPct / 100.0f, attackMs, releaseMs, knee);
+
+    StaticJsonDocument<256> resp;
+    resp["type"] = "sidechainState";
+    resp["active"] = active;
+    resp["source"] = source;
+    resp["mask"] = mask;
+    resp["amount"] = amountPct;
+    resp["attack"] = attackMs;
+    resp["release"] = releaseMs;
+    resp["knee"] = knee;
+    String out; serializeJson(resp, out);
+    if (ws) ws->textAll(out);
+  }
   else if (cmd == "clearTrackLiveFX") {
     int track = doc["track"];
     if (track >= 0 && track < 16) {
@@ -2526,6 +2581,50 @@ void WebInterface::processCommand(const JsonDocument& doc) {
     responseDoc["step"] = step;
     responseDoc["velocity"] = velocity;
     
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "setStepVolumeLock") {
+    int track = doc["track"];
+    int step = doc["step"];
+    bool enabled = doc.containsKey("enabled") ? doc["enabled"].as<bool>() : true;
+    int volume = doc.containsKey("volume") ? doc["volume"].as<int>() : 100;
+    if (track < 0 || track >= 16 || step < 0 || step >= 16) return;
+
+    if (doc.containsKey("pattern")) {
+      int pattern = doc["pattern"].as<int>();
+      if (pattern >= 0 && pattern < MAX_PATTERNS) {
+        sequencer.setStepVolumeLock(pattern, track, step, enabled, volume);
+      }
+    } else {
+      sequencer.setStepVolumeLock(track, step, enabled, volume);
+    }
+
+    StaticJsonDocument<160> responseDoc;
+    responseDoc["type"] = "stepVolumeLockSet";
+    responseDoc["track"] = track;
+    responseDoc["step"] = step;
+    responseDoc["enabled"] = enabled;
+    responseDoc["volume"] = constrain(volume, 0, 150);
+    String output;
+    serializeJson(responseDoc, output);
+    if (ws) ws->textAll(output);
+  }
+  else if (cmd == "getStepVolumeLock") {
+    int track = doc["track"];
+    int step = doc["step"];
+    if (track < 0 || track >= 16 || step < 0 || step >= 16) return;
+
+    bool enabled = sequencer.hasStepVolumeLock(track, step);
+    int volume = enabled ? sequencer.getStepVolumeLock(track, step) : 0;
+
+    StaticJsonDocument<160> responseDoc;
+    responseDoc["type"] = "stepVolumeLock";
+    responseDoc["track"] = track;
+    responseDoc["step"] = step;
+    responseDoc["enabled"] = enabled;
+    responseDoc["volume"] = volume;
     String output;
     serializeJson(responseDoc, output);
     if (ws) ws->textAll(output);

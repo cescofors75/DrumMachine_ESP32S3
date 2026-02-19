@@ -55,6 +55,14 @@ public:
   void setStepNoteLen(int track, int step, uint8_t div);
   uint8_t getStepNoteLen(int track, int step);
   uint8_t getStepNoteLen(int pattern, int track, int step);
+
+  // Parameter locks per step (currently volume lock)
+  void setStepVolumeLock(int track, int step, bool enabled, uint8_t volume);
+  void setStepVolumeLock(int pattern, int track, int step, bool enabled, uint8_t volume);
+  bool hasStepVolumeLock(int track, int step);
+  bool hasStepVolumeLock(int pattern, int track, int step);
+  uint8_t getStepVolumeLock(int track, int step);
+  uint8_t getStepVolumeLock(int pattern, int track, int step);
   
   // Bulk pattern writing (for reliable MIDI import)
   void setPatternBulk(int pattern, const bool stepsData[16][16], const uint8_t velsData[16][16]);
@@ -104,6 +112,8 @@ private:
   bool steps[MAX_PATTERNS][MAX_TRACKS][STEPS_PER_PATTERN];
   uint8_t velocities[MAX_PATTERNS][MAX_TRACKS][STEPS_PER_PATTERN];
   uint8_t noteLenDivs[MAX_PATTERNS][MAX_TRACKS][STEPS_PER_PATTERN]; // 1=full,2=half,4=quarter,8=eighth
+  bool stepVolumeLockEnabled[MAX_PATTERNS][MAX_TRACKS][STEPS_PER_PATTERN];
+  uint8_t stepVolumeLockValue[MAX_PATTERNS][MAX_TRACKS][STEPS_PER_PATTERN];
   
   bool playing;
   int currentPattern;

@@ -190,7 +190,16 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackComp[i].attackCoeff = expf(-1.0f / (SAMPLE_RATE * 0.010f));
     trackComp[i].releaseCoeff = expf(-1.0f / (SAMPLE_RATE * 0.100f));
     trackComp[i].envelope = 0.0f;
+    sidechain.envelope[i] = 0.0f;
+    sidechain.holdSamples[i] = 0;
   }
+  sidechain.active = false;
+  sidechain.sourceTrack = 0;
+  sidechain.destinationMask = 0;
+  sidechain.amount = 0.0f;
+  sidechain.knee = 0.4f;
+  sidechain.attackCoeff = expf(-1.0f / (SAMPLE_RATE * 0.006f));   // 6ms
+  sidechain.releaseCoeff = expf(-1.0f / (SAMPLE_RATE * 0.160f));  // 160ms
   Serial.printf("[AudioEngine] Per-track live FX buffers: flanger=%d bytes, input=%d bytes PSRAM\n",
                 MAX_AUDIO_TRACKS * TRACK_FLANGER_BUF * (int)sizeof(float),
                 MAX_AUDIO_TRACKS * DMA_BUF_LEN * (int)sizeof(float));
@@ -327,6 +336,10 @@ void AudioEngine::triggerSample(int padIndex, uint8_t velocity) {
 
 void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t trackVolume, uint32_t maxSamples) {
   if (padIndex < 0 || padIndex >= MAX_PADS || sampleBuffers[padIndex] == nullptr) return;
+
+  if (padIndex < MAX_AUDIO_TRACKS) {
+    triggerSidechain(padIndex, velocity);
+  }
   
   int voiceIndex = findFreeVoice();
   if (voiceIndex < 0) return; // Voice stealing handled inside findFreeVoice
@@ -463,6 +476,38 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
       if (trackHasLiveFx[t]) {
         memset(&trackFxInputBuf[t * DMA_BUF_LEN], 0, DMA_BUF_LEN * sizeof(float));
       }
+    }
+  }
+
+  static float sidechainGain[MAX_AUDIO_TRACKS][DMA_BUF_LEN];
+  for (int t = 0; t < MAX_AUDIO_TRACKS; t++) {
+    for (size_t i = 0; i < samples; i++) {
+      if (!sidechain.active) {
+        sidechainGain[t][i] = 1.0f;
+        sidechain.envelope[t] = 0.0f;
+        sidechain.holdSamples[t] = 0;
+        continue;
+      }
+
+      bool targeted = (sidechain.destinationMask & (1U << t)) != 0;
+      if (!targeted || t == sidechain.sourceTrack) {
+        sidechainGain[t][i] = 1.0f;
+        sidechain.envelope[t] = 0.0f;
+        sidechain.holdSamples[t] = 0;
+        continue;
+      }
+
+      float target = (sidechain.holdSamples[t] > 0) ? 1.0f : 0.0f;
+      float env = sidechain.envelope[t];
+      float coeff = (target > env) ? sidechain.attackCoeff : sidechain.releaseCoeff;
+      env = coeff * env + (1.0f - coeff) * target;
+      sidechain.envelope[t] = env;
+      if (sidechain.holdSamples[t] > 0) sidechain.holdSamples[t]--;
+
+      float shaped = powf(constrain(env, 0.0f, 1.0f), 1.0f + sidechain.knee * 3.0f);
+      float gain = 1.0f - sidechain.amount * shaped;
+      if (gain < 0.08f) gain = 0.08f;
+      sidechainGain[t][i] = gain;
     }
   }
   
@@ -609,6 +654,7 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
         mixAcc[i * 2] += out;
         mixAcc[i * 2 + 1] += out;
       }
+
       // Keep voice alive (scratch loops indefinitely)
       voice.position = (uint32_t)voice.scratchPos;
       continue;
@@ -690,6 +736,10 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
             filtered = (filtered >> shift) << shift;
           }
         }
+      }
+
+      if (!voice.isLivePad && voice.padIndex >= 0 && voice.padIndex < MAX_AUDIO_TRACKS) {
+        filtered = (int16_t)(filtered * sidechainGain[voice.padIndex][i]);
       }
       
       // Mix to accumulator or per-track live FX input
@@ -800,6 +850,49 @@ void IRAM_ATTR AudioEngine::fillBuffer(int16_t* buffer, size_t samples) {
   masterPeak = masterPeakDecay;
   // Decay master peak
   masterPeakDecay *= 0.95f;
+}
+
+void AudioEngine::setSidechain(bool active, int sourceTrack, uint16_t destinationMask,
+                               float amount, float attackMs, float releaseMs, float knee) {
+  sidechain.active = active;
+  sidechain.sourceTrack = constrain(sourceTrack, 0, MAX_AUDIO_TRACKS - 1);
+  sidechain.destinationMask = destinationMask;
+  sidechain.amount = constrain(amount, 0.0f, 1.0f);
+  sidechain.knee = constrain(knee, 0.0f, 1.0f);
+
+  float aMs = constrain(attackMs, 0.1f, 80.0f);
+  float rMs = constrain(releaseMs, 10.0f, 1200.0f);
+  sidechain.attackCoeff = expf(-1.0f / (SAMPLE_RATE * aMs / 1000.0f));
+  sidechain.releaseCoeff = expf(-1.0f / (SAMPLE_RATE * rMs / 1000.0f));
+
+  if (!active) {
+    for (int i = 0; i < MAX_AUDIO_TRACKS; i++) {
+      sidechain.envelope[i] = 0.0f;
+      sidechain.holdSamples[i] = 0;
+    }
+  }
+
+  Serial.printf("[AudioEngine] Sidechain %s src=%d mask=0x%04X amt=%.2f atk=%.1fms rel=%.1fms knee=%.2f\n",
+                active ? "ON" : "OFF", sidechain.sourceTrack, sidechain.destinationMask,
+                sidechain.amount, aMs, rMs, sidechain.knee);
+}
+
+void AudioEngine::triggerSidechain(int sourceTrack, uint8_t velocity) {
+  if (!sidechain.active) return;
+  if (sourceTrack != sidechain.sourceTrack) return;
+
+  float velNorm = constrain((float)velocity / 127.0f, 0.25f, 1.0f);
+  uint16_t hold = (uint16_t)(SAMPLE_RATE * (0.008f + 0.016f * velNorm)); // 8-24ms
+  for (int t = 0; t < MAX_AUDIO_TRACKS; t++) {
+    if (t == sidechain.sourceTrack) continue;
+    if (sidechain.destinationMask & (1U << t)) {
+      sidechain.holdSamples[t] = hold;
+    }
+  }
+}
+
+void AudioEngine::clearSidechain() {
+  setSidechain(false, 0, 0, 0.0f, 6.0f, 160.0f, 0.4f);
 }
 
 int AudioEngine::findFreeVoice() {

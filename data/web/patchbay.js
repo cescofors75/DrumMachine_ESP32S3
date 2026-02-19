@@ -80,6 +80,27 @@ let nextId = 1;
 let ws = null;
 let wsConnected = false;
 let isPlaying = false;
+let currentTempo = 120;
+let currentStep = -1;
+let stepPulseTimer = null;
+let serverPlaying = null;
+let stepDrivenPlaying = false;
+let stepDrivenTimer = null;
+let signalDemoMode = false;
+let viewZoom = 1;
+let gridVisible = true;
+let heatMode = 'on'; // 'off' | 'on' | 'auto'
+let sceneQuantizeEnabled = true;
+let pendingSceneState = null;
+let pendingSceneLabel = '';
+let trackVolumes = new Array(16).fill(100);
+let activeMacroScene = 'A';
+let macroScenes = {
+  A: [45, 35, 55, 40],
+  B: [70, 20, 68, 55],
+  C: [25, 62, 34, 22],
+  D: [55, 48, 72, 68]
+};
 
 /* Drag state */
 let drag = null;   // { type:'node'|'cable', nodeId, startX, startY, offsetX, offsetY, fromId, fromType }
@@ -88,13 +109,14 @@ let selectedCable = null;
 let editingNode = null;
 
 /* DOM refs */
-let svgEl, nodesEl, canvasEl;
+let svgEl, nodesEl, canvasEl, worldEl;
 
 /* ──────────── INIT ──────────── */
 function init() {
   svgEl   = document.getElementById('pbSVG');
   nodesEl = document.getElementById('pbNodes');
   canvasEl= document.getElementById('pbCanvas');
+  worldEl = document.getElementById('pbWorld');
 
   /* Set canvas size */
   nodesEl.style.width  = CANVAS_W + 'px';
@@ -104,12 +126,22 @@ function init() {
   svgEl.style.width  = CANVAS_W + 'px';
   svgEl.style.height = CANVAS_H + 'px';
 
+  loadViewPrefs();
+  applyZoom();
+  applyGridVisibility();
+  updateHeatModeButton();
+  updateQuantizeButton();
+  loadMacroScenes();
+  initMacroPanel();
+
   /* Create initial pad nodes */
   for (let i = 0; i < 16; i++) {
     createPadNode(i, 60, 60 + i * 120);
   }
   /* Create Master Out */
   createMasterNode(CANVAS_W - 260, 500);
+  createBusNode('bus-a', 'BUS A', CANVAS_W - 560, 380, 'teal');
+  createBusNode('bus-b', 'BUS B', CANVAS_W - 560, 640, 'violet');
 
   /* Load saved state */
   loadState();
@@ -125,6 +157,8 @@ function init() {
   /* WebSocket */
   connectWS();
 
+  applyTempoVisuals();
+
   updateStatus();
 }
 
@@ -137,6 +171,7 @@ function connectWS() {
     document.getElementById('pbWsStatus').classList.add('connected');
     /* Resend all active effects */
     cables.forEach(c => applyConnection(c));
+    sendCmd('getTrackVolumes', {});
   };
   ws.onclose = () => {
     wsConnected = false;
@@ -154,18 +189,234 @@ function sendCmd(cmd, data) {
   ws.send(JSON.stringify(Object.assign({ cmd }, data)));
 }
 
+function getMacroSliderValues() {
+  const values = [];
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`pbMacro${i}`);
+    values.push(el ? parseInt(el.value || '0', 10) : 0);
+  }
+  return values.map(v => Number.isNaN(v) ? 0 : Math.max(0, Math.min(100, v)));
+}
+
+function setMacroSliderValues(values) {
+  if (!Array.isArray(values)) return;
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`pbMacro${i}`);
+    if (!el) continue;
+    const v = Math.max(0, Math.min(100, parseInt(values[i - 1] ?? 0, 10) || 0));
+    el.value = String(v);
+  }
+}
+
+function updateMacroSceneButtons() {
+  ['A','B','C','D'].forEach(scene => {
+    const btn = document.getElementById(`pbMacroScene${scene}`);
+    if (!btn) return;
+    btn.classList.toggle('is-active', scene === activeMacroScene);
+  });
+}
+
+function saveMacroScenes() {
+  try {
+    localStorage.setItem('pb_macro_scenes', JSON.stringify({ active: activeMacroScene, scenes: macroScenes }));
+  } catch(ex) {}
+}
+
+function loadMacroScenes() {
+  try {
+    const raw = localStorage.getItem('pb_macro_scenes');
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.scenes) {
+      ['A','B','C','D'].forEach(scene => {
+        if (Array.isArray(parsed.scenes[scene]) && parsed.scenes[scene].length >= 4) {
+          macroScenes[scene] = parsed.scenes[scene].slice(0, 4);
+        }
+      });
+    }
+    if (parsed && ['A','B','C','D'].includes(parsed.active)) {
+      activeMacroScene = parsed.active;
+    }
+  } catch(ex) {}
+}
+
+function applyMacroValue(index, value) {
+  const v = Math.max(0, Math.min(100, value));
+  if (index === 1) {
+    const cutoff = Math.round(200 + (v / 100) * 11800);
+    sendCmd('setFilterCutoff', { value: cutoff });
+  } else if (index === 2) {
+    sendCmd('setDelayActive', { value: v > 0 });
+    sendCmd('setDelayMix', { value: v });
+  } else if (index === 3) {
+    const threshold = -50 + (v / 100) * 44;
+    sendCmd('setCompressorActive', { value: v > 0 });
+    sendCmd('setCompressorThreshold', { value: threshold });
+  } else if (index === 4) {
+    sendCmd('setSidechainPro', {
+      active: v > 0,
+      source: 0,
+      destinations: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      amount: v,
+      attack: 6,
+      release: 180,
+      knee: 0.45
+    });
+  }
+}
+
+function applyMacroSceneValues(values) {
+  const safe = (Array.isArray(values) ? values : [0,0,0,0]).slice(0, 4);
+  setMacroSliderValues(safe);
+  for (let i = 0; i < 4; i++) {
+    applyMacroValue(i + 1, parseInt(safe[i], 10) || 0);
+  }
+}
+
+function initMacroPanel() {
+  setMacroSliderValues(macroScenes[activeMacroScene]);
+  updateMacroSceneButtons();
+
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`pbMacro${i}`);
+    if (!el) continue;
+    el.addEventListener('input', () => {
+      const values = getMacroSliderValues();
+      macroScenes[activeMacroScene] = values;
+      applyMacroValue(i, values[i - 1]);
+      saveMacroScenes();
+    });
+  }
+
+  applyMacroSceneValues(macroScenes[activeMacroScene]);
+}
+
+window.pbSelectMacroScene = function(scene) {
+  if (!['A','B','C','D'].includes(scene)) return;
+  activeMacroScene = scene;
+  updateMacroSceneButtons();
+  applyMacroSceneValues(macroScenes[scene]);
+  saveMacroScenes();
+};
+
+window.pbSaveMacroScene = function() {
+  macroScenes[activeMacroScene] = getMacroSliderValues();
+  saveMacroScenes();
+};
+
+window.pbLoadMacroScene = function() {
+  applyMacroSceneValues(macroScenes[activeMacroScene]);
+};
+
 function handleWSMessage(msg) {
-  if ((msg.type === 'playState' || msg.type === 'sequencerState' || msg.type === 'status') && typeof msg.playing !== 'undefined') {
+  if ((msg.type === 'playState' || msg.type === 'sequencerState' || msg.type === 'status' || msg.type === 'state') && typeof msg.playing !== 'undefined') {
     isPlaying = !!msg.playing;
-    const root = document.getElementById('patchbay');
-    if (root) root.classList.toggle('pb-playing', isPlaying);
-    return;
+    serverPlaying = !!msg.playing;
+    if (!serverPlaying) {
+      stepDrivenPlaying = false;
+      if (stepDrivenTimer) {
+        clearTimeout(stepDrivenTimer);
+        stepDrivenTimer = null;
+      }
+    }
+    updatePlayingVisualState();
+  }
+
+  if (typeof msg.tempo !== 'undefined') {
+    const parsedTempo = parseFloat(msg.tempo);
+    if (!Number.isNaN(parsedTempo)) {
+      currentTempo = parsedTempo;
+      applyTempoVisuals();
+    }
+  }
+
+  if (typeof msg.step !== 'undefined') {
+    const parsedStep = parseInt(msg.step, 10);
+    if (!Number.isNaN(parsedStep) && parsedStep !== currentStep) {
+      currentStep = parsedStep;
+      triggerStepPulse();
+      if (pendingSceneState && parsedStep % 4 === 0) {
+        applyQueuedSceneState();
+      }
+      if (serverPlaying !== true) {
+        stepDrivenPlaying = true;
+        updatePlayingVisualState();
+        if (stepDrivenTimer) clearTimeout(stepDrivenTimer);
+        stepDrivenTimer = setTimeout(() => {
+          stepDrivenPlaying = false;
+          updatePlayingVisualState();
+        }, 850);
+      }
+    }
+  }
+
+  if (Array.isArray(msg.trackVolumes)) {
+    ingestTrackVolumes(msg.trackVolumes);
+  }
+
+  if (msg.type === 'trackVolumes' && Array.isArray(msg.volumes)) {
+    ingestTrackVolumes(msg.volumes);
+  }
+
+  if ((msg.type === 'trackVolumeSet' || msg.type === 'trackVolume') && typeof msg.track !== 'undefined' && typeof msg.volume !== 'undefined') {
+    setTrackVolume(msg.track, msg.volume);
   }
 
   /* Update sample names on pads if available */
   if (msg.type === 'sampleLoaded' || msg.type === 'kitLoaded') {
     // Could update pad labels here
   }
+}
+
+function applyTempoVisuals() {
+  const bpm = Math.max(40, Math.min(300, Number(currentTempo) || 120));
+  const beat = 60 / bpm;
+  const flowDuration = Math.max(0.22, Math.min(1.4, beat / 2));
+  const pulseDuration = Math.max(0.18, Math.min(0.95, beat / 4));
+  const root = document.getElementById('patchbay');
+  if (!root) return;
+  root.style.setProperty('--pb-flow-duration', `${flowDuration.toFixed(3)}s`);
+  root.style.setProperty('--pb-pulse-duration', `${pulseDuration.toFixed(3)}s`);
+}
+
+function updatePlayingVisualState() {
+  const root = document.getElementById('patchbay');
+  if (!root) return;
+  const active = !!(signalDemoMode || serverPlaying || stepDrivenPlaying || isPlaying);
+  root.classList.toggle('pb-playing', active);
+}
+
+function triggerStepPulse() {
+  const root = document.getElementById('patchbay');
+  if (!root) return;
+  root.classList.remove('pb-step-hit');
+  void root.offsetWidth;
+  root.classList.add('pb-step-hit');
+  if (stepPulseTimer) clearTimeout(stepPulseTimer);
+  stepPulseTimer = setTimeout(() => root.classList.remove('pb-step-hit'), 110);
+}
+
+function clampTrackVolume(v) {
+  const n = Number(v);
+  if (Number.isNaN(n)) return 100;
+  return Math.max(0, Math.min(127, n));
+}
+
+function setTrackVolume(track, volume) {
+  const idx = parseInt(track, 10);
+  if (Number.isNaN(idx) || idx < 0 || idx >= 16) return;
+  trackVolumes[idx] = clampTrackVolume(volume);
+  renderCables();
+}
+
+function ingestTrackVolumes(volumes) {
+  if (!Array.isArray(volumes)) return;
+  for (let i = 0; i < 16; i++) {
+    if (typeof volumes[i] !== 'undefined') {
+      trackVolumes[i] = clampTrackVolume(volumes[i]);
+    }
+  }
+  renderCables();
 }
 
 /* ──────────── NODE CREATION ──────────── */
@@ -218,6 +469,21 @@ function createMasterNode(x, y) {
   renderNode(node);
 }
 
+function createBusNode(id, label, x, y, color) {
+  if (nodes.find(n => n.id === id)) return;
+  const node = {
+    id,
+    type: 'bus',
+    x: snap(x),
+    y: snap(y),
+    label,
+    sub: 'SUB MIX',
+    color: color || 'teal'
+  };
+  nodes.push(node);
+  renderNode(node);
+}
+
 /* ──────────── NODE RENDERING ──────────── */
 function renderNode(node) {
   let el = document.getElementById('node-' + node.id);
@@ -262,6 +528,15 @@ function renderNode(node) {
       <div class="pb-node-header">${node.label}</div>
       <div class="pb-node-sub">${node.sub}</div>
       <div class="pb-connector in" data-node="${node.id}" data-dir="in"></div>
+    `;
+  } else if (node.type === 'bus') {
+    el.classList.add('pb-fx');
+    el.setAttribute('data-color', node.color || 'teal');
+    el.innerHTML = `
+      <div class="pb-node-header">⎍ ${node.label}</div>
+      <div class="pb-node-sub">${node.sub || 'SUB MIX'}</div>
+      <div class="pb-connector in" data-node="${node.id}" data-dir="in"></div>
+      <div class="pb-connector out" data-node="${node.id}" data-dir="out"></div>
     `;
   }
 
@@ -314,9 +589,12 @@ function renderCables() {
     if (!fromPos || !toPos) return;
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const baseWidth = getCableStrokeWidth(cable);
+    const levelNorm = getCableLevelNorm(cable);
+    const cableStroke = isHeatActive() ? getCableHeatColor(cable.color, levelNorm) : cable.color;
     path.setAttribute('d', getCableBezier(fromPos.x, fromPos.y, toPos.x, toPos.y));
-    path.setAttribute('stroke', cable.color);
-    path.setAttribute('stroke-width', '3');
+    path.setAttribute('stroke', cableStroke);
+    path.setAttribute('stroke-width', String(baseWidth.toFixed(2)));
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('filter', 'url(#cableGlow)');
@@ -327,7 +605,7 @@ function renderCables() {
     path.style.cursor = 'pointer';
     if (selectedCable === cable.id) {
       path.classList.add('is-selected');
-      path.setAttribute('stroke-width', '5');
+      path.setAttribute('stroke-width', String((baseWidth + 1.8).toFixed(2)));
       path.setAttribute('stroke-dasharray', '8 4');
     }
     path.addEventListener('click', (e) => {
@@ -336,6 +614,77 @@ function renderCables() {
     });
     svgEl.appendChild(path);
   });
+}
+
+function getCableSourceTracks(cable) {
+  const fromNode = nodes.find(n => n.id === cable.from);
+  if (!fromNode) return [];
+  if (fromNode.type === 'pad') return [fromNode.track];
+  if (fromNode.type === 'fx') return getTracksForNode(fromNode.id);
+  if (fromNode.type === 'bus') return getTracksForNode(fromNode.id);
+  return [];
+}
+
+function getCableStrokeWidth(cable) {
+  const avg = getCableAverageVolume(cable);
+  if (avg < 0) return 2.4;
+  return 1.6 + (avg / 127) * 4.4;
+}
+
+function getCableAverageVolume(cable) {
+  const tracks = getCableSourceTracks(cable);
+  if (!tracks.length) return -1;
+  const sum = tracks.reduce((acc, track) => acc + clampTrackVolume(trackVolumes[track]), 0);
+  return sum / tracks.length;
+}
+
+function getCableLevelNorm(cable) {
+  const avg = getCableAverageVolume(cable);
+  if (avg < 0) return 0.5;
+  return Math.max(0, Math.min(1, avg / 127));
+}
+
+function getCableHeatColor(baseHex, levelNorm) {
+  const c = hexToRgb(baseHex);
+  if (!c) return baseHex;
+
+  const cool = { r: 90, g: 170, b: 255 };
+  const hot = { r: 255, g: 62, b: 72 };
+
+  const warmMix = Math.max(0, Math.min(1, levelNorm));
+  const target = {
+    r: Math.round(cool.r + (hot.r - cool.r) * warmMix),
+    g: Math.round(cool.g + (hot.g - cool.g) * warmMix),
+    b: Math.round(cool.b + (hot.b - cool.b) * warmMix)
+  };
+
+  const blendBase = 0.45;
+  const out = {
+    r: Math.round(c.r * (1 - blendBase) + target.r * blendBase),
+    g: Math.round(c.g * (1 - blendBase) + target.g * blendBase),
+    b: Math.round(c.b * (1 - blendBase) + target.b * blendBase)
+  };
+  return rgbToHex(out.r, out.g, out.b);
+}
+
+function hexToRgb(hex) {
+  if (typeof hex !== 'string') return null;
+  const clean = hex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null;
+  const num = parseInt(clean, 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
+
+function rgbToHex(r, g, b) {
+  const rr = Math.max(0, Math.min(255, r)) | 0;
+  const gg = Math.max(0, Math.min(255, g)) | 0;
+  const bb = Math.max(0, Math.min(255, b)) | 0;
+  const v = (rr << 16) | (gg << 8) | bb;
+  return '#' + v.toString(16).padStart(6, '0');
 }
 
 function renderPreviewCable(x1, y1, x2, y2, color) {
@@ -384,6 +733,8 @@ function addCable(fromId, toId) {
     const def = FX_DEFS[fromNode.fxType];
     const cmap = {cyan:'#00e5ff',orange:'#ff9100',yellow:'#ffd600',purple:'#b388ff',pink:'#ff4081',green:'#69f0ae',teal:'#26c6da',violet:'#ea80fc',blue:'#448aff',gold:'#ffd700'};
     color = cmap[def.color] || '#ffffff';
+  } else if (fromNode && fromNode.type === 'bus') {
+    color = getColorHex(fromNode.color || 'teal');
   }
 
   const cable = { id: 'cable-' + nextId++, from: fromId, to: toId, color };
@@ -636,8 +987,8 @@ function getColorHex(name) {
 function getCanvasPos(e) {
   const r = canvasEl.getBoundingClientRect();
   return {
-    x: e.clientX - r.left + canvasEl.scrollLeft,
-    y: e.clientY - r.top  + canvasEl.scrollTop
+    x: (e.clientX - r.left + canvasEl.scrollLeft) / viewZoom,
+    y: (e.clientY - r.top  + canvasEl.scrollTop) / viewZoom
   };
 }
 
@@ -702,6 +1053,7 @@ function onPointerMove(e) {
     if (fromNode) {
       if (fromNode.type === 'pad') color = fromNode.color;
       else if (fromNode.type === 'fx') color = getColorHex(FX_DEFS[fromNode.fxType]?.color);
+      else if (fromNode.type === 'bus') color = getColorHex(fromNode.color || 'teal');
       else if (fromNode.type === 'master') color = '#ffd700';
     }
 
@@ -808,6 +1160,12 @@ function onDocClick(e) {
   if (!e.target.closest('#pbMenu') && !e.target.closest('#pbMenuBtn')) {
     document.getElementById('pbMenu').classList.add('hidden');
   }
+  if (!e.target.closest('#pbPresetPanel') && !e.target.closest('#pbMenu')) {
+    const panel = document.getElementById('pbPresetPanel');
+    if (panel && !panel.classList.contains('hidden') && !e.target.closest('[onclick="pbOpenPresetPanel()"]')) {
+      panel.classList.add('hidden');
+    }
+  }
 }
 
 /* ──────────── PUBLIC API (window) ──────────── */
@@ -833,9 +1191,60 @@ window.pbAddEffect = function(fxType) {
   }
 };
 
+window.pbZoomIn = function() {
+  setZoom(viewZoom + 0.12);
+};
+
+window.pbZoomOut = function() {
+  setZoom(viewZoom - 0.12);
+};
+
+window.pbZoomReset = function() {
+  setZoom(1);
+};
+
+window.pbToggleGrid = function() {
+  gridVisible = !gridVisible;
+  applyGridVisibility();
+  saveViewPrefs();
+};
+
+window.pbToggleHeatMode = function() {
+  if (heatMode === 'off') heatMode = 'on';
+  else if (heatMode === 'on') heatMode = 'auto';
+  else heatMode = 'off';
+  updateHeatModeButton();
+  renderCables();
+  saveViewPrefs();
+};
+
+window.pbToggleSceneQuantize = function() {
+  sceneQuantizeEnabled = !sceneQuantizeEnabled;
+  if (!sceneQuantizeEnabled && pendingSceneState) {
+    applyQueuedSceneState();
+  }
+  updateQuantizeButton();
+  saveViewPrefs();
+};
+
+window.pbSaveSnapshot = function(slot) {
+  const key = String(slot || 'A').toUpperCase() === 'B' ? 'B' : 'A';
+  localStorage.setItem(`pb_snapshot_${key}`, JSON.stringify(exportState()));
+};
+
+window.pbLoadSnapshot = function(slot) {
+  const key = String(slot || 'A').toUpperCase() === 'B' ? 'B' : 'A';
+  const raw = localStorage.getItem(`pb_snapshot_${key}`);
+  if (!raw) return;
+  try {
+    const state = JSON.parse(raw);
+    scheduleSceneStateApply(state, `Snapshot ${key}`);
+  } catch(ex) {}
+};
+
 window.pbDeleteNode = function(nodeId) {
   const node = nodes.find(n => n.id === nodeId);
-  if (!node || node.type === 'pad' || node.type === 'master') return;
+  if (!node || node.type === 'pad' || node.type === 'master' || node.type === 'bus') return;
 
   /* Remove all cables connected to this node */
   const connectedCables = cables.filter(c => c.from === nodeId || c.to === nodeId);
@@ -885,6 +1294,18 @@ window.pbResetLayout = function() {
     const el = document.getElementById('node-' + master.id);
     if (el) { el.style.left = master.x + 'px'; el.style.top = master.y + 'px'; }
   }
+  const busA = nodes.find(n => n.id === 'bus-a');
+  if (busA) {
+    busA.x = CANVAS_W - 560; busA.y = 380;
+    const el = document.getElementById('node-' + busA.id);
+    if (el) { el.style.left = busA.x + 'px'; el.style.top = busA.y + 'px'; }
+  }
+  const busB = nodes.find(n => n.id === 'bus-b');
+  if (busB) {
+    busB.x = CANVAS_W - 560; busB.y = 640;
+    const el = document.getElementById('node-' + busB.id);
+    if (el) { el.style.left = busB.x + 'px'; el.style.top = busB.y + 'px'; }
+  }
   renderCables();
   saveState();
 };
@@ -899,41 +1320,101 @@ window.pbAutoRoute = function() {
   });
 };
 
-window.pbSavePreset = function() {
+window.pbBuildChain = function() {
   document.getElementById('pbMenu').classList.add('hidden');
-  const name = prompt('Nombre del preset:', 'Patchbay ' + new Date().toLocaleTimeString());
-  if (!name) return;
-  const presets = JSON.parse(localStorage.getItem('pb_presets') || '{}');
-  presets[name] = exportState();
-  localStorage.setItem('pb_presets', JSON.stringify(presets));
-  alert('Preset guardado: ' + name);
+  const fxNodes = nodes.filter(n => n.type === 'fx').sort((a, b) => (a.x - b.x) || (a.y - b.y));
+  if (fxNodes.length === 0) return;
+
+  cables.forEach(c => clearConnection(c));
+  cables = [];
+
+  const firstFx = fxNodes[0];
+  nodes.filter(n => n.type === 'pad').forEach(pad => addCable(pad.id, firstFx.id));
+  for (let i = 0; i < fxNodes.length - 1; i++) {
+    addCable(fxNodes[i].id, fxNodes[i + 1].id);
+  }
+  addCable(fxNodes[fxNodes.length - 1].id, 'master');
+
+  renderCables();
+  updateStatus();
+  saveState();
+};
+
+window.pbOrganizeNodes = function() {
+  document.getElementById('pbMenu').classList.add('hidden');
+  const fxNodes = nodes.filter(n => n.type === 'fx').sort((a, b) => (a.x - b.x) || (a.y - b.y));
+  fxNodes.forEach((node, idx) => {
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
+    node.x = snap(760 + col * 280);
+    node.y = snap(280 + row * 220);
+    const el = document.getElementById('node-' + node.id);
+    if (el) {
+      el.style.left = node.x + 'px';
+      el.style.top = node.y + 'px';
+    }
+  });
+
+  const master = nodes.find(n => n.type === 'master');
+  if (master) {
+    master.x = snap(CANVAS_W - 260);
+    master.y = snap(520);
+    const el = document.getElementById('node-' + master.id);
+    if (el) {
+      el.style.left = master.x + 'px';
+      el.style.top = master.y + 'px';
+    }
+  }
+
+  renderCables();
+  saveState();
+};
+
+window.pbToggleSignalDemo = function() {
+  document.getElementById('pbMenu').classList.add('hidden');
+  signalDemoMode = !signalDemoMode;
+  updatePlayingVisualState();
+};
+
+window.pbSavePreset = function() {
+  window.pbOpenPresetPanel();
+  const input = document.getElementById('pbPresetNameInput');
+  if (input) {
+    input.focus();
+    input.select();
+  }
 };
 
 window.pbFactoryPresets = function() {
-  document.getElementById('pbMenu').classList.add('hidden');
-  const list = FACTORY_PRESETS.map((p, i) => `${i + 1}. ${p.name} — ${p.description}`).join('\n');
-  const input = prompt('PRESETS DE FÁBRICA:\n\n' + list + '\n\nEscribe número o nombre:');
-  if (!input) return;
-  const key = input.trim().toLowerCase();
-  let preset = FACTORY_PRESETS.find((p, i) => String(i + 1) === key);
-  if (!preset) preset = FACTORY_PRESETS.find(p => p.name.toLowerCase() === key || p.id.toLowerCase() === key);
-  if (!preset) {
-    alert('Preset no encontrado');
-    return;
-  }
-  applyFactoryPreset(preset);
-  alert('Preset de fábrica cargado: ' + preset.name);
+  window.pbOpenPresetPanel();
 };
 
 window.pbLoadPreset = function() {
+  window.pbOpenPresetPanel();
+};
+
+window.pbOpenPresetPanel = function() {
   document.getElementById('pbMenu').classList.add('hidden');
-  const presets = JSON.parse(localStorage.getItem('pb_presets') || '{}');
-  const names = Object.keys(presets);
-  if (names.length === 0) { alert('No hay presets guardados'); return; }
-  const name = prompt('Presets disponibles:\n' + names.map((n,i) => (i+1) + '. ' + n).join('\n') + '\n\nEscribe el nombre:');
-  if (!name || !presets[name]) return;
-  importState(presets[name]);
-  alert('Preset cargado: ' + name);
+  const panel = document.getElementById('pbPresetPanel');
+  if (!panel) return;
+  renderPresetPanel();
+  panel.classList.remove('hidden');
+};
+
+window.pbClosePresetPanel = function() {
+  const panel = document.getElementById('pbPresetPanel');
+  if (panel) panel.classList.add('hidden');
+};
+
+window.pbSavePresetFromPanel = function() {
+  const input = document.getElementById('pbPresetNameInput');
+  const baseName = input?.value?.trim();
+  const name = baseName || ('Patchbay ' + new Date().toLocaleTimeString());
+  const presets = getUserPresets();
+  presets[name] = exportState();
+  setUserPresets(presets);
+  if (input) input.value = '';
+  renderPresetPanel();
 };
 
 window.pbEditNode = function(nodeId) {
@@ -954,6 +1435,7 @@ function exportState() {
       id: n.id, fxType: n.fxType, x: n.x, y: n.y, params: {...n.params}
     })),
     padPositions: nodes.filter(n => n.type === 'pad').map(n => ({ id: n.id, x: n.x, y: n.y })),
+    busPositions: nodes.filter(n => n.type === 'bus').map(n => ({ id: n.id, x: n.x, y: n.y })),
     masterPos: (() => { const m = nodes.find(n => n.type === 'master'); return m ? {x: m.x, y: m.y} : null; })(),
     cables: cables.map(c => ({ from: c.from, to: c.to })),
     nextId
@@ -978,6 +1460,18 @@ function importState(data) {
         node.x = pp.x; node.y = pp.y;
         const el = document.getElementById('node-' + node.id);
         if (el) { el.style.left = pp.x + 'px'; el.style.top = pp.y + 'px'; }
+      }
+    });
+  }
+
+  if (data.busPositions) {
+    data.busPositions.forEach(bp => {
+      const node = nodes.find(n => n.id === bp.id && n.type === 'bus');
+      if (node) {
+        node.x = bp.x;
+        node.y = bp.y;
+        const el = document.getElementById('node-' + node.id);
+        if (el) { el.style.left = bp.x + 'px'; el.style.top = bp.y + 'px'; }
       }
     });
   }
@@ -1045,45 +1539,268 @@ function loadState() {
   }
 }
 
-function applyFactoryPreset(preset) {
-  if (!preset || !Array.isArray(preset.chain) || preset.chain.length === 0) return;
+function setZoom(nextZoom) {
+  const clamped = Math.max(0.5, Math.min(2.5, nextZoom));
+  if (Math.abs(clamped - viewZoom) < 0.001) return;
 
-  cables.forEach(c => clearConnection(c));
-  cables = [];
+  const oldZoom = viewZoom;
+  const rect = canvasEl.getBoundingClientRect();
+  const centerX = canvasEl.scrollLeft + rect.width / 2;
+  const centerY = canvasEl.scrollTop + rect.height / 2;
+  const worldX = centerX / oldZoom;
+  const worldY = centerY / oldZoom;
 
-  nodes.filter(n => n.type === 'fx').forEach(n => {
-    const el = document.getElementById('node-' + n.id);
-    if (el) el.remove();
-  });
-  nodes = nodes.filter(n => n.type !== 'fx');
+  viewZoom = clamped;
+  applyZoom();
 
-  const fxMap = {};
-  preset.chain.forEach(def => {
-    const fxNode = createFxNode(def.fxType, def.x, def.y);
-    if (fxNode && def.params) {
-      Object.assign(fxNode.params, def.params);
-      updateNodeDisplay(fxNode);
+  canvasEl.scrollLeft = worldX * viewZoom - rect.width / 2;
+  canvasEl.scrollTop  = worldY * viewZoom - rect.height / 2;
+
+  saveViewPrefs();
+}
+
+function applyZoom() {
+  if (!worldEl || !svgEl || !nodesEl || !canvasEl) return;
+  worldEl.style.width = (CANVAS_W * viewZoom) + 'px';
+  worldEl.style.height = (CANVAS_H * viewZoom) + 'px';
+  svgEl.style.transform = `scale(${viewZoom})`;
+  nodesEl.style.transform = `scale(${viewZoom})`;
+  canvasEl.style.setProperty('--pb-grid-zoom', String(viewZoom));
+
+  const zoomLabel = document.getElementById('pbZoomValue');
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(viewZoom * 100)}%`;
+
+  renderCables();
+}
+
+function applyGridVisibility() {
+  if (!canvasEl) return;
+  canvasEl.classList.toggle('pb-grid-off', !gridVisible);
+  const btn = document.getElementById('pbGridToggleBtn');
+  if (btn) {
+    btn.classList.toggle('is-off', !gridVisible);
+    btn.textContent = gridVisible ? 'GRID' : 'NO GRID';
+  }
+}
+
+function updateHeatModeButton() {
+  const btn = document.getElementById('pbHeatToggleBtn');
+  if (!btn) return;
+  const labels = {
+    off: '🌡 Heat OFF',
+    on: '🌡 Heat ON',
+    auto: '🌡 Heat AUTO'
+  };
+  btn.textContent = labels[heatMode] || '🌡 Heat ON';
+}
+
+function updateQuantizeButton() {
+  const btn = document.getElementById('pbQuantizeBtn');
+  if (!btn) return;
+  if (!sceneQuantizeEnabled) {
+    btn.textContent = '⏱ Quantize OFF';
+    return;
+  }
+  btn.textContent = pendingSceneState
+    ? `⏱ Quantize ON • ${pendingSceneLabel || 'Queued'}`
+    : '⏱ Quantize ON';
+}
+
+function cloneSceneState(state) {
+  try {
+    return JSON.parse(JSON.stringify(state));
+  } catch(ex) {
+    return null;
+  }
+}
+
+function applySceneStateNow(state) {
+  const cloned = cloneSceneState(state);
+  if (!cloned) return;
+  importState(cloned);
+  saveState();
+}
+
+function applyQueuedSceneState() {
+  if (!pendingSceneState) return;
+  const queued = pendingSceneState;
+  pendingSceneState = null;
+  pendingSceneLabel = '';
+  applySceneStateNow(queued);
+  updateQuantizeButton();
+}
+
+function scheduleSceneStateApply(state, label = '') {
+  const cloned = cloneSceneState(state);
+  if (!cloned) return;
+
+  const running = !!(serverPlaying || stepDrivenPlaying || isPlaying);
+  if (!sceneQuantizeEnabled || !running) {
+    pendingSceneState = null;
+    pendingSceneLabel = '';
+    applySceneStateNow(cloned);
+    updateQuantizeButton();
+    return;
+  }
+
+  pendingSceneState = cloned;
+  pendingSceneLabel = label || 'Queued';
+  updateQuantizeButton();
+}
+
+function isHeatActive() {
+  if (heatMode === 'on') return true;
+  if (heatMode === 'off') return false;
+  const isRunning = !!(signalDemoMode || serverPlaying || stepDrivenPlaying || isPlaying);
+  return isRunning;
+}
+
+function loadViewPrefs() {
+  try {
+    const raw = localStorage.getItem('pb_view');
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    if (typeof cfg.zoom === 'number') viewZoom = Math.max(0.5, Math.min(2.5, cfg.zoom));
+    if (typeof cfg.gridVisible === 'boolean') gridVisible = cfg.gridVisible;
+    if (typeof cfg.heatMode === 'string' && ['off', 'on', 'auto'].includes(cfg.heatMode)) {
+      heatMode = cfg.heatMode;
+    } else if (typeof cfg.heatModeEnabled === 'boolean') {
+      heatMode = cfg.heatModeEnabled ? 'on' : 'off';
     }
-    if (fxNode) fxMap[def.key] = fxNode.id;
+    if (typeof cfg.sceneQuantizeEnabled === 'boolean') sceneQuantizeEnabled = cfg.sceneQuantizeEnabled;
+  } catch(ex) {}
+}
+
+function saveViewPrefs() {
+  try {
+    localStorage.setItem('pb_view', JSON.stringify({ zoom: viewZoom, gridVisible, heatMode, sceneQuantizeEnabled }));
+  } catch(ex) {}
+}
+
+function createFactoryPresetState(preset) {
+  if (!preset || !Array.isArray(preset.chain) || preset.chain.length === 0) return null;
+
+  const current = exportState();
+  let idCounter = nextId;
+  const keyToId = {};
+
+  const fxNodes = preset.chain.map(def => {
+    const id = `fx-${idCounter++}`;
+    keyToId[def.key] = id;
+    return {
+      id,
+      fxType: def.fxType,
+      x: def.x,
+      y: def.y,
+      params: {...(def.params || {})}
+    };
   });
 
-  const firstFxId = preset.chain.length ? fxMap[preset.chain[0].key] : null;
+  const chainCables = [];
+  const firstFxId = keyToId[preset.chain[0].key];
+  const lastFxId = keyToId[preset.chain[preset.chain.length - 1].key];
+
   if (firstFxId) {
-    nodes.filter(n => n.type === 'pad').forEach(pad => addCable(pad.id, firstFxId));
+    current.padPositions.forEach(pad => {
+      chainCables.push({ from: pad.id, to: firstFxId });
+    });
   }
 
   for (let i = 0; i < preset.chain.length - 1; i++) {
-    const fromId = fxMap[preset.chain[i].key];
-    const toId = fxMap[preset.chain[i + 1].key];
-    if (fromId && toId) addCable(fromId, toId);
+    const fromId = keyToId[preset.chain[i].key];
+    const toId = keyToId[preset.chain[i + 1].key];
+    if (fromId && toId) chainCables.push({ from: fromId, to: toId });
   }
 
-  const lastFxId = preset.chain.length ? fxMap[preset.chain[preset.chain.length - 1].key] : null;
-  if (lastFxId) addCable(lastFxId, 'master');
+  if (lastFxId) chainCables.push({ from: lastFxId, to: 'master' });
 
-  renderCables();
-  updateStatus();
-  saveState();
+  return {
+    nodes: fxNodes,
+    padPositions: current.padPositions,
+    busPositions: current.busPositions,
+    masterPos: current.masterPos,
+    cables: chainCables,
+    nextId: idCounter
+  };
+}
+
+function applyFactoryPreset(preset) {
+  const state = createFactoryPresetState(preset);
+  if (!state) return;
+  scheduleSceneStateApply(state, preset.name || 'Factory');
+}
+
+function getUserPresets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('pb_presets') || '{}');
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch(ex) {}
+  return {};
+}
+
+function setUserPresets(presets) {
+  localStorage.setItem('pb_presets', JSON.stringify(presets || {}));
+}
+
+function renderPresetPanel() {
+  const factoryList = document.getElementById('pbFactoryPresetList');
+  const userList = document.getElementById('pbUserPresetList');
+  if (!factoryList || !userList) return;
+
+  factoryList.innerHTML = '';
+  FACTORY_PRESETS.forEach((preset) => {
+    const card = document.createElement('article');
+    card.className = 'pb-preset-card';
+    card.innerHTML = `
+      <div class="pb-preset-card-head">
+        <span class="pb-preset-name">${preset.name}</span>
+        <div class="pb-preset-actions">
+          <button class="pb-load">Cargar</button>
+        </div>
+      </div>
+      <div class="pb-preset-desc">${preset.description}</div>
+    `;
+    card.querySelector('.pb-load')?.addEventListener('click', () => {
+      applyFactoryPreset(preset);
+    });
+    factoryList.appendChild(card);
+  });
+
+  userList.innerHTML = '';
+  const userPresets = getUserPresets();
+  const names = Object.keys(userPresets).sort((a, b) => a.localeCompare(b));
+  if (names.length === 0) {
+    const empty = document.createElement('article');
+    empty.className = 'pb-preset-card';
+    empty.innerHTML = '<div class="pb-preset-desc">Sin presets guardados todavía.</div>';
+    userList.appendChild(empty);
+    return;
+  }
+
+  names.forEach((name) => {
+    const card = document.createElement('article');
+    card.className = 'pb-preset-card';
+    card.innerHTML = `
+      <div class="pb-preset-card-head">
+        <span class="pb-preset-name">${name}</span>
+        <div class="pb-preset-actions">
+          <button class="pb-load">Cargar</button>
+          <button class="pb-delete">Borrar</button>
+        </div>
+      </div>
+      <div class="pb-preset-desc">Preset usuario</div>
+    `;
+    card.querySelector('.pb-load')?.addEventListener('click', () => {
+      scheduleSceneStateApply(userPresets[name], name);
+    });
+    card.querySelector('.pb-delete')?.addEventListener('click', () => {
+      const presets = getUserPresets();
+      delete presets[name];
+      setUserPresets(presets);
+      renderPresetPanel();
+    });
+    userList.appendChild(card);
+  });
 }
 
 /* ──────────── UTILS ──────────── */

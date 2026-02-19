@@ -24,6 +24,8 @@ Sequencer::Sequencer() :
       for (int s = 0; s < STEPS_PER_PATTERN; s++) {
         velocities[p][t][s] = 127;
         noteLenDivs[p][t][s] = 1;  // Default: full note
+        stepVolumeLockEnabled[p][t][s] = false;
+        stepVolumeLockValue[p][t][s] = 100;
       }
     }
   }
@@ -131,6 +133,9 @@ void Sequencer::processStep() {
     if (steps[currentPattern][track][currentStep] && !trackMuted[track]) {
       uint8_t velocity = velocities[currentPattern][track][currentStep];
       uint8_t div = noteLenDivs[currentPattern][track][currentStep];
+      uint8_t outTrackVolume = stepVolumeLockEnabled[currentPattern][track][currentStep]
+                ? stepVolumeLockValue[currentPattern][track][currentStep]
+                : trackVolume[track];
       
       // Compute max samples for note length (0 = full sample)
       // stepInterval is in microseconds, SAMPLE_RATE = 44100
@@ -143,7 +148,7 @@ void Sequencer::processStep() {
       
       // Call callback if set
       if (stepCallback != nullptr) {
-        stepCallback(track, velocity, trackVolume[track], noteLenSamples);
+        stepCallback(track, velocity, outTrackVolume, noteLenSamples);
       }
     }
   }
@@ -179,6 +184,9 @@ void Sequencer::clearPattern(int pattern) {
     for (int s = 0; s < STEPS_PER_PATTERN; s++) {
       steps[pattern][t][s] = false;
       velocities[pattern][t][s] = 127;
+      noteLenDivs[pattern][t][s] = 1;
+      stepVolumeLockEnabled[pattern][t][s] = false;
+      stepVolumeLockValue[pattern][t][s] = 100;
     }
   }
   
@@ -256,6 +264,8 @@ void Sequencer::setPatternBulk(int pattern, const bool stepsData[16][16], const 
     for (int s = 0; s < STEPS_PER_PATTERN; s++) {
       steps[pattern][t][s] = stepsData[t][s];
       velocities[pattern][t][s] = velsData[t][s];
+      stepVolumeLockEnabled[pattern][t][s] = false;
+      stepVolumeLockValue[pattern][t][s] = 100;
     }
   }
   Serial.printf("[Bulk] Pattern %d written (16x16)\n", pattern);
@@ -306,6 +316,9 @@ void Sequencer::copyPattern(int src, int dst) {
     for (int s = 0; s < STEPS_PER_PATTERN; s++) {
       steps[dst][t][s] = steps[src][t][s];
       velocities[dst][t][s] = velocities[src][t][s];
+      noteLenDivs[dst][t][s] = noteLenDivs[src][t][s];
+      stepVolumeLockEnabled[dst][t][s] = stepVolumeLockEnabled[src][t][s];
+      stepVolumeLockValue[dst][t][s] = stepVolumeLockValue[src][t][s];
     }
   }
   
@@ -314,6 +327,44 @@ void Sequencer::copyPattern(int src, int dst) {
 
 int Sequencer::getCurrentStep() {
   return currentStep;
+}
+
+void Sequencer::setStepVolumeLock(int track, int step, bool enabled, uint8_t volume) {
+  if (track < 0 || track >= MAX_TRACKS) return;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return;
+  stepVolumeLockEnabled[currentPattern][track][step] = enabled;
+  stepVolumeLockValue[currentPattern][track][step] = constrain(volume, 0, 150);
+}
+
+void Sequencer::setStepVolumeLock(int pattern, int track, int step, bool enabled, uint8_t volume) {
+  if (pattern < 0 || pattern >= MAX_PATTERNS) return;
+  if (track < 0 || track >= MAX_TRACKS) return;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return;
+  stepVolumeLockEnabled[pattern][track][step] = enabled;
+  stepVolumeLockValue[pattern][track][step] = constrain(volume, 0, 150);
+}
+
+bool Sequencer::hasStepVolumeLock(int track, int step) {
+  if (track < 0 || track >= MAX_TRACKS) return false;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return false;
+  return stepVolumeLockEnabled[currentPattern][track][step];
+}
+
+bool Sequencer::hasStepVolumeLock(int pattern, int track, int step) {
+  if (pattern < 0 || pattern >= MAX_PATTERNS) return false;
+  if (track < 0 || track >= MAX_TRACKS) return false;
+  if (step < 0 || step >= STEPS_PER_PATTERN) return false;
+  return stepVolumeLockEnabled[pattern][track][step];
+}
+
+uint8_t Sequencer::getStepVolumeLock(int track, int step) {
+  if (!hasStepVolumeLock(track, step)) return 0;
+  return stepVolumeLockValue[currentPattern][track][step];
+}
+
+uint8_t Sequencer::getStepVolumeLock(int pattern, int track, int step) {
+  if (!hasStepVolumeLock(pattern, track, step)) return 0;
+  return stepVolumeLockValue[pattern][track][step];
 }
 
 void Sequencer::setStepCallback(StepCallback callback) {
