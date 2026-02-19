@@ -2127,6 +2127,7 @@ function updateTrackLoopVisual(trackIndex) {
 function createSequencer() {
     const grid = document.getElementById('sequencerGrid');
     const indicator = document.getElementById('stepIndicator');
+    const gridWrapper = document.getElementById('sequencerContainer');
     const trackNames = ['BD', 'SD', 'CH', 'OH', 'CY', 'CP', 'RS', 'CB', 'LT', 'MT', 'HT', 'MA', 'CL', 'HC', 'MC', 'LC'];
     const trackColors = [
         '#ff0000', '#ffa500', '#ffff00', '#00ffff',
@@ -2214,6 +2215,8 @@ function createSequencer() {
             stepEl.dataset.track = track;
             stepEl.dataset.step = step;
             stepEl.dataset.notelen = '1';  // default: full note
+            if (step % 4 === 0) stepEl.classList.add('beat-step');
+            else if (step % 2 === 0) stepEl.classList.add('half-step');
             
             // Inner elements for note-length visualization
             const nlBar = document.createElement('div');
@@ -2299,6 +2302,24 @@ function createSequencer() {
         dot.dataset.step = i;
         indicator.appendChild(dot);
         stepDots.push(dot);
+    }
+
+    if (gridWrapper) {
+        let playheadLine = gridWrapper.querySelector('.step-playhead-line');
+        if (!playheadLine) {
+            playheadLine = document.createElement('div');
+            playheadLine.className = 'step-playhead-line';
+            gridWrapper.appendChild(playheadLine);
+        }
+
+        if (!gridWrapper.dataset.playheadBound) {
+            const syncPlayhead = () => updateSequencerPlayhead(currentStep);
+            gridWrapper.addEventListener('scroll', syncPlayhead, { passive: true });
+            window.addEventListener('resize', syncPlayhead);
+            gridWrapper.dataset.playheadBound = '1';
+        }
+
+        requestAnimationFrame(() => updateSequencerPlayhead(currentStep));
     }
 }
 
@@ -2447,6 +2468,7 @@ function _applyStepUpdate(step) {
     if (nextDot) nextDot.classList.add('current');
     const nextColumn = stepColumns[step] || [];
     nextColumn.forEach(el => el.classList.add('current'));
+    updateSequencerPlayhead(step);
 
     lastCurrentStep = step;
 
@@ -2462,6 +2484,32 @@ function _applyStepUpdate(step) {
             }
         }
     }
+}
+
+function updateSequencerPlayhead(step) {
+    const gridWrapper = document.getElementById('sequencerContainer');
+    if (!gridWrapper) return;
+
+    const playheadLine = gridWrapper.querySelector('.step-playhead-line');
+    if (!playheadLine) return;
+
+    if (typeof step !== 'number' || step < 0 || step > 15) {
+        playheadLine.classList.remove('visible');
+        return;
+    }
+
+    const stepEl = document.querySelector(`.seq-step[data-track="0"][data-step="${step}"]`);
+    if (!stepEl) {
+        playheadLine.classList.remove('visible');
+        return;
+    }
+
+    const wrapperRect = gridWrapper.getBoundingClientRect();
+    const stepRect = stepEl.getBoundingClientRect();
+    const x = (stepRect.left - wrapperRect.left) + gridWrapper.scrollLeft + (stepRect.width / 2);
+
+    playheadLine.style.transform = `translateX(${Math.round(x)}px)`;
+    playheadLine.classList.add('visible');
 }
 
 // Toggle between grid and circular view
@@ -6318,14 +6366,27 @@ function _setupWaveformMarkers(modal, canvas, state) {
 // ── Pad layout selector (4 / 8 / 16 per row) ────────────────────────────────
 (function initPadLayoutSelector() {
     const grid = document.getElementById('padsGrid');
-    document.querySelectorAll('.pls-btn').forEach(btn => {
+    const buttons = document.querySelectorAll('.pls-btn');
+
+    const applyColsFromButton = (btn) => {
+        const cols = parseInt(btn.dataset.cols, 10);
+        if (grid && !Number.isNaN(cols)) {
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        }
+    };
+
+    buttons.forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.pls-btn').forEach(b => b.classList.remove('active'));
+            buttons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            const cols = parseInt(btn.dataset.cols);
-            if (grid) grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            applyColsFromButton(btn);
         });
     });
+
+    const defaultBtn = document.querySelector('.pls-btn.active') || document.querySelector('.pls-btn[data-cols="8"]');
+    if (defaultBtn) {
+        applyColsFromButton(defaultBtn);
+    }
 })();
 
 // ── Volume layout selector (4 / 8 / 16 per row) ─────────────────────────────

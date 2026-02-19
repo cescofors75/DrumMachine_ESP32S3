@@ -8873,12 +8873,13 @@ body.midi-dialog-open .midi-import-overlay * {
 
 /* --- Sample Browser/Selector Waveform --- */
 .sample-modal-waveform {
-  background: rgba(0,0,0,0.6);
-  border: 1px solid rgba(0,255,136,0.2);
-  border-radius: 8px;
-  padding: 8px 12px;
+    background: linear-gradient(165deg, rgba(10,12,20,0.92), rgba(5,8,14,0.95));
+    border: 1px solid rgba(0,255,136,0.22);
+    border-radius: 12px;
+    padding: 10px 12px;
   margin-bottom: 12px;
   text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 20px rgba(0,0,0,0.32);
 }
 .waveform-preview-label {
   font-size: 10px;
@@ -8896,12 +8897,14 @@ body.midi-dialog-open .midi-import-overlay * {
 .sample-preview-canvas {
   width: 100%;
   height: 100px;
-  border-radius: 4px;
-  border: 1px solid rgba(0,255,136,0.15);
+    border-radius: 8px;
+    border: 1px solid rgba(0,255,136,0.24);
   display: block;
   margin: 0 auto;
-  image-rendering: pixelated;
+    image-rendering: auto;
   cursor: crosshair;
+    background: radial-gradient(circle at 50% 0%, rgba(0,255,136,0.08), rgba(0,0,0,0) 55%), rgba(4,8,14,0.95);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 14px rgba(0,255,136,0.14);
 }
 .waveform-marker {
   position: absolute;
@@ -9020,9 +9023,11 @@ body.midi-dialog-open .midi-import-overlay * {
   box-shadow: 0 0 8px rgba(0,255,136,0.2);
 }
 .waveform-canvas {
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.1);
-  image-rendering: pixelated;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.16);
+    image-rendering: auto;
+    background: linear-gradient(180deg, rgba(16,20,28,0.95), rgba(6,10,14,0.98));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .browser-waveform-container {
   margin-top: 4px;
@@ -9037,49 +9042,53 @@ body.midi-dialog-open .midi-import-overlay * {
 .mini-scope-container {
   display: flex;
   align-items: center;
-  gap: 4px;
+    gap: 5px;
   margin-top: 6px;
   justify-content: center;
 }
 .mini-scope-canvas {
-  width: 60px;
-  height: 24px;
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(0,0,0,0.8);
-  image-rendering: pixelated;
+    width: 54px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(180deg, rgba(16,20,28,0.95), rgba(4,8,12,0.98));
+    image-rendering: auto;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .vu-meter-canvas {
-  width: 8px;
-  height: 60px;
-  border-radius: 2px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(0,0,0,0.9);
-  image-rendering: pixelated;
+    width: 8px;
+    height: 54px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: linear-gradient(180deg, rgba(10,14,22,0.98), rgba(4,6,10,1));
+    image-rendering: auto;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
 .vu-meter-canvas.master-vu {
   width: 12px;
-  height: 40px;
+    height: 44px;
   margin-left: 8px;
+    border-radius: 5px;
 }
 /* Glow effect on active tracks */
 .mini-scope-container canvas {
   transition: box-shadow 0.3s ease;
 }
 .track-volume-card:hover .mini-scope-canvas {
-  box-shadow: 0 0 8px rgba(0,255,136,0.3);
+    box-shadow: 0 0 10px rgba(0,255,136,0.32), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 .track-volume-card:hover .vu-meter-canvas {
-  box-shadow: 0 0 6px rgba(0,255,136,0.2);
+    box-shadow: 0 0 10px rgba(0,255,136,0.26), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 /* --- FX Dual Scope --- */
 .fx-scope-section {
-  background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(20,20,40,0.6));
-  border: 1px solid rgba(0,255,136,0.2);
-  border-radius: 10px;
+    background: linear-gradient(160deg, rgba(12,14,22,0.92), rgba(8,10,18,0.95));
+    border: 1px solid rgba(0,255,136,0.22);
+    border-radius: 12px;
   padding: 12px;
   margin-bottom: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 20px rgba(0,0,0,0.3);
 }
 .fx-scope-header {
   display: flex;
@@ -9103,12 +9112,13 @@ body.midi-dialog-open .midi-import-overlay * {
   width: 100%;
   max-width: 400px;
   height: 80px;
-  border-radius: 6px;
-  border: 1px solid rgba(0,255,136,0.15);
+    border-radius: 9px;
+    border: 1px solid rgba(0,255,136,0.22);
   display: block;
   margin: 0 auto;
-  background: rgba(0,0,0,0.85);
-  image-rendering: pixelated;
+    background: linear-gradient(180deg, rgba(16,20,28,0.94), rgba(6,8,14,0.98));
+    image-rendering: auto;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 14px rgba(0,255,136,0.12);
 }
 .fx-scope-legend {
   display: flex;
@@ -9128,12 +9138,12 @@ body.midi-dialog-open .midi-import-overlay * {
 /* --- Responsive adjustments --- */
 @media (max-width: 600px) {
   .mini-scope-canvas {
-    width: 48px;
+        width: 44px;
     height: 20px;
   }
   .vu-meter-canvas {
     width: 6px;
-    height: 48px;
+        height: 44px;
   }
   .fx-dual-scope-canvas {
     height: 60px;
@@ -9315,3 +9325,849 @@ body.midi-dialog-open .midi-import-overlay * {
 
 .fade-in-preview { left: 0; background: linear-gradient(90deg, transparent, rgba(255,152,0,0.5)); }
 .fade-out-preview { right: 0; background: linear-gradient(90deg, rgba(255,152,0,0.5), transparent); }
+
+/* ==========================================================
+   SEQUENCER FULL VISUAL REFRESH (PRO MODERN)
+   - Solo estilos, sin cambiar funciones
+   ========================================================== */
+
+#section-sequencer.sequencer-section {
+    background: radial-gradient(circle at 15% 0%, rgba(255, 0, 0, 0.08), transparent 35%),
+                linear-gradient(180deg, rgba(8, 8, 10, 0.88), rgba(5, 5, 7, 0.84));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04),
+                0 16px 36px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(255, 0, 0, 0.12);
+}
+
+#section-sequencer .sequencer-header {
+    margin-bottom: 16px;
+}
+
+#section-sequencer .sequencer-controls {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, rgba(16, 16, 20, 0.92), rgba(8, 8, 12, 0.94));
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+                0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+#section-sequencer .seq-btn {
+    min-width: 118px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: linear-gradient(160deg, rgba(60, 60, 70, 0.42), rgba(18, 18, 24, 0.9));
+    letter-spacing: 1.4px;
+    font-size: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                0 8px 20px rgba(0, 0, 0, 0.42);
+    transition: transform 0.14s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+#section-sequencer .seq-btn .seq-btn-icon {
+    font-size: 18px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+#section-sequencer .seq-btn:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+#section-sequencer .seq-btn:active {
+    transform: translateY(1px) scale(0.98);
+}
+
+#section-sequencer .seq-btn-play {
+    background: linear-gradient(150deg, rgba(255, 35, 65, 0.96), rgba(170, 0, 0, 0.96));
+    border-color: rgba(255, 115, 135, 0.62);
+    box-shadow: 0 10px 22px rgba(210, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+#section-sequencer .seq-btn-stop {
+    background: linear-gradient(150deg, rgba(90, 90, 100, 0.9), rgba(45, 45, 55, 0.95));
+    border-color: rgba(170, 170, 180, 0.38);
+}
+
+#section-sequencer .seq-btn-clear {
+    background: linear-gradient(150deg, rgba(56, 64, 78, 0.96), rgba(26, 34, 58, 0.98));
+    border-color: rgba(255, 214, 0, 0.34);
+}
+
+#section-sequencer .seq-btn-view-mode {
+    background: linear-gradient(150deg, rgba(72, 52, 132, 0.86), rgba(34, 24, 72, 0.95));
+    border-color: rgba(161, 134, 255, 0.46);
+}
+
+#section-sequencer .seq-btn-midi-import {
+    background: linear-gradient(150deg, rgba(35, 86, 138, 0.92), rgba(16, 43, 83, 0.96)) !important;
+    border-color: rgba(86, 170, 255, 0.58) !important;
+}
+
+#section-sequencer .seq-btn-ai-toggle {
+    background: linear-gradient(150deg, rgba(42, 48, 56, 0.92), rgba(20, 24, 34, 0.96)) !important;
+    border-color: rgba(120, 150, 170, 0.32) !important;
+    opacity: 0.88;
+}
+
+#section-sequencer .seq-btn-ai-toggle.active {
+    background: linear-gradient(150deg, rgba(34, 74, 48, 0.94), rgba(16, 44, 30, 0.96)) !important;
+    border-color: rgba(95, 218, 140, 0.64) !important;
+}
+
+#section-sequencer .pattern-display {
+    margin-left: auto;
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 0, 0, 0.34);
+    background: linear-gradient(155deg, rgba(30, 8, 8, 0.65), rgba(12, 12, 14, 0.9));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+#section-sequencer .pattern-name {
+    letter-spacing: 1.4px;
+    text-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
+}
+
+#section-sequencer .sequencer-grid-wrapper {
+    position: relative;
+    padding: 10px 10px 14px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(16, 16, 20, 0.92), rgba(8, 8, 12, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+#section-sequencer .sequencer-grid {
+    min-width: 960px;
+    grid-template-columns: 88px repeat(16, minmax(38px, 1fr)) 58px;
+    gap: 4px;
+}
+
+#section-sequencer .track-label {
+    height: 48px;
+    border-radius: 9px;
+    border-width: 1px;
+    padding: 4px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(12, 12, 16, 0.95));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+#section-sequencer .track-label > span:not(.loop-indicator) {
+    font-size: 10px;
+    letter-spacing: 0.7px;
+    font-weight: 800;
+}
+
+#section-sequencer .volume-btn,
+#section-sequencer .mute-btn,
+#section-sequencer .solo-btn,
+#section-sequencer .seq-fx-btn {
+    border-radius: 6px;
+    border-width: 1px;
+    font-size: 9px;
+    font-weight: 800;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+#section-sequencer .seq-fx-cell {
+    height: 48px;
+    border-radius: 9px;
+    border-width: 1px;
+    background: linear-gradient(160deg, rgba(36, 36, 44, 0.75), rgba(14, 14, 20, 0.9));
+}
+
+#section-sequencer .seq-step {
+    height: 48px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(155deg, rgba(24, 24, 28, 0.9), rgba(8, 8, 12, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                inset 0 -10px 14px rgba(0, 0, 0, 0.4);
+    transition: transform 0.08s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+#section-sequencer .seq-step:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+                0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+#section-sequencer .seq-step:active {
+    transform: scale(0.96);
+}
+
+#section-sequencer .seq-step.beat-step {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+#section-sequencer .seq-step[data-track="0"] { --seq-track-rgb: var(--pad-color-0); }
+#section-sequencer .seq-step[data-track="1"] { --seq-track-rgb: var(--pad-color-1); }
+#section-sequencer .seq-step[data-track="2"] { --seq-track-rgb: var(--pad-color-2); }
+#section-sequencer .seq-step[data-track="3"] { --seq-track-rgb: var(--pad-color-3); }
+#section-sequencer .seq-step[data-track="4"] { --seq-track-rgb: var(--pad-color-4); }
+#section-sequencer .seq-step[data-track="5"] { --seq-track-rgb: var(--pad-color-5); }
+#section-sequencer .seq-step[data-track="6"] { --seq-track-rgb: var(--pad-color-6); }
+#section-sequencer .seq-step[data-track="7"] { --seq-track-rgb: var(--pad-color-7); }
+#section-sequencer .seq-step[data-track="8"] { --seq-track-rgb: var(--pad-color-8); }
+#section-sequencer .seq-step[data-track="9"] { --seq-track-rgb: var(--pad-color-9); }
+#section-sequencer .seq-step[data-track="10"] { --seq-track-rgb: var(--pad-color-10); }
+#section-sequencer .seq-step[data-track="11"] { --seq-track-rgb: var(--pad-color-11); }
+#section-sequencer .seq-step[data-track="12"] { --seq-track-rgb: var(--pad-color-12); }
+#section-sequencer .seq-step[data-track="13"] { --seq-track-rgb: var(--pad-color-13); }
+#section-sequencer .seq-step[data-track="14"] { --seq-track-rgb: var(--pad-color-14); }
+#section-sequencer .seq-step[data-track="15"] { --seq-track-rgb: var(--pad-color-15); }
+
+#section-sequencer .seq-step[data-track] {
+    background: linear-gradient(155deg,
+        rgba(var(--seq-track-rgb), 0.16),
+        rgba(10, 10, 14, 0.94));
+    border-color: rgba(var(--seq-track-rgb), 0.35);
+}
+
+#section-sequencer .seq-step[data-track].active {
+    background: linear-gradient(155deg,
+        rgba(var(--seq-track-rgb), 0.95),
+        rgba(var(--seq-track-rgb), 0.78));
+    border-color: rgba(var(--seq-track-rgb), 1);
+    box-shadow: 0 0 12px rgba(var(--seq-track-rgb), 0.45),
+                inset 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+body.mono-mode #section-sequencer .seq-step[data-track].active {
+    background: linear-gradient(155deg, rgba(255, 40, 40, 0.95), rgba(185, 0, 0, 0.95));
+    border-color: rgba(255, 120, 120, 0.95);
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.45),
+                inset 0 0 8px rgba(255, 255, 255, 0.18);
+}
+
+#section-sequencer .seq-step.beat-step::before,
+#section-sequencer .seq-step.half-step::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 8px 8px 0 0;
+    pointer-events: none;
+}
+
+#section-sequencer .seq-step.half-step::before {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+#section-sequencer .seq-step.beat-step::before {
+    background: rgba(255, 255, 255, 0.24);
+}
+
+#section-sequencer .seq-step.current {
+    border-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2),
+                0 0 12px rgba(255, 255, 255, 0.26),
+                inset 0 0 16px rgba(255, 255, 255, 0.06);
+}
+
+#section-sequencer .seq-step.active.current {
+    box-shadow: 0 0 14px currentColor,
+                0 0 18px rgba(255, 255, 255, 0.16),
+                inset 0 0 10px rgba(255, 255, 255, 0.28);
+}
+
+#section-sequencer .step-indicator {
+    min-width: 960px;
+    margin-top: 8px;
+    gap: 4px;
+}
+
+#section-sequencer .step-dot {
+    height: 6px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(86, 86, 96, 0.7), rgba(34, 34, 40, 0.95));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#section-sequencer .step-dot.current {
+    background: linear-gradient(180deg, rgba(255, 62, 80, 0.95), rgba(185, 0, 0, 0.95));
+    box-shadow: 0 0 14px rgba(255, 0, 0, 0.62),
+                0 0 24px rgba(255, 0, 0, 0.35);
+}
+
+#section-sequencer .step-playhead-line {
+    position: absolute;
+    top: 10px;
+    bottom: 22px;
+    width: 2px;
+    border-radius: 999px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(0);
+    transition: transform 0.06s linear, opacity 0.15s ease;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.4),
+                0 0 24px rgba(255, 0, 0, 0.25);
+    z-index: 4;
+}
+
+#section-sequencer .step-playhead-line.visible {
+    opacity: 1;
+}
+
+#section-sequencer .song-bar-navigator {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(165deg, rgba(20, 20, 28, 0.92), rgba(10, 10, 15, 0.96));
+}
+
+@media (max-width: 1024px) {
+    #section-sequencer .sequencer-controls {
+        gap: 10px;
+    }
+
+    #section-sequencer .seq-btn {
+        min-width: 102px;
+        padding: 11px 14px;
+    }
+
+    #section-sequencer .pattern-display {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    #section-sequencer.sequencer-section {
+        padding: 10px;
+        border-radius: 14px;
+    }
+
+    #section-sequencer .sequencer-controls {
+        justify-content: center;
+        padding: 10px;
+        gap: 8px;
+    }
+
+    #section-sequencer .seq-btn {
+        min-width: 86px;
+        padding: 10px 10px;
+        border-radius: 10px;
+    }
+
+    #section-sequencer .seq-btn .seq-btn-label {
+        display: none;
+    }
+
+    #section-sequencer .seq-btn .seq-btn-icon {
+        font-size: 20px;
+    }
+
+    #section-sequencer .pattern-display {
+        width: 100%;
+        justify-content: center;
+        margin-top: 4px;
+    }
+
+    #section-sequencer .sequencer-grid {
+        min-width: 900px;
+    }
+
+    #section-sequencer .step-indicator {
+        min-width: 900px;
+    }
+}
+
+/* ==========================================================
+   TOP STRIP ULTRA-FINE POLISH (HEADER + TABS + SEQ BAR)
+   ========================================================== */
+
+.container {
+    padding-top: 10px;
+}
+
+.header {
+    padding: 8px 0 14px;
+    margin-bottom: 18px;
+    border-bottom-width: 1px;
+}
+
+.logo {
+    letter-spacing: 2px;
+    text-shadow: 0 0 12px rgba(255, 0, 0, 0.45);
+}
+
+.status {
+    gap: 8px;
+}
+
+.header-controls {
+    gap: 8px 12px;
+}
+
+.hdr-ctrl {
+    min-width: 200px;
+    max-width: 300px;
+    border-radius: 12px;
+    padding: 7px 10px;
+    background: linear-gradient(165deg, rgba(14, 14, 18, 0.82), rgba(8, 8, 12, 0.92));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.hdr-ctrl-label {
+    font-size: 0.68em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.hdr-slider {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.hdr-slider::-webkit-slider-thumb {
+    width: 13px;
+    height: 13px;
+}
+
+.hdr-vsm-btns {
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.28);
+}
+
+.hdr-track-select {
+    height: 34px;
+    border-radius: 10px;
+}
+
+.hdr-btn {
+    width: 34px;
+    height: 34px;
+}
+
+.meter.meter-sequencer {
+    min-width: 220px;
+    padding: 10px 14px;
+    border-radius: 12px;
+}
+
+.meter.meter-sequencer .meter-value {
+    font-size: 1.25em;
+    letter-spacing: 1px;
+}
+
+.tab-navigation {
+    margin-bottom: 16px;
+    padding: 10px 0 14px;
+    border-bottom-width: 1px;
+    gap: 10px;
+}
+
+.tab-btn {
+    min-height: 48px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    border-color: rgba(255, 255, 255, 0.2);
+    background: linear-gradient(165deg, rgba(16, 16, 20, 0.9), rgba(8, 8, 12, 0.95));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.tab-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 0, 0, 0.5);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34),
+                0 0 0 1px rgba(255, 0, 0, 0.18);
+}
+
+.tab-btn.active {
+    box-shadow: 0 8px 16px rgba(180, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 80, 80, 0.25);
+}
+
+#section-sequencer .sequencer-controls {
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+}
+
+#section-sequencer .seq-btn {
+    min-width: 112px;
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 13px;
+}
+
+#section-sequencer .seq-btn .seq-btn-label {
+    font-size: 11px;
+    letter-spacing: 1.6px;
+}
+
+#section-sequencer .seq-btn-play {
+    box-shadow: 0 0 0 1px rgba(255, 120, 140, 0.3),
+                0 9px 20px rgba(170, 0, 0, 0.34),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+#section-sequencer .seq-btn-play,
+#section-sequencer .seq-btn-stop,
+#section-sequencer .seq-btn-clear {
+    position: relative;
+    overflow: hidden;
+}
+
+#section-sequencer .seq-btn-play::before,
+#section-sequencer .seq-btn-stop::before,
+#section-sequencer .seq-btn-clear::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 10px;
+    right: 10px;
+    height: 36%;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0));
+    pointer-events: none;
+    z-index: 0;
+}
+
+#section-sequencer .seq-btn-play::after,
+#section-sequencer .seq-btn-stop::after,
+#section-sequencer .seq-btn-clear::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 -10px 14px rgba(0, 0, 0, 0.24),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    pointer-events: none;
+}
+
+#section-sequencer .seq-btn-play {
+    background: linear-gradient(165deg, rgba(255, 60, 88, 0.98), rgba(175, 0, 0, 0.98));
+    border-color: rgba(255, 150, 170, 0.62);
+}
+
+#section-sequencer .seq-btn-play:hover {
+    box-shadow: 0 0 0 1px rgba(255, 140, 160, 0.38),
+                0 10px 24px rgba(185, 0, 0, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+#section-sequencer .seq-btn-stop {
+    background: linear-gradient(165deg, rgba(108, 112, 126, 0.96), rgba(56, 58, 70, 0.96));
+    border-color: rgba(188, 194, 214, 0.35);
+    box-shadow: 0 8px 18px rgba(30, 30, 40, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+#section-sequencer .seq-btn-stop:hover {
+    border-color: rgba(210, 216, 236, 0.5);
+    box-shadow: 0 10px 22px rgba(26, 30, 42, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+#section-sequencer .seq-btn-clear {
+    background: linear-gradient(165deg, rgba(82, 92, 112, 0.96), rgba(34, 44, 72, 0.98));
+    border-color: rgba(255, 214, 0, 0.4);
+    box-shadow: 0 8px 18px rgba(24, 30, 48, 0.38),
+                inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+#section-sequencer .seq-btn-clear:hover {
+    border-color: rgba(255, 222, 95, 0.66);
+    box-shadow: 0 10px 24px rgba(26, 36, 62, 0.45),
+                0 0 16px rgba(255, 214, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+#section-sequencer .seq-btn-play .seq-btn-icon,
+#section-sequencer .seq-btn-stop .seq-btn-icon,
+#section-sequencer .seq-btn-clear .seq-btn-icon {
+    transform: translateY(-1px);
+}
+
+#section-sequencer .seq-btn-play:active,
+#section-sequencer .seq-btn-stop:active,
+#section-sequencer .seq-btn-clear:active {
+    transform: translateY(1px) scale(0.975);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.34);
+}
+
+#section-sequencer .sync-badge {
+    min-height: 28px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    letter-spacing: 1.2px;
+}
+
+#section-sequencer .pattern-display {
+    min-width: 210px;
+    height: 44px;
+    padding: 8px 14px;
+}
+
+#section-sequencer .pattern-name {
+    font-size: 1.05em;
+}
+
+@media (max-width: 1200px) {
+    .hdr-ctrl {
+        min-width: 180px;
+    }
+
+    .tab-btn {
+        padding: 9px 16px;
+        min-height: 44px;
+    }
+}
+
+/* ==========================================================
+   VOLUMES TAB: COMPACT MASTER CARDS
+   ========================================================== */
+
+#tab-volumes .master-volumes {
+    grid-template-columns: repeat(2, minmax(170px, 220px));
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+#tab-volumes .volume-card {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border-width: 1px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 0 10px rgba(255, 0, 0, 0.03);
+}
+
+#tab-volumes .volume-card::before {
+    height: 2px;
+    opacity: 0.35;
+}
+
+#tab-volumes .volume-card-header {
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+#tab-volumes .volume-icon {
+    font-size: 1.1em;
+}
+
+#tab-volumes .volume-card-header h3 {
+    font-size: 0.8em;
+    letter-spacing: 0.8px;
+}
+
+#tab-volumes .volume-display {
+    gap: 6px;
+}
+
+#tab-volumes .volume-value-display {
+    font-size: 1.15em;
+    text-shadow: 0 0 8px rgba(255, 0, 0, 0.45);
+    animation: none;
+}
+
+#tab-volumes .volume-bar-container {
+    height: 14px;
+    border-radius: 999px;
+}
+
+#tab-volumes .volume-bar {
+    border-radius: 999px;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.35), inset 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+#tab-volumes .volume-bar.overboost {
+    height: 18px;
+    margin-top: -2px;
+}
+
+#tab-volumes .track-volumes {
+    margin-top: 0;
+}
+
+@media (max-width: 768px) {
+    #tab-volumes .master-volumes {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    #tab-volumes .volume-card {
+        padding: 8px 10px;
+    }
+
+    #tab-volumes .volume-card-header h3 {
+        font-size: 0.74em;
+    }
+
+    #tab-volumes .volume-value-display {
+        font-size: 1em;
+    }
+}
+
+/* Channel cards compact view: show more visible channel volumes */
+#tab-volumes .track-volumes {
+    padding: 12px 10px;
+}
+
+#tab-volumes .track-volumes-title {
+    font-size: 1.02em;
+    margin-bottom: 10px;
+    letter-spacing: 1.2px;
+}
+
+#tab-volumes .track-volumes-grid {
+    gap: 8px;
+    padding: 4px 0;
+}
+
+#tab-volumes .track-volume-card {
+    min-width: 54px;
+    border-width: 1px;
+    border-radius: 10px;
+    padding: 8px 6px;
+}
+
+#tab-volumes .track-volume-header {
+    gap: 3px;
+    margin-bottom: 8px;
+}
+
+#tab-volumes .track-volume-label {
+    font-size: 0.92em;
+}
+
+#tab-volumes .track-volume-value {
+    font-size: 0.74em;
+}
+
+#tab-volumes .track-volume-bar-container {
+    width: 50px;
+    height: 250px;
+    border-width: 1px;
+    border-radius: 16px;
+}
+
+#tab-volumes .track-volume-bar {
+    border-radius: 14px;
+}
+
+@media (max-width: 768px) {
+    #tab-volumes .track-volumes {
+        padding: 10px 8px;
+    }
+
+    #tab-volumes .track-volume-card {
+        min-width: 50px;
+        padding: 7px 5px;
+    }
+
+    #tab-volumes .track-volume-bar-container {
+        width: 44px;
+        height: 210px;
+    }
+}
+
+/* ==========================================================
+   GLOBAL CONSISTENCY PASS (SPACING / TYPO / SHADOWS)
+   ========================================================== */
+
+.tab-content > section {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.tab-content h2 {
+    font-size: 1.45em;
+    letter-spacing: 1.6px;
+    margin-bottom: 12px;
+}
+
+.pads-header,
+.volumes-header,
+.midi-dashboard-header,
+.chat-header,
+.pads-xtra-header,
+.sequencer-header {
+    margin-bottom: 14px;
+}
+
+.instrument-card,
+.filter-card,
+.track-fx-card,
+.fx-card,
+.dashboard-card,
+.volume-card,
+.track-volume-card,
+.pad-xtra,
+.sample-item,
+.midi-message-entry {
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.tab-btn,
+.seq-btn,
+.fx-subtab-btn,
+.pls-btn,
+.vls-btn,
+.track-fx-btn,
+.mapping-btn,
+.btn,
+button {
+    transition: transform 0.14s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.tab-btn:focus-visible,
+.seq-btn:focus-visible,
+.fx-subtab-btn:focus-visible,
+.pls-btn:focus-visible,
+.vls-btn:focus-visible,
+.track-fx-btn:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid rgba(255, 0, 0, 0.45);
+    outline-offset: 1px;
+}
+
+input,
+select,
+textarea {
+    border-radius: 8px;
+}
+
+.sample-browser,
+.filter-library,
+.track-fx-section,
+.master-fx-section,
+.track-volumes,
+.device-info,
+.keyboard-legend {
+    border-radius: 12px;
+}
+
+@media (max-width: 768px) {
+    .tab-content > section {
+        border-radius: 12px;
+    }
+
+    .tab-content h2 {
+        font-size: 1.2em;
+        letter-spacing: 1.1px;
+    }
+}

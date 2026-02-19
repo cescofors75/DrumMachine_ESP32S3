@@ -16,6 +16,46 @@ const WaveformRenderer = {
     '#ff9933', '#99ff33', '#33ffcc', '#3366ff',
     '#cc33ff', '#ff3399', '#66ff33', '#00ffcc'
   ],
+
+  hexToRgba(hex, alpha = 1) {
+    if (!hex || typeof hex !== 'string') return `rgba(255,255,255,${alpha})`;
+    const clean = hex.replace('#', '').trim();
+    if (clean.length !== 6) return `rgba(255,255,255,${alpha})`;
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  },
+
+  drawPanelBackground(ctx, w, h, options = {}) {
+    const top = options.top || 'rgba(18,20,28,0.92)';
+    const bottom = options.bottom || 'rgba(6,8,14,0.96)';
+    const line = options.line || 'rgba(255,255,255,0.06)';
+
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, top);
+    bg.addColorStop(1, bottom);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 24) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 16) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(w, y + 0.5);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  },
   
   // Draw a static waveform from peaks data array [[max,min], ...]
   drawStatic(canvas, peaks, options = {}) {
@@ -29,12 +69,14 @@ const WaveformRenderer = {
     const endPoint = options.endPoint || 1;       // 0-1 normalized
     const accentColor = options.accentColor || '#ff3366';
     
-    // Clear
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, w, h);
+    this.drawPanelBackground(ctx, w, h, {
+      top: 'rgba(20,22,32,0.92)',
+      bottom: bgColor,
+      line: 'rgba(255,255,255,0.045)'
+    });
     
     // Draw center line
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h / 2);
@@ -66,15 +108,17 @@ const WaveformRenderer = {
     
     // Gradient fill
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, color + 'CC');
-    grad.addColorStop(0.5, color + '88');
-    grad.addColorStop(1, color + 'CC');
+    grad.addColorStop(0, this.hexToRgba(color, 0.84));
+    grad.addColorStop(0.5, this.hexToRgba(color, 0.38));
+    grad.addColorStop(1, this.hexToRgba(color, 0.84));
     ctx.fillStyle = grad;
     ctx.fill();
     
     // Outline
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
+    ctx.shadowColor = this.hexToRgba(color, 0.45);
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = this.hexToRgba(color, 0.96);
+    ctx.lineWidth = 1.25;
     ctx.beginPath();
     for (let i = 0; i < peaks.length; i++) {
       const x = i * step;
@@ -93,12 +137,13 @@ const WaveformRenderer = {
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
+    ctx.shadowBlur = 0;
     
     // Draw start/end markers if set
     if (startPoint > 0) {
       const sx = startPoint * w;
       ctx.strokeStyle = accentColor;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 2]);
       ctx.beginPath();
       ctx.moveTo(sx, 0);
@@ -118,7 +163,7 @@ const WaveformRenderer = {
     if (endPoint < 1) {
       const ex = endPoint * w;
       ctx.strokeStyle = '#ff6633';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 2]);
       ctx.beginPath();
       ctx.moveTo(ex, 0);
@@ -145,32 +190,53 @@ const WaveformRenderer = {
     const h = canvas.height;
     const color = options.color || '#00ff88';
     
-    // Clear with slight trail effect
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(0, 0, w, h);
+    this.drawPanelBackground(ctx, w, h, {
+      top: 'rgba(12,14,22,0.92)',
+      bottom: 'rgba(6,8,12,0.96)',
+      line: 'rgba(255,255,255,0.04)'
+    });
     
     if (!history || history.length < 2) return;
     
     const midY = h / 2;
     const step = w / (history.length - 1);
-    
-    // Glow effect
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 3;
-    
-    // Draw oscilloscope line
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
+    ctx.moveTo(0, midY + 0.5);
+    ctx.lineTo(w, midY + 0.5);
+    ctx.stroke();
+    
+    const pathPoints = [];
     for (let i = 0; i < history.length; i++) {
       const x = i * step;
       const val = history[i] / 255;
-      // Create pseudo-waveform from peak level (simulate oscilloscope)
       const phase = (i / history.length) * Math.PI * 4 + Date.now() * 0.005;
       const y = midY - val * midY * 0.85 * Math.sin(phase);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      pathPoints.push({ x, y });
     }
+
+    const area = ctx.createLinearGradient(0, 0, 0, h);
+    area.addColorStop(0, this.hexToRgba(color, 0.24));
+    area.addColorStop(1, this.hexToRgba(color, 0.02));
+    ctx.fillStyle = area;
+    ctx.beginPath();
+    ctx.moveTo(pathPoints[0].x, midY);
+    pathPoints.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(pathPoints[pathPoints.length - 1].x, midY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowColor = this.hexToRgba(color, 0.55);
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = this.hexToRgba(color, 0.96);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    pathPoints.forEach((p, idx) => {
+      if (idx === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
     ctx.stroke();
     ctx.shadowBlur = 0;
   },
@@ -183,9 +249,11 @@ const WaveformRenderer = {
     const h = canvas.height;
     const color = options.color || '#00ff88';
     
-    // Clear
-    ctx.fillStyle = 'rgba(0,0,0,0.9)';
-    ctx.fillRect(0, 0, w, h);
+    this.drawPanelBackground(ctx, w, h, {
+      top: 'rgba(10,12,16,0.98)',
+      bottom: 'rgba(3,4,8,1)',
+      line: 'rgba(255,255,255,0.03)'
+    });
     
     const normalizedLevel = Math.min(level / 255, 1.0);
     const barHeight = normalizedLevel * h;
@@ -193,24 +261,27 @@ const WaveformRenderer = {
     // Gradient: green -> yellow -> red
     const grad = ctx.createLinearGradient(0, h, 0, 0);
     grad.addColorStop(0, '#00ff88');
-    grad.addColorStop(0.6, '#ffcc00');
-    grad.addColorStop(0.85, '#ff6633');
+    grad.addColorStop(0.62, '#ffcc00');
+    grad.addColorStop(0.84, '#ff6633');
     grad.addColorStop(1.0, '#ff3366');
     
     ctx.fillStyle = grad;
+    ctx.shadowColor = this.hexToRgba(color, 0.5);
+    ctx.shadowBlur = 6;
     ctx.fillRect(1, h - barHeight, w - 2, barHeight);
+    ctx.shadowBlur = 0;
     
     // Peak hold indicator
     if (peakHold > 0) {
       const peakY = h - (Math.min(peakHold / 255, 1.0) * h);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, peakY, w, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(0, peakY, w, 1.5);
     }
     
     // Segment lines
     ctx.strokeStyle = 'rgba(0,0,0,0.3)';
     ctx.lineWidth = 1;
-    const segments = 12;
+    const segments = 10;
     for (let i = 1; i < segments; i++) {
       const y = (i / segments) * h;
       ctx.beginPath();
@@ -229,9 +300,11 @@ const WaveformRenderer = {
     const inputColor = options.inputColor || '#00ff88';
     const outputColor = options.outputColor || '#ff3366';
     
-    // Clear
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(0, 0, w, h);
+    this.drawPanelBackground(ctx, w, h, {
+      top: 'rgba(16,18,26,0.95)',
+      bottom: 'rgba(7,9,14,0.98)',
+      line: 'rgba(255,255,255,0.04)'
+    });
     
     // Labels
     ctx.font = '9px monospace';
@@ -241,7 +314,7 @@ const WaveformRenderer = {
     ctx.fillText('OUT', w - 22, 11);
     
     // Center line
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h / 2);
@@ -253,7 +326,7 @@ const WaveformRenderer = {
     // Draw input (dry signal)
     if (inputHistory && inputHistory.length > 1) {
       const step = w / (inputHistory.length - 1);
-      ctx.strokeStyle = inputColor + '88';
+      ctx.strokeStyle = this.hexToRgba(inputColor, 0.55);
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i < inputHistory.length; i++) {
@@ -270,19 +343,35 @@ const WaveformRenderer = {
     // Draw output (wet/processed signal)
     if (outputHistory && outputHistory.length > 1) {
       const step = w / (outputHistory.length - 1);
-      ctx.shadowColor = outputColor;
-      ctx.shadowBlur = 2;
-      ctx.strokeStyle = outputColor;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
+      const points = [];
       for (let i = 0; i < outputHistory.length; i++) {
         const x = i * step;
         const val = outputHistory[i] / 255;
         const phase = (i / outputHistory.length) * Math.PI * 6 + Date.now() * 0.004;
         const y = midY - val * midY * 0.8 * Math.sin(phase * 0.9 + 0.3);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        points.push({ x, y });
       }
+
+      const outFill = ctx.createLinearGradient(0, 0, 0, h);
+      outFill.addColorStop(0, this.hexToRgba(outputColor, 0.22));
+      outFill.addColorStop(1, this.hexToRgba(outputColor, 0.03));
+      ctx.fillStyle = outFill;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, midY);
+      points.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(points[points.length - 1].x, midY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.shadowColor = this.hexToRgba(outputColor, 0.55);
+      ctx.shadowBlur = 5;
+      ctx.strokeStyle = this.hexToRgba(outputColor, 0.98);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
       ctx.stroke();
       ctx.shadowBlur = 0;
     }
