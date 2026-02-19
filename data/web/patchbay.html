@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>RED808 — Patchbay</title>
+<link rel="stylesheet" href="patchbay.css">
+</head>
+<body>
+<div id="patchbay">
+  <!-- Header -->
+  <header id="pbHeader">
+    <button class="pb-hdr-btn" onclick="goBack()" title="Volver">✕</button>
+    <h1>RED808 <span>PATCHBAY</span></h1>
+    <button class="pb-hdr-btn" id="pbMenuBtn" onclick="togglePBMenu()" title="Menú">⋯</button>
+    <div id="pbMenu" class="pb-menu hidden">
+      <button onclick="pbClearAll()">🗑 Borrar todo</button>
+      <button onclick="pbResetLayout()">📐 Reset layout</button>
+      <button onclick="pbAutoRoute()">⚡ Auto-route</button>
+      <button onclick="pbSavePreset()">💾 Guardar preset</button>
+      <button onclick="pbLoadPreset()">📂 Cargar preset</button>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div id="pbToolbar">
+    <div class="pb-brand">
+      <span class="pb-logo"><b>R</b><b>E</b><b>D</b><em>8</em><em>0</em><em>8</em></span>
+      <span class="pb-subtitle">SIGNAL PATCH</span>
+    </div>
+    <div class="pb-fx-buttons">
+      <button class="pb-add-btn" data-fx="lowpass" onclick="pbAddEffect('lowpass')">+ LOW PASS</button>
+      <button class="pb-add-btn" data-fx="highpass" onclick="pbAddEffect('highpass')">+ HI PASS</button>
+      <button class="pb-add-btn" data-fx="bandpass" onclick="pbAddEffect('bandpass')">+ BAND PASS</button>
+      <button class="pb-add-btn" data-fx="echo" onclick="pbAddEffect('echo')">+ REVERB</button>
+      <button class="pb-add-btn" data-fx="delay" onclick="pbAddEffect('delay')">+ DELAY</button>
+      <button class="pb-add-btn" data-fx="bitcrusher" onclick="pbAddEffect('bitcrusher')">+ BITCRUSHER</button>
+      <button class="pb-add-btn" data-fx="distortion" onclick="pbAddEffect('distortion')">+ DISTORTION</button>
+      <button class="pb-add-btn" data-fx="compressor" onclick="pbAddEffect('compressor')">+ COMPRESSOR</button>
+      <button class="pb-add-btn" data-fx="flanger" onclick="pbAddEffect('flanger')">+ FLANGER</button>
+      <button class="pb-add-btn" data-fx="phaser" onclick="pbAddEffect('phaser')">+ PHASER</button>
+    </div>
+    <div class="pb-help">DRAG <span class="dot out"></span> TO CONNECT · CLICK WIRE TO REMOVE · DRAG NODE TO MOVE</div>
+  </div>
+
+  <!-- Canvas area -->
+  <div id="pbCanvas">
+    <svg id="pbSVG">
+      <defs>
+        <filter id="cableGlow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="nodeGlow">
+          <feGaussianBlur stdDeviation="6" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+    </svg>
+    <div id="pbNodes"></div>
+  </div>
+
+  <!-- Parameter Editor Popup -->
+  <div id="pbParamEditor" class="hidden">
+    <div class="pb-param-header">
+      <span id="pbParamTitle">EFFECT</span>
+      <button onclick="closeParamEditor()">✕</button>
+    </div>
+    <div id="pbParamBody"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer id="pbFooter">
+    <span class="pb-status-dot" id="pbWsStatus"></span>
+    <span>NODES: <b id="pbNodeCount">0</b></span>
+    <span>—</span>
+    <span>CABLES: <b id="pbCableCount">0</b></span>
+    <span class="pb-footer-brand">RED808 / PATCHBAY v1.0</span>
+  </footer>
+</div>
+<script src="patchbay.js"></script>
+</body>
+</html>

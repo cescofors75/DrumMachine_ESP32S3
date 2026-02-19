@@ -10263,6 +10263,14 @@ textarea {
     background: linear-gradient(135deg, #f0c040 0%, #d4a020 100%) !important;
 }
 
+/* Patchbay button */
+.seq-btn-patchbay {
+    --btn-accent: #00e5ff;
+}
+.seq-btn-patchbay::before {
+    background: linear-gradient(135deg, #00e5ff 0%, #0091ea 100%) !important;
+}
+
 /* ── Overlay ── */
 .export-overlay {
     position: fixed;

@@ -403,6 +403,40 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
     }
   });
   
+  // Patchbay page
+  server->on("/patchbay", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/patchbay.html.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/patchbay.html.gz", "text/html");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/patchbay.html", "text/html");
+    }
+  });
+  
+  server->on("/patchbay.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/patchbay.css.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/patchbay.css.gz", "text/css");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/patchbay.css", "text/css");
+    }
+  });
+  
+  server->on("/patchbay.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/patchbay.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/patchbay.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/patchbay.js", "application/javascript");
+    }
+  });
+  
   // Admin page
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
     if (LittleFS.exists("/web/admin.html.gz")) {
