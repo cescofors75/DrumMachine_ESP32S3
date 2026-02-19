@@ -10171,3 +10171,81 @@ textarea {
         letter-spacing: 1.1px;
     }
 }
+
+/* ==========================================================
+   VOLUMES: MASTER ROW COMPACT (1-2 LINES)
+   ========================================================== */
+
+#tab-volumes .volumes-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+}
+
+#tab-volumes .master-volumes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+    margin: 8px auto 10px;
+}
+
+#tab-volumes .master-volumes .volume-card {
+    min-width: 280px;
+    max-width: 420px;
+    flex: 1 1 320px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+}
+
+#tab-volumes .master-volumes .volume-card-header {
+    margin-bottom: 0;
+    min-width: 150px;
+    gap: 6px;
+}
+
+#tab-volumes .master-volumes .volume-card-header h3 {
+    font-size: 0.78em;
+    line-height: 1.1;
+}
+
+#tab-volumes .master-volumes .volume-display {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+#tab-volumes .master-volumes .volume-value-display {
+    margin: 0;
+    min-width: 42px;
+    font-size: 1em;
+    text-align: right;
+}
+
+#tab-volumes .master-volumes .volume-bar-container {
+    flex: 1;
+    height: 11px;
+    min-width: 110px;
+}
+
+#tab-volumes .master-volumes .vu-meter-canvas.master-vu {
+    margin-left: 4px;
+    width: 8px;
+    height: 28px;
+}
+
+@media (max-width: 900px) {
+    #tab-volumes .master-volumes {
+        justify-content: stretch;
+    }
+
+    #tab-volumes .master-volumes .volume-card {
+        min-width: 100%;
+        flex-basis: 100%;
+    }
+}
