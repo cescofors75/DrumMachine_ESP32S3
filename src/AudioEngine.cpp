@@ -138,7 +138,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     phaserParams.stages[i] = {0, 0, 0, 0};
   }
   phaserParams.lfo.phase = 0;
-  phaserParams.lfo.depth = 0.7f;
+  phaserParams.lfo.depth = 1.0f;  // LFO siempre [-1,+1]
   phaserParams.lfo.waveform = LFO_SINE;
   updateLFOPhaseInc(phaserParams.lfo, 0.5f);
   
@@ -151,7 +151,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
   flangerParams.mix = 0.5f;
   flangerParams.writePos = 0;
   flangerParams.lfo.phase = 0;
-  flangerParams.lfo.depth = 0.5f;
+  flangerParams.lfo.depth = 1.0f;  // LFO siempre [-1,+1]
   flangerParams.lfo.waveform = LFO_SINE;
   updateLFOPhaseInc(flangerParams.lfo, 0.3f);
   
@@ -181,7 +181,7 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackFlanger[i].feedback = 0.3f;
     trackFlanger[i].writePos = 0;
     trackFlanger[i].lfo.phase = 0;
-    trackFlanger[i].lfo.depth = 0.5f;
+    trackFlanger[i].lfo.depth = 1.0f;  // LFO siempre [-1,+1]
     trackFlanger[i].lfo.waveform = LFO_SINE;
     updateLFOPhaseInc(trackFlanger[i].lfo, 0.5f);
     trackComp[i].active = false;
@@ -356,6 +356,8 @@ void AudioEngine::triggerSampleSequencer(int padIndex, uint8_t velocity, uint8_t
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = false;
   voices[voiceIndex].startAge = ++voiceAge;
+  voices[voiceIndex].filterState = {0.0f, 0.0f, 0.0f, 0.0f}; // Clear biquad state to avoid transient artifacts
+  voices[voiceIndex].scratchPos = 0.0f;
 }
 
 void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
@@ -378,6 +380,7 @@ void AudioEngine::triggerSampleLive(int padIndex, uint8_t velocity) {
   voices[voiceIndex].padIndex = padIndex;
   voices[voiceIndex].isLivePad = true;
   voices[voiceIndex].startAge = ++voiceAge;
+  voices[voiceIndex].filterState = {0.0f, 0.0f, 0.0f, 0.0f}; // Clear biquad state
   voices[voiceIndex].scratchPos = 0.0f;
 }
 
@@ -1358,13 +1361,13 @@ void AudioEngine::setPhaserActive(bool active) {
 
 void AudioEngine::setPhaserRate(float hz) {
   phaserParams.rate = constrain(hz, 0.05f, 5.0f);
-  phaserParams.lfo.depth = phaserParams.depth;
+  phaserParams.lfo.depth = 1.0f;  // LFO siempre [-1,+1]
   updateLFOPhaseInc(phaserParams.lfo, phaserParams.rate);
 }
 
 void AudioEngine::setPhaserDepth(float depth) {
   phaserParams.depth = constrain(depth, 0.0f, 1.0f);
-  phaserParams.lfo.depth = phaserParams.depth;
+  phaserParams.lfo.depth = 1.0f;  // LFO siempre [-1,+1], depth solo en freq calc
 }
 
 void AudioEngine::setPhaserFeedback(float feedback) {
@@ -1388,7 +1391,7 @@ void AudioEngine::setFlangerRate(float hz) {
 
 void AudioEngine::setFlangerDepth(float depth) {
   flangerParams.depth = constrain(depth, 0.0f, 1.0f);
-  flangerParams.lfo.depth = flangerParams.depth;
+  flangerParams.lfo.depth = 1.0f;  // LFO siempre [-1,+1], depth solo en delay calc
 }
 
 void AudioEngine::setFlangerFeedback(float feedback) {
@@ -1478,7 +1481,7 @@ void AudioEngine::setTrackFlanger(int track, bool active, float rate, float dept
     trackFlanger[track].rate = constrain(rate / 100.0f, 0.05f, 5.0f);
     trackFlanger[track].depth = constrain(depth / 100.0f, 0.0f, 1.0f);
     trackFlanger[track].feedback = constrain(feedback / 100.0f, -0.9f, 0.9f);
-    trackFlanger[track].lfo.depth = trackFlanger[track].depth;
+    trackFlanger[track].lfo.depth = 1.0f;  // LFO siempre [-1,+1], depth se aplica solo en delay calc
     updateLFOPhaseInc(trackFlanger[track].lfo, trackFlanger[track].rate);
     // Clear flanger buffer for this track
     if (trackFlangerBuffers) {
@@ -1554,8 +1557,9 @@ inline float AudioEngine::processTrackFlanger(int track, float input) {
   
   buf[f.writePos] = input;
   
-  float lfoVal = (lfoTick(f.lfo) + 1.0f) * 0.5f;
-  float delaySamplesF = lfoVal * f.depth * 120.0f + 1.0f;
+  // LFO devuelve [-1,+1] ya que lfo.depth=1.0; depth controla solo rango de delay
+  float lfoVal = (lfoTick(f.lfo) + 1.0f) * 0.5f;  // [0, 1]
+  float delaySamplesF = lfoVal * f.depth * 180.0f + 1.0f;  // hasta ~4ms max
   
   uint32_t delayInt = (uint32_t)delaySamplesF;
   float frac = delaySamplesF - (float)delayInt;
@@ -1568,7 +1572,8 @@ inline float AudioEngine::processTrackFlanger(int track, float input) {
   
   f.writePos = (f.writePos + 1) % TRACK_FLANGER_BUF;
   
-  return input * 0.5f + delayed * 0.5f;
+  // Mix: mantener volumen original completo + añadir señal flangeada
+  return input + delayed * 0.7f;
 }
 
 // --- Per-track Compressor Processing ---
@@ -1625,6 +1630,10 @@ void AudioEngine::clearTrackFilter(int track) {
   if (track < 0 || track >= MAX_AUDIO_TRACKS) return;
   trackFilters[track].filterType = FILTER_NONE;
   trackFilterActive[track] = false;
+  // Reset biquad state + coefficients to prevent residual artifacts
+  trackFilters[track].state.x1 = trackFilters[track].state.x2 = 0.0f;
+  trackFilters[track].state.y1 = trackFilters[track].state.y2 = 0.0f;
+  trackFilters[track].coeffs = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   Serial.printf("[AudioEngine] Track %d filter cleared\n", track);
 }
 
@@ -1691,6 +1700,10 @@ void AudioEngine::clearPadFilter(int pad) {
   if (pad < 0 || pad >= MAX_PADS) return;
   padFilters[pad].filterType = FILTER_NONE;
   padFilterActive[pad] = false;
+  // Reset biquad state + coefficients to prevent residual artifacts
+  padFilters[pad].state.x1 = padFilters[pad].state.x2 = 0.0f;
+  padFilters[pad].state.y1 = padFilters[pad].state.y2 = 0.0f;
+  padFilters[pad].coeffs = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   Serial.printf("[AudioEngine] Pad %d filter cleared\n", pad);
 }
 

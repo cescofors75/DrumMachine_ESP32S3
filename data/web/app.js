@@ -128,6 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initLivePadsX();
     initFxSubtabs();
     
+    // Sync FX state from patchbay (if available)
+    syncFxFromPatchbay();
+    
     // Initialize keyboard system from keyboard-controls.js first
     if (window.initKeyboardControls) {
         window.initKeyboardControls();
@@ -302,6 +305,7 @@ function handleWebSocketMessage(data) {
                 if (data.filterType !== undefined) {
                     trackFilterState[data.track] = data.filterType;
                     updateTrackStepDots(data.track);
+                    saveSeqFxToShared();
                 }
             }
             break;
@@ -314,6 +318,7 @@ function handleWebSocketMessage(data) {
             // Remove filter dots from steps
             trackFilterState[data.track] = 0;
             updateTrackStepDots(data.track);
+            saveSeqFxToShared();
             break;
         case 'padFilterSet':
             if (data.success && window.showToast) {
@@ -451,6 +456,7 @@ function handleWebSocketMessage(data) {
                     if (data.fx === 'compressor') { s.compressor.active = !!data.active; if (data.threshold !== undefined) s.compressor.threshold = data.threshold; if (data.ratio !== undefined) s.compressor.ratio = data.ratio; }
                 }
                 updateTrackStepDots(data.track);
+                saveSeqFxToShared();
             }
             break;
 
@@ -1446,7 +1452,7 @@ function setTrackFxFlangerActive(trackIndex, val) {
     if (!trackLiveFxState[trackIndex]) trackLiveFxState[trackIndex] = { echo: { active: false, time: 100, feedback: 40, mix: 50 }, flanger: { active: false, rate: 50, depth: 50, feedback: 30 }, compressor: { active: false, threshold: -20, ratio: 4 } };
     trackLiveFxState[trackIndex].flanger.active = val;
     const f = trackLiveFxState[trackIndex].flanger;
-    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: val, rate: f.rate * 0.1, depth: f.depth / 100, feedback: f.feedback / 100 });
+    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: val, rate: f.rate, depth: f.depth, feedback: f.feedback });
     updateTrackStepDots(trackIndex);
     const btn = document.getElementById('trkFlngBtn');
     if (btn) { btn.textContent = val ? '🌀 ON' : '🌀 OFF'; btn.classList.toggle('fx-on', val); }
@@ -1455,7 +1461,7 @@ function setTrackFxFlangerParam(trackIndex, param, val) {
     if (!trackLiveFxState[trackIndex]) return;
     trackLiveFxState[trackIndex].flanger[param] = val;
     const f = trackLiveFxState[trackIndex].flanger;
-    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: f.active, rate: f.rate * 0.1, depth: f.depth / 100, feedback: f.feedback / 100 });
+    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: f.active, rate: f.rate, depth: f.depth, feedback: f.feedback });
     const el = document.getElementById(`trkFlng${param.charAt(0).toUpperCase()+param.slice(1)}Val`);
     if (el) el.textContent = val;
 }
@@ -1512,6 +1518,93 @@ function updateTrackStepDots(track) {
     }
 }
 window.updateTrackStepDots = updateTrackStepDots;
+
+/* ── Sync FX from Patchbay localStorage ── */
+function syncFxFromPatchbay() {
+    try {
+        const raw = localStorage.getItem('r808_shared_fx');
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        const filterTypeNameToInt = {
+            lowpass:1, highpass:2, bandpass:3, notch:4, allpass:5,
+            peaking:6, lowshelf:7, highshelf:8, resonant:9
+        };
+        const filterTypes = Object.keys(filterTypeNameToInt);
+
+        Object.entries(state).forEach(([trackStr, fxList]) => {
+            const track = parseInt(trackStr, 10);
+            if (isNaN(track) || track < 0 || track >= 16) return;
+            if (!Array.isArray(fxList)) return;
+
+            fxList.forEach(fx => {
+                /* Filter FX */
+                if (filterTypes.includes(fx.fxType)) {
+                    trackFilterState[track] = filterTypeNameToInt[fx.fxType] || 0;
+                }
+                /* Echo */
+                if (fx.fxType === 'echo' || fx.fxType === 'delay') {
+                    const s = trackLiveFxState[track];
+                    if (s) {
+                        s.echo.active = true;
+                        if (fx.params.time != null) s.echo.time = fx.params.time;
+                        if (fx.params.feedback != null) s.echo.feedback = fx.params.feedback;
+                        if (fx.params.mix != null) s.echo.mix = fx.params.mix;
+                    }
+                }
+                /* Flanger */
+                if (fx.fxType === 'flanger') {
+                    const s = trackLiveFxState[track];
+                    if (s) {
+                        s.flanger.active = true;
+                        if (fx.params.rate != null) s.flanger.rate = fx.params.rate;
+                        if (fx.params.depth != null) s.flanger.depth = fx.params.depth;
+                        if (fx.params.feedback != null) s.flanger.feedback = fx.params.feedback;
+                    }
+                }
+                /* Compressor */
+                if (fx.fxType === 'compressor') {
+                    const s = trackLiveFxState[track];
+                    if (s) {
+                        s.compressor.active = true;
+                        if (fx.params.threshold != null) s.compressor.threshold = fx.params.threshold;
+                        if (fx.params.ratio != null) s.compressor.ratio = fx.params.ratio;
+                    }
+                }
+            });
+            updateTrackStepDots(track);
+        });
+        console.log('[SYNC] FX state loaded from patchbay localStorage');
+    } catch(ex) {
+        console.warn('[SYNC] Could not read patchbay FX state:', ex);
+    }
+}
+window.syncFxFromPatchbay = syncFxFromPatchbay;
+
+/* Save sequencer FX state to localStorage for patchbay to pick up */
+function saveSeqFxToShared() {
+    try {
+        const filterTypeIntToName = {
+            1:'lowpass', 2:'highpass', 3:'bandpass', 4:'notch', 5:'allpass',
+            6:'peaking', 7:'lowshelf', 8:'highshelf', 9:'resonant'
+        };
+        const state = {};
+        for (let t = 0; t < 16; t++) {
+            const fxList = [];
+            if (trackFilterState[t] > 0) {
+                fxList.push({ fxType: filterTypeIntToName[trackFilterState[t]] || 'lowpass', params: { cutoff: 1000, resonance: 1 } });
+            }
+            const live = trackLiveFxState[t];
+            if (live) {
+                if (live.echo.active) fxList.push({ fxType: 'echo', params: { time: live.echo.time, feedback: live.echo.feedback, mix: live.echo.mix } });
+                if (live.flanger.active) fxList.push({ fxType: 'flanger', params: { rate: live.flanger.rate, depth: live.flanger.depth, feedback: live.flanger.feedback } });
+                if (live.compressor.active) fxList.push({ fxType: 'compressor', params: { threshold: live.compressor.threshold, ratio: live.compressor.ratio } });
+            }
+            if (fxList.length > 0) state[t] = fxList;
+        }
+        localStorage.setItem('r808_seq_fx', JSON.stringify(state));
+    } catch(ex) {}
+}
+window.saveSeqFxToShared = saveSeqFxToShared;
 
 // Track FX functions (same concept but for sequencer tracks)
 function showTrackFxPopup(trackIndex) {
@@ -1609,7 +1702,7 @@ function showTrackFxPopup(trackIndex) {
                 </button>
                 <div class="pad-fx-slider-row" style="margin-top:8px">
                     <label>Time <span id="trkEchoTimeVal">${echo.time}</span>ms</label>
-                    <input type="range" id="trkEchoTime" min="10" max="750" value="${echo.time}"
+                    <input type="range" id="trkEchoTime" min="10" max="200" value="${echo.time}"
                            oninput="setTrackFxEchoParam(${trackIndex},'time',+this.value)" class="fx-slider">
                 </div>
                 <div class="pad-fx-slider-row">
@@ -1630,8 +1723,8 @@ function showTrackFxPopup(trackIndex) {
                     ${flng.active ? '🌀 ON' : '🌀 OFF'}
                 </button>
                 <div class="pad-fx-slider-row" style="margin-top:8px">
-                    <label>Rate <span id="trkFlngRateVal">${flng.rate}</span>×0.1Hz</label>
-                    <input type="range" id="trkFlngRate" min="1" max="50" value="${flng.rate}"
+                    <label>Rate <span id="trkFlngRateVal">${flng.rate}</span>%</label>
+                    <input type="range" id="trkFlngRate" min="1" max="100" value="${flng.rate}"
                            oninput="setTrackFxFlangerParam(${trackIndex},'rate',+this.value)" class="fx-slider">
                 </div>
                 <div class="pad-fx-slider-row">
@@ -1735,7 +1828,7 @@ function clearTrackFxAll(trackIndex) {
     sendWebSocket({ cmd: 'setPitchShift', track: trackIndex, value: 1.0 });
     sendWebSocket({ cmd: 'setStutter', track: trackIndex, active: false, interval: 100 });
     sendWebSocket({ cmd: 'setTrackEcho', track: trackIndex, active: false, time: 100, feedback: 40, mix: 50 });
-    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: false, rate: 0.5, depth: 0, feedback: 0 });
+    sendWebSocket({ cmd: 'setTrackFlanger', track: trackIndex, active: false, rate: 50, depth: 0, feedback: 0 });
     sendWebSocket({ cmd: 'setTrackCompressor', track: trackIndex, active: false, threshold: -20, ratio: 4 });
     updateTrackStepDots(trackIndex);
     closePadFxPopup();
@@ -2066,6 +2159,42 @@ function setTrackMuted(track, isMuted, sendCommand) {
             window.showToast(`${isMuted ? '🔇' : '🔊'} ${trackName} ${isMuted ? 'Muted' : 'Unmuted'}`, 
                            window.TOAST_TYPES.WARNING, 1500);
         }
+    }
+
+    // Sync Mute All button visual
+    updateMuteAllButton();
+}
+
+function updateMuteAllButton() {
+    const btn = document.getElementById('muteAllBtn');
+    if (!btn) return;
+    const allMuted = trackMutedState.every(m => m);
+    const iconEl = btn.querySelector('.seq-btn-icon');
+    const labelEl = btn.querySelector('.seq-btn-label');
+    btn.classList.toggle('all-muted', allMuted);
+    if (iconEl) iconEl.textContent = allMuted ? '🔊' : '🔇';
+    if (labelEl) labelEl.textContent = allMuted ? 'UNMUTE' : 'MUTE ALL';
+}
+
+function toggleAllMuted() {
+    // If any track is unmuted → mute all; if all muted → unmute all
+    const anyUnmuted = trackMutedState.some(m => !m);
+    const newState = anyUnmuted;
+    for (let t = 0; t < 16; t++) {
+        setTrackMuted(t, newState, true);
+    }
+    // Update button visual
+    const btn = document.getElementById('muteAllBtn');
+    if (btn) {
+        const iconEl = btn.querySelector('.seq-btn-icon');
+        const labelEl = btn.querySelector('.seq-btn-label');
+        btn.classList.toggle('all-muted', newState);
+        if (iconEl) iconEl.textContent = newState ? '🔊' : '🔇';
+        if (labelEl) labelEl.textContent = newState ? 'UNMUTE' : 'MUTE ALL';
+    }
+    if (window.showToast && window.TOAST_TYPES) {
+        window.showToast(newState ? '🔇 All Tracks Muted' : '🔊 All Tracks Unmuted',
+                       window.TOAST_TYPES.WARNING, 1500);
     }
 }
 
@@ -3812,19 +3941,27 @@ let currentTab = 'performance';
 
 function initTabSystem() {
     const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    // Cargar el tab guardado
-    const savedTab = localStorage.getItem('currentTab');
-    if (savedTab) {
-        switchTab(savedTab);
+
+    // Multiview embed mode: activate via URL params (?embed=1&tab=sequencer)
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.get('embed') === '1') {
+        document.body.classList.add('embed-mode');
     }
-    
+    const urlTab = urlParams.get('tab');
+    if (urlTab) {
+        // URL param takes priority (multiview selected this tab)
+        switchTab(urlTab);
+    } else {
+        // Fall back to saved preference
+        const savedTab = localStorage.getItem('currentTab');
+        if (savedTab) switchTab(savedTab);
+    }
+
     // Event listeners para los botones de tabs
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.getAttribute('data-tab');
-            switchTab(tabId);
+            if (tabId) switchTab(tabId);
         });
     });
 }

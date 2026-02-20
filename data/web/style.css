@@ -1882,6 +1882,36 @@ body:not(.mono-mode) .pad.tremolo-active {
     filter: drop-shadow(0 0 8px rgba(255, 214, 0, 0.6));
 }
 
+/* Mute All Button - Orange/Amber */
+.seq-btn-mute-all {
+    background: linear-gradient(135deg, #e65100 0%, #bf360c 100%);
+    color: #fff;
+    border: 2px solid rgba(230, 81, 0, 0.5);
+}
+
+.seq-btn-mute-all .seq-btn-bg {
+    background: linear-gradient(135deg, #ff6d00 0%, #e65100 100%);
+}
+
+.seq-btn-mute-all:hover {
+    border-color: rgba(255, 109, 0, 0.8);
+    box-shadow: 0 6px 25px rgba(230, 81, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.seq-btn-mute-all .seq-btn-icon {
+    filter: drop-shadow(0 0 8px rgba(255, 109, 0, 0.6));
+}
+
+.seq-btn-mute-all.all-muted {
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+    border-color: rgba(76, 175, 80, 0.5);
+}
+
+.seq-btn-mute-all.all-muted:hover {
+    border-color: rgba(76, 175, 80, 0.8);
+    box-shadow: 0 6px 25px rgba(76, 175, 80, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
 /* Pattern Display */
 .pattern-display {
     display: flex;
@@ -10840,3 +10870,38 @@ textarea {
     0%   { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* ============================================================
+   MULTIVIEW — Tab button + Embed mode
+   ============================================================ */
+
+/* MULTIVIEW shortcut in the tab navigation */
+a.tab-btn-multiview {
+    text-decoration: none;
+    color: inherit;
+    margin-left: 4px;
+    border-left: 1px solid rgba(255,255,255,0.12);
+    padding-left: 12px;
+    color: rgba(0,229,255,0.8);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    transition: color .18s, background .18s;
+}
+a.tab-btn-multiview:hover {
+    background: rgba(0,229,255,0.10);
+    color: #00e5ff;
+    border-color: rgba(0,229,255,0.35);
+}
+
+/* Embed mode: hide chrome, maximise content area */
+body.embed-mode .header          { display: none !important; }
+body.embed-mode .tab-navigation  { display: none !important; }
+body.embed-mode .container       { height: 100vh; padding: 0; }
+body.embed-mode .tab-content.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100vh;
+    overflow: auto;
+}
+body.embed-mode .tab-content:not(.active) { display: none !important; }

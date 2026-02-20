@@ -34,8 +34,8 @@ const FX_DEFS = {
   highshelf: { label:'HI SHELF',  color:'lavender',icon:'⏣', params:[ {id:'cutoff', label:'Freq',   min:200,max:16000, def:8000, unit:'Hz', log:true}, {id:'gain', label:'Gain', min:-12, max:12, def:6, unit:'dB', step:0.5} ] },
   resonant:  { label:'RESONANT',  color:'hotpink', icon:'⏣', params:[ {id:'cutoff', label:'Cutoff', min:100, max:16000, def:800,  unit:'Hz', log:true}, {id:'resonance', label:'Res', min:0.5, max:20, def:5,     step:0.1}  ] },
   // ── FX ──
-  echo:       { label:'REVERB',      color:'orange', icon:'◎', params:[ {id:'time', label:'Time', min:10, max:750, def:200, unit:'ms'}, {id:'feedback', label:'Feedback', min:0, max:95, def:40, unit:'%'}, {id:'mix', label:'Mix', min:0, max:100, def:50, unit:'%'} ] },
-  delay:      { label:'DELAY',       color:'yellow', icon:'◉', params:[ {id:'time', label:'Time', min:10, max:750, def:300, unit:'ms'}, {id:'feedback', label:'Feedback', min:0, max:95, def:50, unit:'%'}, {id:'mix', label:'Mix', min:0, max:100, def:50, unit:'%'} ] },
+  echo:       { label:'REVERB',      color:'orange', icon:'◎', params:[ {id:'time', label:'Time', min:10, max:200, def:100, unit:'ms'}, {id:'feedback', label:'Feedback', min:0, max:95, def:40, unit:'%'}, {id:'mix', label:'Mix', min:0, max:100, def:50, unit:'%'} ] },
+  delay:      { label:'DELAY',       color:'yellow', icon:'◉', params:[ {id:'time', label:'Time', min:10, max:200, def:100, unit:'ms'}, {id:'feedback', label:'Feedback', min:0, max:95, def:50, unit:'%'}, {id:'mix', label:'Mix', min:0, max:100, def:50, unit:'%'} ] },
   bitcrusher: { label:'BITCRUSHER',  color:'purple', icon:'▦', params:[ {id:'bits', label:'Bit Depth', min:1, max:16, def:8, step:1} ] },
   distortion: { label:'DISTORTION',  color:'pink',   icon:'⚡', params:[ {id:'amount', label:'Amount', min:0, max:100, def:50, unit:'%'}, {id:'mode', label:'Mode', type:'select', options:['SOFT','HARD','TUBE','FUZZ'], def:0} ] },
   compressor: { label:'COMPRESSOR',  color:'green',  icon:'▬', params:[ {id:'threshold', label:'Threshold', min:0, max:100, def:60, unit:'%'}, {id:'ratio', label:'Ratio', min:1, max:20, def:4, step:0.5} ] },
@@ -62,7 +62,7 @@ const FACTORY_PRESETS = [
     chain: [
       { key: 'crush', fxType: 'bitcrusher', x: 760, y: 820, params: { bits: 7 } },
       { key: 'dist', fxType: 'distortion', x: 1060, y: 820, params: { amount: 58, mode: 2 } },
-      { key: 'dly', fxType: 'delay', x: 1360, y: 820, params: { time: 280, feedback: 44, mix: 36 } }
+      { key: 'dly', fxType: 'delay', x: 1360, y: 820, params: { time: 200, feedback: 44, mix: 36 } }
     ]
   },
   {
@@ -72,7 +72,7 @@ const FACTORY_PRESETS = [
     chain: [
       { key: 'bp', fxType: 'bandpass', x: 760, y: 1100, params: { cutoff: 1450, resonance: 1.1 } },
       { key: 'ph', fxType: 'phaser', x: 1060, y: 1100, params: { rate: 34, depth: 62, feedback: 28 } },
-      { key: 'rv', fxType: 'echo', x: 1360, y: 1100, params: { time: 240, feedback: 26, mix: 40 } },
+      { key: 'rv', fxType: 'echo', x: 1360, y: 1100, params: { time: 200, feedback: 26, mix: 40 } },
       { key: 'cp', fxType: 'compressor', x: 1660, y: 1100, params: { threshold: 56, ratio: 3.5 } }
     ]
   }
@@ -104,6 +104,7 @@ let pendingSceneState = null;
 let pendingSceneLabel = '';
 let trackVolumes = new Array(16).fill(100);
 let trackPeaks = new Array(16).fill(0);
+let trackMuted = new Array(16).fill(false);
 const throttledCmdTimers = new Map();
 const queuedWsPayloads = [];
 let wsFlushTimer = null;
@@ -224,6 +225,12 @@ function init() {
   canvasEl= document.getElementById('pbCanvas');
   worldEl = document.getElementById('pbWorld');
   selectionBoxEl = document.getElementById('pbSelectionBox');
+
+  /* Embed mode — when loaded inside multiview iframe, hide the header */
+  if (new URLSearchParams(location.search).get('embed') === '1') {
+    document.getElementById('patchbay')?.classList.add('embed-mode');
+  }
+
   updateToolButtons();
   renderNodeSelection();
 
@@ -252,7 +259,8 @@ function init() {
   createBusNode('bus-a', 'BUS A', CANVAS_W - 560, 380, 'teal');
   createBusNode('bus-b', 'BUS B', CANVAS_W - 560, 640, 'violet');
 
-  /* Do not autoload patch topology: start from a clean PATH canvas */
+  /* Restore saved patch topology — muestra cables/FX de la sesión anterior */
+  loadState();
   refreshSourcePicker();
 
   /* Events */
@@ -476,19 +484,42 @@ function resetFirmwareFX() {
 }
 
 function syncConnectionsAfterReconnect() {
+  /* Descarta cola pre-conexión (los sendCmd antes del WS open se descartaron) */
+  queuedWsPayloads.length = 0;
+  if (wsFlushTimer) { clearTimeout(wsFlushTimer); wsFlushTimer = null; }
+
+  /* FASE 1 — limpiar TODOS los FX del firmware (filtros, distortion, echo, flanger,
+     compressor, phaser). Evita cualquier FX colgado de sesiones anteriores.
+     Se hace SIEMPRE, incluso con canvas vacío: patchbay es la fuente de verdad. */
+  const RESET_SPAN = 16 * WS_BOOT_SYNC_DELAY_MS; // 16 × 34ms = 544ms
+  for (let t = 0; t < 16; t++) {
+    const track = t;
+    setTimeout(() => {
+      sendCmd('clearTrackFilter',   { track });
+      sendCmd('clearTrackFX',       { track });
+      sendCmd('setTrackEcho',       { track, active: false, time: 200, feedback: 40, mix: 50 });
+      sendCmd('setTrackFlanger',    { track, active: false, rate: 30, depth: 50, feedback: 40 });
+      sendCmd('setTrackCompressor', { track, active: false, threshold: 60, ratio: 4 });
+    }, track * WS_BOOT_SYNC_DELAY_MS);
+  }
+  /* Phaser es master-level */
+  setTimeout(() => sendCmd('setPhaserActive', { value: false }), RESET_SPAN);
+
+  /* FASE 2 — re-aplicar cables (si los hay) DESPUÉS de que termine el reset */
   if (!Array.isArray(cables) || cables.length === 0) {
-    /* Canvas vacío — resetea estado FX del firmware para que coincida */
-    resetFirmwareFX();
+    console.log('[PATCH] Canvas vacío — firmware FX limpiado (todos: filter, fx, echo, flanger, comp, phaser).');
     return;
   }
   const total = cables.length;
   const count = Math.min(total, WS_BOOT_SYNC_MAX_CABLES);
+  const phase2Start = RESET_SPAN + 80; // 80ms margen tras el reset
   for (let i = 0; i < count; i++) {
-    setTimeout(() => applyConnection(cables[i]), i * WS_BOOT_SYNC_DELAY_MS);
+    setTimeout(() => applyConnection(cables[i]), phase2Start + i * WS_BOOT_SYNC_DELAY_MS);
   }
   if (total > count) {
-    console.warn(`[PATCH] Sync limitado: ${count}/${total} cables para evitar sobrecarga del ESP32`);
+    console.warn(`[PATCH] Sync limitado: ${count}/${total} cables.`);
   }
+  console.log(`[PATCH] Firmware reset completo + re-sync de ${count} cables.`);
 }
 
 function flushWsQueue() {
@@ -513,8 +544,12 @@ function flushWsQueue() {
 }
 
 function sendCmd(cmd, data) {
-  if (!ws || ws.readyState !== 1) return;
+  if (!ws || ws.readyState !== 1) {
+    console.warn('[PATCH] sendCmd DROPPED (WS not connected):', cmd, data);
+    return;
+  }
   const payload = JSON.stringify(Object.assign({ cmd }, data));
+  console.log('[PATCH] sendCmd:', cmd, data);
 
   if (queuedWsPayloads.length >= WS_MAX_QUEUE) {
     queuedWsPayloads.shift();
@@ -725,6 +760,50 @@ function handleWSMessage(msg) {
     }
     console.warn('[PATCH] setTrackFilter rechazado por firmware (límite 8 activos)');
   }
+
+  /* Sync: firmware tells us a filter was set (from sequencer or another client) */
+  if (msg.type === 'trackFilterSet' && msg.success === true) {
+    syncFxFromFirmware(msg.track, 'filter', {
+      filterType: msg.filterType,
+      cutoff: msg.cutoff,
+      resonance: msg.resonance
+    });
+  }
+  if (msg.type === 'trackFilterCleared') {
+    syncFxFromFirmware(msg.track, 'filterClear', {});
+  }
+
+  /* Sync: firmware tells us live FX state (echo/flanger/compressor) */
+  if (msg.type === 'trackLiveFx') {
+    syncFxFromFirmware(msg.track, msg.fx, {
+      active: msg.active,
+      time: msg.time, feedback: msg.feedback, mix: msg.mix,
+      rate: msg.rate, depth: msg.depth,
+      threshold: msg.threshold, ratio: msg.ratio
+    });
+  }
+
+  /* Track mute state */
+  if (msg.type === 'trackMuted' && typeof msg.track !== 'undefined') {
+    const idx = parseInt(msg.track, 10);
+    if (idx >= 0 && idx < 16) {
+      trackMuted[idx] = !!msg.muted;
+      renderCables();
+    }
+  }
+
+  /* Initial state: bulk mute array */
+  if (Array.isArray(msg.trackMuted)) {
+    msg.trackMuted.forEach((m, i) => {
+      if (i < 16) trackMuted[i] = !!m;
+    });
+    renderCables();
+  }
+
+  /* Initial state: bulk track filter array — save for sync */
+  if (Array.isArray(msg.trackFilters)) {
+    saveFirmwareFiltersToShared(msg.trackFilters);
+  }
 }
 
 function applyTempoVisuals() {
@@ -814,7 +893,8 @@ function createFxNode(fxType, x, y) {
     x: snap(x), y: snap(y),
     label: def.label,
     color: def.color,
-    params
+    params,
+    bypass: false
   };
   nodes.push(node);
   renderNode(node);
@@ -878,6 +958,7 @@ function renderNode(node) {
   } else if (node.type === 'fx') {
     const def = FX_DEFS[node.fxType];
     el.classList.add('pb-fx');
+    if (node.bypass) el.classList.add('is-bypassed');
     el.setAttribute('data-color', def.color);
     const paramText = def.params.map(p => {
       const v = node.params[p.id];
@@ -886,8 +967,9 @@ function renderNode(node) {
     }).join('  ·  ');
     el.innerHTML = `
       <button class="pb-node-delete" data-node="${node.id}" onclick="pbDeleteNode('${node.id}')">✕</button>
+      <button class="pb-node-bypass ${node.bypass ? 'active' : ''}" data-node="${node.id}" onclick="pbBypassNode('${node.id}')" title="Bypass FX">B</button>
       <button class="pb-node-edit" data-node="${node.id}" onclick="pbEditNode('${node.id}')">⚙</button>
-      <div class="pb-node-header">${def.icon} ${node.label}</div>
+      <div class="pb-node-header">${def.icon} ${node.label}${node.bypass ? ' <span style="color:#ff9100;font-size:10px">[BYP]</span>' : ''}</div>
       <div class="pb-node-params">${paramText}</div>
       <div class="pb-connector in" data-node="${node.id}" data-dir="in"></div>
       <div class="pb-connector out" data-node="${node.id}" data-dir="out"></div>
@@ -954,16 +1036,41 @@ function renderCables() {
   /* Remove old cable paths */
   svgEl.querySelectorAll('path:not(.cable-preview)').forEach(p => p.remove());
 
+  /* Remove cable info tooltip if no cable selected */
+  if (!selectedCable) {
+    const oldInfo = document.getElementById('pbCableInfo');
+    if (oldInfo) oldInfo.remove();
+  }
+
   cables.forEach((cable, index) => {
     const fromPos = getConnectorPos(cable.from, 'out');
     const toPos   = getConnectorPos(cable.to, 'in');
     if (!fromPos || !toPos) return;
 
+    const d = getCableBezier(fromPos.x, fromPos.y, toPos.x, toPos.y);
+
+    /* Invisible wider hitbox path for easier clicking (20px) */
+    const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hitPath.setAttribute('d', d);
+    hitPath.setAttribute('stroke', 'rgba(255,255,255,0.001)');
+    hitPath.setAttribute('stroke-width', '20');
+    hitPath.setAttribute('fill', 'none');
+    hitPath.setAttribute('stroke-linecap', 'round');
+    hitPath.dataset.cableId = cable.id;
+    hitPath.classList.add('pb-cable-hit');
+    hitPath.style.pointerEvents = 'visibleStroke';
+    hitPath.style.cursor = 'pointer';
+    hitPath.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      onCableClick(cable.id);
+    });
+    svgEl.appendChild(hitPath);
+
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const baseWidth = getCableStrokeWidth(cable);
     const levelNorm = getCableLevelNorm(cable);
     const cableStroke = isHeatActive() ? getCableHeatColor(cable.color, levelNorm) : cable.color;
-    path.setAttribute('d', getCableBezier(fromPos.x, fromPos.y, toPos.x, toPos.y));
+    path.setAttribute('d', d);
     path.setAttribute('stroke', cableStroke);
     path.setAttribute('stroke-width', String(baseWidth.toFixed(2)));
     path.setAttribute('fill', 'none');
@@ -972,19 +1079,42 @@ function renderCables() {
     path.dataset.cableId = cable.id;
     path.classList.add('pb-cable');
     path.style.setProperty('--flow-delay', `${(index % 8) * 0.09}s`);
-    path.style.pointerEvents = 'stroke';
+    path.style.pointerEvents = 'none';
     path.style.cursor = 'pointer';
+
+    /* Mute state: if ALL source tracks are muted, mark cable as muted */
+    const sourceTracks = getCableSourceTracks(cable);
+    const allMuted = sourceTracks.length > 0 && sourceTracks.every(t => trackMuted[t]);
+    if (allMuted) {
+      path.classList.add('is-muted');
+    }
+
     if (selectedCable === cable.id) {
       path.classList.add('is-selected');
       path.setAttribute('stroke-width', String((baseWidth + 1.8).toFixed(2)));
       path.setAttribute('stroke-dasharray', '8 4');
+      /* Show cable info tooltip */
+      showCableInfo(cable, fromPos, toPos);
     }
-    path.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onCableClick(cable.id);
-    });
     svgEl.appendChild(path);
   });
+}
+
+function showCableInfo(cable, fromPos, toPos) {
+  let info = document.getElementById('pbCableInfo');
+  if (!info) {
+    info = document.createElement('div');
+    info.id = 'pbCableInfo';
+    info.style.cssText = 'position:absolute;padding:4px 10px;background:rgba(255,64,129,0.9);color:#fff;border-radius:6px;font-size:11px;font-weight:700;pointer-events:none;z-index:200;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5);';
+    nodesEl.appendChild(info);
+  }
+  const fromNode = nodes.find(n => n.id === cable.from);
+  const toNode = nodes.find(n => n.id === cable.to);
+  const fromLabel = fromNode ? fromNode.label : cable.from;
+  const toLabel = toNode ? toNode.label : cable.to;
+  info.textContent = `${fromLabel} → ${toLabel}  ·  Press DEL to remove`;
+  info.style.left = ((fromPos.x + toPos.x) / 2 - 80) + 'px';
+  info.style.top = ((fromPos.y + toPos.y) / 2 - 28) + 'px';
 }
 
 function getCableSourceTracks(cable) {
@@ -1179,13 +1309,31 @@ function wouldCreateCycle(fromId, toId) {
   return hasPath(toId, fromId);
 }
 
-function applyConnection(cable) {
+function applyConnection(cable, _visited) {
   const toNode = nodes.find(n => n.id === cable.to);
   if (!toNode || toNode.type !== 'fx') return;
+  if (toNode.bypass) {
+    console.log('[PATCH] applyConnection SKIPPED (bypass):', toNode.label);
+    return;
+  }
+
+  /* Cycle guard */
+  const visited = _visited || new Set();
+  if (visited.has(cable.id)) return;
+  visited.add(cable.id);
 
   /* Find which tracks feed into this FX node */
   const tracks = getTracksForNode(cable.to);
+  console.log('[PATCH] applyConnection:', cable.from, '→', cable.to, '| tracks:', tracks, '| fx:', toNode.fxType);
   tracks.forEach(track => applyFxToTrack(track, toNode));
+
+  /* Update shared FX state for sync */
+  updateSharedFxState();
+
+  /* Propagate: also apply to downstream FX nodes connected FROM this node */
+  cables.filter(c => c.from === cable.to).forEach(downCable => {
+    applyConnection(downCable, visited);
+  });
 }
 
 function clearConnection(cable) {
@@ -1204,11 +1352,13 @@ function clearConnection(cable) {
   }
 
   tracksToRemove.forEach(track => clearFxFromTrack(track, toNode));
+  updateSharedFxState();
 }
 
 function applyFxToTrack(track, fxNode) {
   const p = fxNode.params;
   const ft = fxNode.fxType;
+  console.log('[PATCH] applyFxToTrack: track', track, 'fx', ft, 'params', JSON.stringify(p));
 
   switch(ft) {
     case 'lowpass':
@@ -1228,7 +1378,7 @@ function applyFxToTrack(track, fxNode) {
       sendCmd('setTrackBitCrush', { track, value: Math.round(p.bits) });
       break;
     case 'distortion':
-      sendCmd('setTrackDistortion', { track, amount: p.amount / 100, mode: p.mode || 0 });
+      sendCmd('setTrackDistortion', { track, amount: p.amount, mode: p.mode || 0 });
       break;
     case 'echo':
     case 'delay':
@@ -1237,9 +1387,12 @@ function applyFxToTrack(track, fxNode) {
     case 'flanger':
       sendCmd('setTrackFlanger', { track, active: true, rate: p.rate, depth: p.depth, feedback: p.feedback });
       break;
-    case 'compressor':
-      sendCmd('setTrackCompressor', { track, active: true, threshold: p.threshold, ratio: p.ratio });
+    case 'compressor': {
+      /* UI threshold is 0-100%; firmware expects dB (-60 to 0) */
+      const thresholdDb = -60 + (p.threshold / 100) * 60;
+      sendCmd('setTrackCompressor', { track, active: true, threshold: thresholdDb, ratio: p.ratio });
       break;
+    }
     case 'phaser':
       /* Phaser is master-only in firmware, use master commands */
       sendCmd('setPhaserActive', { value: true });
@@ -1282,6 +1435,95 @@ function clearFxFromTrack(track, fxNode) {
       sendCmd('setPhaserActive', { value: false });
       break;
   }
+}
+
+/* ──────────── SYNC: FIRMWARE → PATCHBAY ──────────── */
+const FILTER_TYPE_REVERSE = {};
+Object.entries(FILTER_TYPE_MAP).forEach(([k, v]) => { FILTER_TYPE_REVERSE[v] = k; });
+
+function syncFxFromFirmware(track, fxCategory, params) {
+  /* When firmware broadcasts FX changes (e.g. from sequencer), update
+     any matching patchbay FX node connected to that track */
+  if (fxCategory === 'filterClear') {
+    /* Check if we have a filter node connected to this track */
+    const filterTypes = Object.keys(FILTER_TYPE_MAP);
+    nodes.filter(n => n.type === 'fx' && filterTypes.includes(n.fxType)).forEach(n => {
+      const tracks = getTracksForNode(n.id);
+      if (tracks.includes(track)) {
+        console.log('[SYNC] Filter cleared on track', track, '→ node', n.label);
+      }
+    });
+    updateSharedFxState();
+    return;
+  }
+
+  if (fxCategory === 'filter') {
+    const fxType = FILTER_TYPE_REVERSE[params.filterType];
+    if (!fxType) return;
+    /* Update matching filter node connected to this track */
+    nodes.filter(n => n.type === 'fx' && n.fxType === fxType).forEach(n => {
+      const tracks = getTracksForNode(n.id);
+      if (tracks.includes(track)) {
+        if (params.cutoff != null) n.params.cutoff = params.cutoff;
+        if (params.resonance != null) n.params.resonance = params.resonance;
+        updateNodeDisplay(n);
+        console.log('[SYNC] Filter updated on track', track, '→', n.label, n.params);
+      }
+    });
+    updateSharedFxState();
+    return;
+  }
+
+  /* Live FX: echo, flanger, compressor */
+  const fxMap = { echo: ['echo', 'delay'], flanger: ['flanger'], compressor: ['compressor'] };
+  const matchTypes = fxMap[fxCategory];
+  if (!matchTypes) return;
+
+  nodes.filter(n => n.type === 'fx' && matchTypes.includes(n.fxType)).forEach(n => {
+    const tracks = getTracksForNode(n.id);
+    if (tracks.includes(track)) {
+      if (fxCategory === 'echo') {
+        if (params.time != null) n.params.time = params.time;
+        if (params.feedback != null) n.params.feedback = params.feedback;
+        if (params.mix != null) n.params.mix = params.mix;
+      } else if (fxCategory === 'flanger') {
+        if (params.rate != null) n.params.rate = params.rate;
+        if (params.depth != null) n.params.depth = params.depth;
+        if (params.feedback != null) n.params.feedback = params.feedback;
+      } else if (fxCategory === 'compressor') {
+        if (params.threshold != null) n.params.threshold = params.threshold;
+        if (params.ratio != null) n.params.ratio = params.ratio;
+      }
+      updateNodeDisplay(n);
+      console.log('[SYNC] FX', fxCategory, 'updated on track', track, '→', n.label);
+    }
+  });
+  updateSharedFxState();
+}
+
+/* ──────────── SHARED FX STATE (localStorage sync between pages) ──────────── */
+function updateSharedFxState() {
+  /* Build track → FX map from current patchbay cables/nodes */
+  const state = {};
+  cables.forEach(cable => {
+    const toNode = nodes.find(n => n.id === cable.to);
+    if (!toNode || toNode.type !== 'fx' || toNode.bypass) return;
+    const tracks = getTracksForNode(cable.to);
+    tracks.forEach(t => {
+      if (!state[t]) state[t] = [];
+      state[t].push({ fxType: toNode.fxType, params: {...toNode.params} });
+    });
+  });
+  try {
+    localStorage.setItem('r808_shared_fx', JSON.stringify(state));
+  } catch(ex) {}
+}
+
+function saveFirmwareFiltersToShared(trackFilters) {
+  /* Save firmware's track filter state for sequencer to read */
+  try {
+    localStorage.setItem('r808_firmware_filters', JSON.stringify(trackFilters));
+  } catch(ex) {}
 }
 
 /* ──────────── PARAMETER EDITOR ──────────── */
@@ -1368,6 +1610,7 @@ function closeParamEditor() {
 }
 
 function resendFxNode(fxNode) {
+  if (fxNode.bypass) return; /* Bypassed nodes don't apply FX */
   const tracks = getTracksForNode(fxNode.id);
   tracks.forEach(t => applyFxToTrack(t, fxNode));
 }
@@ -1390,10 +1633,18 @@ function onPointerDown(e) {
   const t = e.target;
   closeParamEditor();
 
-  /* Deselect cable */
-  if (selectedCable && !t.closest('[data-cable-id]')) {
-    selectedCable = null;
-    renderCables();
+  /* Deselect cable — walk up DOM manually for SVG compatibility */
+  if (selectedCable) {
+    let hasCableId = false;
+    let el = t;
+    while (el && el !== document.body) {
+      if (el.dataset && el.dataset.cableId) { hasCableId = true; break; }
+      el = el.parentElement || el.parentNode;
+    }
+    if (!hasCableId) {
+      selectedCable = null;
+      renderCables();
+    }
   }
 
   if (activeTool === 'hand') {
@@ -2000,13 +2251,34 @@ window.pbEditNode = function(nodeId) {
   showParamEditor(nodeId, rect.right - 10, rect.top + 8);
 };
 
+window.pbBypassNode = function(nodeId) {
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node || node.type !== 'fx') return;
+  node.bypass = !node.bypass;
+  console.log('[PATCH] Bypass', node.label, ':', node.bypass ? 'ON' : 'OFF');
+
+  /* Re-render the full node to update [BYP] tag and classes */
+  renderNode(node);
+
+  const tracks = getTracksForNode(nodeId);
+  if (node.bypass) {
+    /* Bypass ON: clear FX from all connected tracks */
+    tracks.forEach(track => clearFxFromTrack(track, node));
+  } else {
+    /* Bypass OFF: re-apply FX to all connected tracks */
+    tracks.forEach(track => applyFxToTrack(track, node));
+  }
+
+  saveState();
+};
+
 window.closeParamEditor = closeParamEditor;
 
 /* ──────────── PERSISTENCE ──────────── */
 function exportState() {
   return {
     nodes: nodes.filter(n => n.type === 'fx').map(n => ({
-      id: n.id, fxType: n.fxType, x: n.x, y: n.y, params: {...n.params}
+      id: n.id, fxType: n.fxType, x: n.x, y: n.y, params: {...n.params}, bypass: !!n.bypass
     })),
     padPositions: nodes.filter(n => n.type === 'pad').map(n => ({ id: n.id, x: n.x, y: n.y })),
     busPositions: nodes.filter(n => n.type === 'bus').map(n => ({ id: n.id, x: n.x, y: n.y })),
@@ -2072,6 +2344,16 @@ function importState(data) {
         Object.assign(node.params, nd.params);
         updateNodeDisplay(node);
       }
+      /* Restore bypass state */
+      if (node && nd.bypass) {
+        node.bypass = true;
+        const byEl = document.getElementById('node-' + node.id);
+        if (byEl) {
+          byEl.classList.add('is-bypassed');
+          const byBtn = byEl.querySelector('.pb-node-bypass');
+          if (byBtn) byBtn.classList.add('active');
+        }
+      }
       /* Remap ID */
       if (node) {
         const oldId = node.id;
@@ -2082,6 +2364,8 @@ function importState(data) {
         el?.querySelectorAll('.pb-connector').forEach(c => c.dataset.node = nd.id);
         el?.querySelector('.pb-node-delete')?.setAttribute('onclick', `pbDeleteNode('${nd.id}')`);
         el?.querySelector('.pb-node-delete')?.setAttribute('data-node', nd.id);
+        el?.querySelector('.pb-node-bypass')?.setAttribute('onclick', `pbBypassNode('${nd.id}')`);
+        el?.querySelector('.pb-node-bypass')?.setAttribute('data-node', nd.id);
         el?.querySelector('.pb-node-edit')?.setAttribute('onclick', `pbEditNode('${nd.id}')`);
         el?.querySelector('.pb-node-edit')?.setAttribute('data-node', nd.id);
       }
@@ -2115,6 +2399,47 @@ function loadState() {
     }
   } catch(ex) {
     console.warn('Patchbay: could not load state', ex);
+  }
+
+  /* After loading patchbay state, sync sequencer FX if patchbay is empty */
+  syncFromSequencerFx();
+}
+
+function syncFromSequencerFx() {
+  /* If patchbay has no FX nodes, check if sequencer saved FX and create nodes+cables */
+  const hasFxNodes = nodes.some(n => n.type === 'fx');
+  if (hasFxNodes) return; /* Patchbay already has its own state */
+
+  try {
+    const raw = localStorage.getItem('r808_seq_fx');
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    if (!Object.keys(state).length) return;
+
+    console.log('[SYNC] Creating patchbay nodes from sequencer FX state...');
+
+    Object.entries(state).forEach(([trackStr, fxList]) => {
+      const track = parseInt(trackStr, 10);
+      if (isNaN(track) || track < 0 || track >= 16) return;
+      const padNode = nodes.find(n => n.type === 'pad' && n.track === track);
+      if (!padNode) return;
+
+      fxList.forEach((fx, idx) => {
+        const fxType = fx.fxType;
+        if (!FX_DEFS[fxType]) return;
+        const xOffset = 400 + idx * 360;
+        const node = createFxNode(fxType, padNode.x + xOffset, padNode.y);
+        if (node && fx.params) {
+          Object.assign(node.params, fx.params);
+          updateNodeDisplay(node);
+        }
+        if (node) addCable(padNode.id, node.id);
+      });
+    });
+
+    saveState();
+  } catch(ex) {
+    console.warn('[SYNC] Could not sync from sequencer FX:', ex);
   }
 }
 
@@ -2514,6 +2839,17 @@ function snap(v) { return Math.round(v / SNAP) * SNAP; }
 function updateStatus() {
   document.getElementById('pbNodeCount').textContent = nodes.length;
   document.getElementById('pbCableCount').textContent = cables.length;
+
+  /* Count active (non-bypassed) FX nodes that have at least one connected track */
+  let activeFx = 0;
+  nodes.filter(n => n.type === 'fx' && !n.bypass).forEach(n => {
+    const tracks = getTracksForNode(n.id);
+    if (tracks.length > 0) activeFx++;
+  });
+  const fxEl = document.getElementById('pbFxActive');
+  const fxStatus = document.getElementById('pbFxStatus');
+  if (fxEl) fxEl.textContent = activeFx;
+  if (fxStatus) fxStatus.style.color = activeFx > 0 ? '#69f0ae' : '#777';
 }
 
 /* ──────────── BOOT ──────────── */

@@ -438,7 +438,34 @@ bool WebInterface::begin(const char* apSsid, const char* apPassword,
       request->send(LittleFS, "/web/patchbay.js", "application/javascript");
     }
   });
-  
+
+  // Multiview page — redirect to .html served by serveStatic (avoids AsyncFileResponse 500 edge case)
+  server->on("/multiview", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->redirect("/multiview.html");
+  });
+
+  server->on("/multiview.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/multiview.css.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/multiview.css.gz", "text/css");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/multiview.css", "text/css");
+    }
+  });
+
+  server->on("/multiview.js", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (LittleFS.exists("/web/multiview.js.gz")) {
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/web/multiview.js.gz", "application/javascript");
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+    } else {
+      request->send(LittleFS, "/web/multiview.js", "application/javascript");
+    }
+  });
+
   // Admin page
   server->on("/adm", HTTP_GET, [](AsyncWebServerRequest *request){
     if (LittleFS.exists("/web/admin.html.gz")) {
@@ -2330,26 +2357,30 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setTrackEcho") {
     int track = doc["track"];
     if (track >= 0 && track < 16) {
+      float time, feedback, mix;
+      bool active;
       // One-knob mode (pot 0-127) or detailed mode
       if (doc.containsKey("value")) {
         int val = doc["value"].as<int>();
-        bool active = val > 0;
-        float mix = (float)val / 127.0f * 100.0f;
-        float time = doc.containsKey("time") ? doc["time"].as<float>() : 100.0f;
-        float feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 40.0f;
-        audioEngine.setTrackEcho(track, active, time, feedback, mix);
+        active = val > 0;
+        mix = (float)val / 127.0f * 100.0f;
+        time = doc.containsKey("time") ? doc["time"].as<float>() : 100.0f;
+        feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 40.0f;
       } else {
-        bool active = doc["active"] | false;
-        float time = doc.containsKey("time") ? doc["time"].as<float>() : 100.0f;
-        float feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 40.0f;
-        float mix = doc.containsKey("mix") ? doc["mix"].as<float>() : 50.0f;
-        audioEngine.setTrackEcho(track, active, time, feedback, mix);
+        active = doc["active"] | false;
+        time = doc.containsKey("time") ? doc["time"].as<float>() : 100.0f;
+        feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 40.0f;
+        mix = doc.containsKey("mix") ? doc["mix"].as<float>() : 50.0f;
       }
-      StaticJsonDocument<160> resp;
+      audioEngine.setTrackEcho(track, active, time, feedback, mix);
+      StaticJsonDocument<256> resp;
       resp["type"] = "trackLiveFx";
       resp["track"] = track;
       resp["fx"] = "echo";
       resp["active"] = audioEngine.getTrackEchoActive(track);
+      resp["time"] = time;
+      resp["feedback"] = feedback;
+      resp["mix"] = mix;
       String out; serializeJson(resp, out);
       if (ws) ws->textAll(out);
     }
@@ -2357,25 +2388,29 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setTrackFlanger") {
     int track = doc["track"];
     if (track >= 0 && track < 16) {
+      float rate, depth, feedback;
+      bool active;
       if (doc.containsKey("value")) {
         int val = doc["value"].as<int>();
-        bool active = val > 0;
-        float depth = (float)val / 127.0f * 100.0f;
-        float rate = doc.containsKey("rate") ? doc["rate"].as<float>() : 50.0f;
-        float feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 30.0f;
-        audioEngine.setTrackFlanger(track, active, rate, depth, feedback);
+        active = val > 0;
+        depth = (float)val / 127.0f * 100.0f;
+        rate = doc.containsKey("rate") ? doc["rate"].as<float>() : 50.0f;
+        feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 30.0f;
       } else {
-        bool active = doc["active"] | false;
-        float rate = doc.containsKey("rate") ? doc["rate"].as<float>() : 50.0f;
-        float depth = doc.containsKey("depth") ? doc["depth"].as<float>() : 50.0f;
-        float feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 30.0f;
-        audioEngine.setTrackFlanger(track, active, rate, depth, feedback);
+        active = doc["active"] | false;
+        rate = doc.containsKey("rate") ? doc["rate"].as<float>() : 50.0f;
+        depth = doc.containsKey("depth") ? doc["depth"].as<float>() : 50.0f;
+        feedback = doc.containsKey("feedback") ? doc["feedback"].as<float>() : 30.0f;
       }
-      StaticJsonDocument<160> resp;
+      audioEngine.setTrackFlanger(track, active, rate, depth, feedback);
+      StaticJsonDocument<256> resp;
       resp["type"] = "trackLiveFx";
       resp["track"] = track;
       resp["fx"] = "flanger";
       resp["active"] = audioEngine.getTrackFlangerActive(track);
+      resp["rate"] = rate;
+      resp["depth"] = depth;
+      resp["feedback"] = feedback;
       String out; serializeJson(resp, out);
       if (ws) ws->textAll(out);
     }
@@ -2383,23 +2418,26 @@ void WebInterface::processCommand(const JsonDocument& doc) {
   else if (cmd == "setTrackCompressor") {
     int track = doc["track"];
     if (track >= 0 && track < 16) {
+      float threshold, ratio;
+      bool active;
       if (doc.containsKey("value")) {
         int val = doc["value"].as<int>();
-        bool active = val > 0;
-        float threshold = -60.0f + (float)val / 127.0f * 60.0f; // 0=-60dB, 127=0dB
-        float ratio = doc.containsKey("ratio") ? doc["ratio"].as<float>() : 4.0f;
-        audioEngine.setTrackCompressor(track, active, threshold, ratio);
+        active = val > 0;
+        threshold = -60.0f + (float)val / 127.0f * 60.0f; // 0=-60dB, 127=0dB
+        ratio = doc.containsKey("ratio") ? doc["ratio"].as<float>() : 4.0f;
       } else {
-        bool active = doc["active"] | false;
-        float threshold = doc.containsKey("threshold") ? doc["threshold"].as<float>() : -20.0f;
-        float ratio = doc.containsKey("ratio") ? doc["ratio"].as<float>() : 4.0f;
-        audioEngine.setTrackCompressor(track, active, threshold, ratio);
+        active = doc["active"] | false;
+        threshold = doc.containsKey("threshold") ? doc["threshold"].as<float>() : -20.0f;
+        ratio = doc.containsKey("ratio") ? doc["ratio"].as<float>() : 4.0f;
       }
-      StaticJsonDocument<160> resp;
+      audioEngine.setTrackCompressor(track, active, threshold, ratio);
+      StaticJsonDocument<256> resp;
       resp["type"] = "trackLiveFx";
       resp["track"] = track;
       resp["fx"] = "compressor";
       resp["active"] = audioEngine.getTrackCompressorActive(track);
+      resp["threshold"] = threshold;
+      resp["ratio"] = ratio;
       String out; serializeJson(resp, out);
       if (ws) ws->textAll(out);
     }
