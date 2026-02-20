@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initInstrumentTabs();
     initTabSystem(); // Tab navigation system
     initSyncLeds(); // Sync LEDs toggle
-    initAiToggle(); // AI Chat toggle (off by default)
+    // initAiToggle(); // AI Chat DISABLED
 });
 
 // WebSocket Connection
