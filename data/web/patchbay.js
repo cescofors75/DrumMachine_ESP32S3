@@ -49,31 +49,186 @@ const FACTORY_PRESETS = [
   {
     id: 'tight-bus',
     name: 'TIGHT BUS',
-    description: 'HPF + COMP para pegada limpia',
+    description: 'HPF + Compressor — pegada limpia y punch',
     chain: [
-      { key: 'hpf', fxType: 'highpass', x: 760, y: 540, params: { cutoff: 55, resonance: 0.82 } },
-      { key: 'comp', fxType: 'compressor', x: 1060, y: 540, params: { threshold: 62, ratio: 5 } }
+      { key: 'hpf', fxType: 'highpass', x: 760, y: 500, params: { cutoff: 55, resonance: 0.82 } },
+      { key: 'comp', fxType: 'compressor', x: 1120, y: 500, params: { threshold: 62, ratio: 5 } }
     ]
   },
   {
     id: 'lofi-crunch',
     name: 'LOFI CRUNCH',
-    description: 'Bitcrusher + Distortion + Delay',
+    description: 'Bitcrusher + Distortion + Delay — cinta sucia',
     chain: [
-      { key: 'crush', fxType: 'bitcrusher', x: 760, y: 820, params: { bits: 7 } },
-      { key: 'dist', fxType: 'distortion', x: 1060, y: 820, params: { amount: 58, mode: 2 } },
-      { key: 'dly', fxType: 'delay', x: 1360, y: 820, params: { time: 200, feedback: 44, mix: 36 } }
+      { key: 'crush', fxType: 'bitcrusher', x: 720, y: 660, params: { bits: 7 } },
+      { key: 'dist', fxType: 'distortion', x: 1080, y: 780, params: { amount: 58, mode: 2 } },
+      { key: 'dly', fxType: 'delay', x: 1440, y: 660, params: { time: 200, feedback: 44, mix: 36 } }
     ]
   },
   {
     id: 'space-wide',
     name: 'SPACE WIDE',
-    description: 'BandPass + Phaser + Reverb + Comp',
+    description: 'BandPass + Phaser + Reverb + Comp — atmósfera amplia',
     chain: [
-      { key: 'bp', fxType: 'bandpass', x: 760, y: 1100, params: { cutoff: 1450, resonance: 1.1 } },
-      { key: 'ph', fxType: 'phaser', x: 1060, y: 1100, params: { rate: 34, depth: 62, feedback: 28 } },
-      { key: 'rv', fxType: 'echo', x: 1360, y: 1100, params: { time: 200, feedback: 26, mix: 40 } },
-      { key: 'cp', fxType: 'compressor', x: 1660, y: 1100, params: { threshold: 56, ratio: 3.5 } }
+      { key: 'bp', fxType: 'bandpass', x: 680, y: 440, params: { cutoff: 1450, resonance: 1.1 } },
+      { key: 'ph', fxType: 'phaser', x: 1020, y: 600, params: { rate: 34, depth: 62, feedback: 28 } },
+      { key: 'rv', fxType: 'echo', x: 1360, y: 440, params: { time: 200, feedback: 26, mix: 40 } },
+      { key: 'cp', fxType: 'compressor', x: 1700, y: 600, params: { threshold: 56, ratio: 3.5 } }
+    ]
+  },
+  {
+    id: 'dub-echo',
+    name: 'DUB ECHO',
+    description: 'Delay largo + Reverb — ecos jamaicanos',
+    chain: [
+      { key: 'dly', fxType: 'delay', x: 720, y: 480, params: { time: 180, feedback: 72, mix: 55 } },
+      { key: 'rv', fxType: 'echo', x: 1100, y: 640, params: { time: 200, feedback: 50, mix: 45 } },
+      { key: 'lpf', fxType: 'lowpass', x: 1480, y: 480, params: { cutoff: 2200, resonance: 1.2 } }
+    ]
+  },
+  {
+    id: '808-boom',
+    name: '808 BOOM',
+    description: 'LowShelf boost + Comp — sub potente estilo trap',
+    chain: [
+      { key: 'ls', fxType: 'lowshelf', x: 780, y: 560, params: { cutoff: 120, gain: 9 } },
+      { key: 'comp', fxType: 'compressor', x: 1200, y: 420, params: { threshold: 45, ratio: 6 } }
+    ]
+  },
+  {
+    id: 'industrial',
+    name: 'INDUSTRIAL',
+    description: 'Distortion heavy + Bitcrusher — sonido agresivo',
+    chain: [
+      { key: 'dist', fxType: 'distortion', x: 700, y: 700, params: { amount: 82, mode: 3 } },
+      { key: 'crush', fxType: 'bitcrusher', x: 1100, y: 500, params: { bits: 4 } },
+      { key: 'hpf', fxType: 'highpass', x: 1500, y: 700, params: { cutoff: 200, resonance: 1.5 } }
+    ]
+  },
+  {
+    id: 'techno-acid',
+    name: 'TECHNO ACID',
+    description: 'LP resonante + Distortion — 303 acid vibes',
+    chain: [
+      { key: 'reso', fxType: 'resonant', x: 700, y: 520, params: { cutoff: 600, resonance: 12 } },
+      { key: 'dist', fxType: 'distortion', x: 1100, y: 680, params: { amount: 40, mode: 1 } },
+      { key: 'comp', fxType: 'compressor', x: 1500, y: 520, params: { threshold: 55, ratio: 4 } }
+    ]
+  },
+  {
+    id: 'vinyl-warmth',
+    name: 'VINYL WARMTH',
+    description: 'LPF suave + Bitcrusher ligero — calidez analógica',
+    chain: [
+      { key: 'lpf', fxType: 'lowpass', x: 740, y: 600, params: { cutoff: 6500, resonance: 0.6 } },
+      { key: 'crush', fxType: 'bitcrusher', x: 1120, y: 440, params: { bits: 12 } },
+      { key: 'rv', fxType: 'echo', x: 1500, y: 600, params: { time: 80, feedback: 18, mix: 22 } }
+    ]
+  },
+  {
+    id: 'glitch-stutter',
+    name: 'GLITCH STUTTER',
+    description: 'Delay corto + Crusher + Flanger — caos controlado',
+    chain: [
+      { key: 'dly', fxType: 'delay', x: 680, y: 460, params: { time: 30, feedback: 65, mix: 60 } },
+      { key: 'crush', fxType: 'bitcrusher', x: 1080, y: 700, params: { bits: 6 } },
+      { key: 'fl', fxType: 'flanger', x: 1480, y: 460, params: { rate: 70, depth: 80, feedback: 55 } }
+    ]
+  },
+  {
+    id: 'ambient-wash',
+    name: 'AMBIENT WASH',
+    description: 'Reverb larga + Phaser lento — paisaje sonoro etéreo',
+    chain: [
+      { key: 'rv', fxType: 'echo', x: 720, y: 540, params: { time: 200, feedback: 60, mix: 65 } },
+      { key: 'ph', fxType: 'phaser', x: 1140, y: 380, params: { rate: 10, depth: 45, feedback: 20 } },
+      { key: 'lpf', fxType: 'lowpass', x: 1540, y: 540, params: { cutoff: 4000, resonance: 0.7 } }
+    ]
+  },
+  {
+    id: 'hiphop-grit',
+    name: 'HIP-HOP GRIT',
+    description: 'Peaking mid + Compressor + Dist suave — boom bap sucio',
+    chain: [
+      { key: 'pk', fxType: 'peaking', x: 700, y: 640, params: { cutoff: 800, resonance: 2, gain: 4 } },
+      { key: 'dist', fxType: 'distortion', x: 1100, y: 480, params: { amount: 25, mode: 0 } },
+      { key: 'comp', fxType: 'compressor', x: 1500, y: 640, params: { threshold: 50, ratio: 7 } }
+    ]
+  },
+  {
+    id: 'minimal-clean',
+    name: 'MINIMAL CLEAN',
+    description: 'HPF + HiShelf treble + Comp — claridad minimal techno',
+    chain: [
+      { key: 'hpf', fxType: 'highpass', x: 760, y: 440, params: { cutoff: 150, resonance: 0.7 } },
+      { key: 'hs', fxType: 'highshelf', x: 1160, y: 580, params: { cutoff: 6000, gain: 3 } },
+      { key: 'comp', fxType: 'compressor', x: 1560, y: 440, params: { threshold: 65, ratio: 3 } }
+    ]
+  },
+  {
+    id: 'telephone',
+    name: 'TELEPHONE',
+    description: 'BandPass estrecho — efecto teléfono/radio retro',
+    chain: [
+      { key: 'bp', fxType: 'bandpass', x: 800, y: 520, params: { cutoff: 1800, resonance: 5 } },
+      { key: 'dist', fxType: 'distortion', x: 1240, y: 520, params: { amount: 15, mode: 0 } }
+    ]
+  },
+  {
+    id: 'flanger-sweep',
+    name: 'FLANGER SWEEP',
+    description: 'Flanger profundo + Delay — barrido metálico espacial',
+    chain: [
+      { key: 'fl', fxType: 'flanger', x: 700, y: 500, params: { rate: 20, depth: 85, feedback: 65 } },
+      { key: 'dly', fxType: 'delay', x: 1100, y: 660, params: { time: 120, feedback: 35, mix: 40 } },
+      { key: 'comp', fxType: 'compressor', x: 1500, y: 500, params: { threshold: 58, ratio: 3.5 } }
+    ]
+  },
+  {
+    id: 'tape-saturation',
+    name: 'TAPE SATURATION',
+    description: 'Distortion suave + LPF + Comp — saturación de cinta',
+    chain: [
+      { key: 'dist', fxType: 'distortion', x: 740, y: 580, params: { amount: 30, mode: 2 } },
+      { key: 'lpf', fxType: 'lowpass', x: 1140, y: 420, params: { cutoff: 8000, resonance: 0.5 } },
+      { key: 'comp', fxType: 'compressor', x: 1540, y: 580, params: { threshold: 55, ratio: 3 } }
+    ]
+  },
+  {
+    id: 'massive-reverb',
+    name: '⚡ MASSIVE REVERB',
+    description: 'Reverb al MÁXIMO — cola infinita, 100% wet',
+    chain: [
+      { key: 'rv', fxType: 'echo', x: 780, y: 500, params: { time: 200, feedback: 92, mix: 95 } },
+      { key: 'lpf', fxType: 'lowpass', x: 1260, y: 640, params: { cutoff: 3000, resonance: 1.5 } }
+    ]
+  },
+  {
+    id: 'extreme-flanger',
+    name: '⚡ EXTREME FLANGER',
+    description: 'Flanger al MÁXIMO — jet engine psicodélico',
+    chain: [
+      { key: 'fl', fxType: 'flanger', x: 1000, y: 520, params: { rate: 85, depth: 95, feedback: 88 } }
+    ]
+  },
+  {
+    id: 'cathedral',
+    name: '⚡ CATHEDRAL',
+    description: 'Doble Reverb + Phaser — catedral espacial gigante',
+    chain: [
+      { key: 'rv1', fxType: 'echo', x: 680, y: 440, params: { time: 200, feedback: 85, mix: 80 } },
+      { key: 'ph', fxType: 'phaser', x: 1100, y: 680, params: { rate: 8, depth: 70, feedback: 60 } },
+      { key: 'rv2', fxType: 'echo', x: 1520, y: 440, params: { time: 150, feedback: 70, mix: 75 } }
+    ]
+  },
+  {
+    id: 'robot-voice',
+    name: '⚡ ROBOT VOICE',
+    description: 'Flanger extremo + Phaser + Crusher — droide loco',
+    chain: [
+      { key: 'fl', fxType: 'flanger', x: 680, y: 660, params: { rate: 95, depth: 90, feedback: 85 } },
+      { key: 'ph', fxType: 'phaser', x: 1100, y: 440, params: { rate: 80, depth: 90, feedback: 75 } },
+      { key: 'crush', fxType: 'bitcrusher', x: 1520, y: 660, params: { bits: 5 } }
     ]
   }
 ];
@@ -114,6 +269,7 @@ const WS_MAX_QUEUE = 240;
 const WS_BOOT_SYNC_DELAY_MS = 34;
 const WS_BOOT_SYNC_MAX_CABLES = 48;
 let activeMacroScene = 'A';
+let macrosEnabled = true;
 let macroScenes = {
   A: [45, 35, 55, 40],
   B: [70, 20, 68, 55],
@@ -549,7 +705,7 @@ function sendCmd(cmd, data) {
     return;
   }
   const payload = JSON.stringify(Object.assign({ cmd }, data));
-  console.log('[PATCH] sendCmd:', cmd, data);
+  console.log('[PATCH] sendCmd:', cmd, JSON.stringify(data));
 
   if (queuedWsPayloads.length >= WS_MAX_QUEUE) {
     queuedWsPayloads.shift();
@@ -623,6 +779,7 @@ function loadMacroScenes() {
 }
 
 function applyMacroValue(index, value) {
+  if (!macrosEnabled) return; /* Macros disabled */
   const v = Math.max(0, Math.min(100, value));
   if (index === 1) {
     const cutoff = Math.round(200 + (v / 100) * 11800);
@@ -689,6 +846,29 @@ window.pbSaveMacroScene = function() {
 
 window.pbLoadMacroScene = function() {
   applyMacroSceneValues(macroScenes[activeMacroScene]);
+};
+
+window.pbToggleMacros = function() {
+  macrosEnabled = !macrosEnabled;
+  const btn = document.getElementById('pbMacroToggleBtn');
+  if (btn) {
+    btn.textContent = macrosEnabled ? '🔊 MACROS ON' : '🔇 MACROS OFF';
+    btn.style.background = macrosEnabled ? 'rgba(105,240,174,0.2)' : 'rgba(255,45,45,0.25)';
+    btn.style.borderColor = macrosEnabled ? 'rgba(105,240,174,0.5)' : 'rgba(255,45,45,0.5)';
+    btn.style.color = macrosEnabled ? '#69f0ae' : '#ff8a8a';
+  }
+  if (!macrosEnabled) {
+    /* Send reset commands to firmware — clear all macro effects */
+    sendCmd('setFilterCutoff', { value: 16000 });
+    sendCmd('setDelayActive', { value: false });
+    sendCmd('setCompressorActive', { value: false });
+    sendCmd('setSidechainPro', { active: false, source: 0, destinations: [], amount: 0, attack: 6, release: 180, knee: 0.45 });
+    console.log('[MACRO] Macros DISABLED — all master FX reset');
+  } else {
+    /* Re-apply current scene */
+    applyMacroSceneValues(macroScenes[activeMacroScene]);
+    console.log('[MACRO] Macros ENABLED — scene', activeMacroScene, 'applied');
+  }
 };
 
 function handleWSMessage(msg) {
@@ -788,6 +968,7 @@ function handleWSMessage(msg) {
     const idx = parseInt(msg.track, 10);
     if (idx >= 0 && idx < 16) {
       trackMuted[idx] = !!msg.muted;
+      console.log('[PATCH] trackMuted:', idx, trackMuted[idx], '| all:', trackMuted.map((m,i) => m ? i : null).filter(x => x !== null));
       renderCables();
     }
   }
@@ -797,6 +978,7 @@ function handleWSMessage(msg) {
     msg.trackMuted.forEach((m, i) => {
       if (i < 16) trackMuted[i] = !!m;
     });
+    console.log('[PATCH] bulk trackMuted:', trackMuted.map((m,i) => m ? i : null).filter(x => x !== null));
     renderCables();
   }
 
@@ -815,6 +997,9 @@ function applyTempoVisuals() {
   if (!root) return;
   root.style.setProperty('--pb-flow-duration', `${flowDuration.toFixed(3)}s`);
   root.style.setProperty('--pb-pulse-duration', `${pulseDuration.toFixed(3)}s`);
+  /* Update BPM display in transport */
+  const bpmEl = document.getElementById('pbBpmDisplay');
+  if (bpmEl) bpmEl.textContent = Math.round(bpm);
 }
 
 function updatePlayingVisualState() {
@@ -822,7 +1007,22 @@ function updatePlayingVisualState() {
   if (!root) return;
   const active = !!(signalDemoMode || serverPlaying || stepDrivenPlaying || isPlaying);
   root.classList.toggle('pb-playing', active);
+  /* Update transport button */
+  const playBtn = document.getElementById('pbPlayBtn');
+  if (playBtn) {
+    playBtn.classList.toggle('is-playing', active);
+    playBtn.textContent = active ? '⏸' : '▶';
+    playBtn.title = active ? 'Pause' : 'Play';
+  }
 }
+
+window.pbTogglePlay = function() {
+  sendCmd(isPlaying ? 'stop' : 'start', {});
+};
+
+window.pbStop = function() {
+  sendCmd('stop', {});
+};
 
 function triggerStepPulse() {
   const root = document.getElementById('patchbay');
@@ -966,9 +1166,9 @@ function renderNode(node) {
       return p.label + ': ' + disp;
     }).join('  ·  ');
     el.innerHTML = `
-      <button class="pb-node-delete" data-node="${node.id}" onclick="pbDeleteNode('${node.id}')">✕</button>
-      <button class="pb-node-bypass ${node.bypass ? 'active' : ''}" data-node="${node.id}" onclick="pbBypassNode('${node.id}')" title="Bypass FX">B</button>
-      <button class="pb-node-edit" data-node="${node.id}" onclick="pbEditNode('${node.id}')">⚙</button>
+      <button class="pb-node-delete" data-node="${node.id}" onclick="event.stopPropagation();pbDeleteNode('${node.id}')">✕</button>
+      <button class="pb-node-bypass ${node.bypass ? 'active' : ''}" data-node="${node.id}" onclick="event.stopPropagation();pbBypassNode('${node.id}')" title="Bypass FX">B</button>
+      <button class="pb-node-edit" data-node="${node.id}" onclick="event.stopPropagation();pbEditNode('${node.id}')">⚙</button>
       <div class="pb-node-header">${def.icon} ${node.label}${node.bypass ? ' <span style="color:#ff9100;font-size:10px">[BYP]</span>' : ''}</div>
       <div class="pb-node-params">${paramText}</div>
       <div class="pb-connector in" data-node="${node.id}" data-dir="in"></div>
@@ -1064,6 +1264,13 @@ function renderCables() {
       e.stopPropagation();
       onCableClick(cable.id);
     });
+    /* Double-click / double-tap to delete cable */
+    hitPath.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      removeCable(cable.id);
+      if (selectedCable === cable.id) selectedCable = null;
+    });
     svgEl.appendChild(hitPath);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1105,16 +1312,16 @@ function showCableInfo(cable, fromPos, toPos) {
   if (!info) {
     info = document.createElement('div');
     info.id = 'pbCableInfo';
-    info.style.cssText = 'position:absolute;padding:4px 10px;background:rgba(255,64,129,0.9);color:#fff;border-radius:6px;font-size:11px;font-weight:700;pointer-events:none;z-index:200;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5);';
-    nodesEl.appendChild(info);
+    info.style.cssText = 'position:absolute;padding:6px 12px;background:rgba(255,64,129,0.95);color:#fff;border-radius:8px;font-size:12px;font-weight:700;pointer-events:auto;z-index:200;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.6);display:flex;align-items:center;gap:8px;';
+    worldEl.appendChild(info);
   }
   const fromNode = nodes.find(n => n.id === cable.from);
   const toNode = nodes.find(n => n.id === cable.to);
   const fromLabel = fromNode ? fromNode.label : cable.from;
   const toLabel = toNode ? toNode.label : cable.to;
-  info.textContent = `${fromLabel} → ${toLabel}  ·  Press DEL to remove`;
-  info.style.left = ((fromPos.x + toPos.x) / 2 - 80) + 'px';
-  info.style.top = ((fromPos.y + toPos.y) / 2 - 28) + 'px';
+  info.innerHTML = `<span>${fromLabel} → ${toLabel}</span><button style="padding:4px 12px;background:#ff1744;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;pointer-events:auto" onclick="event.stopPropagation();pbDeleteCable('${cable.id}')">✕ DELETE</button>`;
+  info.style.left = ((fromPos.x + toPos.x) / 2 - 100) + 'px';
+  info.style.top = ((fromPos.y + toPos.y) / 2 - 32) + 'px';
 }
 
 function getCableSourceTracks(cable) {
@@ -1311,26 +1518,26 @@ function wouldCreateCycle(fromId, toId) {
 
 function applyConnection(cable, _visited) {
   const toNode = nodes.find(n => n.id === cable.to);
-  if (!toNode || toNode.type !== 'fx') return;
-  if (toNode.bypass) {
-    console.log('[PATCH] applyConnection SKIPPED (bypass):', toNode.label);
-    return;
-  }
+  if (!toNode) return;
 
   /* Cycle guard */
   const visited = _visited || new Set();
   if (visited.has(cable.id)) return;
   visited.add(cable.id);
 
-  /* Find which tracks feed into this FX node */
-  const tracks = getTracksForNode(cable.to);
-  console.log('[PATCH] applyConnection:', cable.from, '→', cable.to, '| tracks:', tracks, '| fx:', toNode.fxType);
-  tracks.forEach(track => applyFxToTrack(track, toNode));
+  /* Apply FX only if target is an FX node (not bus/master/pad) */
+  if (toNode.type === 'fx') {
+    if (toNode.bypass) {
+      console.log('[PATCH] applyConnection SKIPPED (bypass):', toNode.label);
+    } else {
+      const tracks = getTracksForNode(cable.to);
+      console.log('[PATCH] applyConnection:', cable.from, '→', cable.to, '| tracks:', tracks, '| fx:', toNode.fxType);
+      tracks.forEach(track => applyFxToTrack(track, toNode));
+      updateSharedFxState();
+    }
+  }
 
-  /* Update shared FX state for sync */
-  updateSharedFxState();
-
-  /* Propagate: also apply to downstream FX nodes connected FROM this node */
+  /* ALWAYS propagate downstream — buses/masters pass through to FX nodes after them */
   cables.filter(c => c.from === cable.to).forEach(downCable => {
     applyConnection(downCable, visited);
   });
@@ -1338,21 +1545,26 @@ function applyConnection(cable, _visited) {
 
 function clearConnection(cable) {
   const toNode = nodes.find(n => n.id === cable.to);
-  if (!toNode || toNode.type !== 'fx') return;
+  if (!toNode) return;
 
-  const fromNode = nodes.find(n => n.id === cable.from);
-  const tracksToRemove = [];
+  if (toNode.type === 'fx') {
+    const fromNode = nodes.find(n => n.id === cable.from);
+    const tracksToRemove = [];
 
-  if (fromNode && fromNode.type === 'pad') {
-    /* Direct pad → fx cable */
-    tracksToRemove.push(fromNode.track);
-  } else if (fromNode) {
-    /* fx → fx (or bus → fx) cable: propagate upstream to find all pad tracks */
-    tracksToRemove.push(...getTracksForNode(cable.from));
+    if (fromNode && fromNode.type === 'pad') {
+      tracksToRemove.push(fromNode.track);
+    } else if (fromNode) {
+      tracksToRemove.push(...getTracksForNode(cable.from));
+    }
+
+    tracksToRemove.forEach(track => clearFxFromTrack(track, toNode));
+    updateSharedFxState();
   }
 
-  tracksToRemove.forEach(track => clearFxFromTrack(track, toNode));
-  updateSharedFxState();
+  /* Propagate downstream: clear FX on nodes connected after this one */
+  cables.filter(c => c.from === cable.to).forEach(downCable => {
+    clearConnection(downCable);
+  });
 }
 
 function applyFxToTrack(track, fxNode) {
@@ -1634,16 +1846,20 @@ function onPointerDown(e) {
   closeParamEditor();
 
   /* Deselect cable — walk up DOM manually for SVG compatibility */
+  /* BUT skip if clicking inside the cable info tooltip (#pbCableInfo) */
   if (selectedCable) {
-    let hasCableId = false;
-    let el = t;
-    while (el && el !== document.body) {
-      if (el.dataset && el.dataset.cableId) { hasCableId = true; break; }
-      el = el.parentElement || el.parentNode;
-    }
-    if (!hasCableId) {
-      selectedCable = null;
-      renderCables();
+    const inCableInfo = t.closest && t.closest('#pbCableInfo');
+    if (!inCableInfo) {
+      let hasCableId = false;
+      let el = t;
+      while (el && el !== document.body) {
+        if (el.dataset && el.dataset.cableId) { hasCableId = true; break; }
+        el = el.parentElement || el.parentNode;
+      }
+      if (!hasCableId) {
+        selectedCable = null;
+        renderCables();
+      }
     }
   }
 
@@ -1663,10 +1879,10 @@ function onPointerDown(e) {
 
   if (activeTool === 'select') {
     if (t.closest('#pbViewControls')) return;
-    if (t.classList.contains('pb-connector') || t.classList.contains('pb-node-delete') || t.classList.contains('pb-node-edit')) return;
+    if (t.classList.contains('pb-connector') || t.classList.contains('pb-node-delete') || t.classList.contains('pb-node-edit') || t.classList.contains('pb-node-bypass')) return;
 
     const nodeEl = t.closest('.pb-node');
-    const isNodeTarget = nodeEl && !t.classList.contains('pb-connector') && !t.classList.contains('pb-node-delete') && !t.classList.contains('pb-node-edit');
+    const isNodeTarget = nodeEl && !t.classList.contains('pb-connector') && !t.classList.contains('pb-node-delete') && !t.classList.contains('pb-node-edit') && !t.classList.contains('pb-node-bypass');
     if (isNodeTarget) {
       e.preventDefault();
       const nodeId = nodeEl.dataset.nodeId;
@@ -1726,9 +1942,9 @@ function onPointerDown(e) {
     return;
   }
 
-  /* Node drag */
+  /* Node drag — exclude delete, bypass and edit buttons */
   const nodeEl = t.closest('.pb-node');
-  if (nodeEl && !t.classList.contains('pb-node-delete')) {
+  if (nodeEl && !t.classList.contains('pb-node-delete') && !t.classList.contains('pb-node-bypass') && !t.classList.contains('pb-node-edit')) {
     e.preventDefault();
     const nodeId = nodeEl.dataset.nodeId;
     const pos = getCanvasPos(e);
@@ -1911,6 +2127,13 @@ function clearHighlights() {
 /* ──────────── KEYBOARD ──────────── */
 function onKeyDown(e) {
   const tag = (e.target?.tagName || '').toUpperCase();
+
+  /* Spacebar → toggle play/pause */
+  if (e.key === ' ' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+    e.preventDefault();
+    sendCmd(isPlaying ? 'stop' : 'start', {});
+    return;
+  }
   const isFormField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   if (isFormField) return;
 
@@ -2274,6 +2497,11 @@ window.pbBypassNode = function(nodeId) {
 
 window.closeParamEditor = closeParamEditor;
 
+window.pbDeleteCable = function(cableId) {
+  removeCable(cableId);
+  if (selectedCable === cableId) selectedCable = null;
+};
+
 /* ──────────── PERSISTENCE ──────────── */
 function exportState() {
   return {
@@ -2362,11 +2590,11 @@ function importState(data) {
         if (el) { el.id = 'node-' + nd.id; el.dataset.nodeId = nd.id; }
         /* Update connector data-node attrs */
         el?.querySelectorAll('.pb-connector').forEach(c => c.dataset.node = nd.id);
-        el?.querySelector('.pb-node-delete')?.setAttribute('onclick', `pbDeleteNode('${nd.id}')`);
+        el?.querySelector('.pb-node-delete')?.setAttribute('onclick', `event.stopPropagation();pbDeleteNode('${nd.id}')`);
         el?.querySelector('.pb-node-delete')?.setAttribute('data-node', nd.id);
-        el?.querySelector('.pb-node-bypass')?.setAttribute('onclick', `pbBypassNode('${nd.id}')`);
+        el?.querySelector('.pb-node-bypass')?.setAttribute('onclick', `event.stopPropagation();pbBypassNode('${nd.id}')`);
         el?.querySelector('.pb-node-bypass')?.setAttribute('data-node', nd.id);
-        el?.querySelector('.pb-node-edit')?.setAttribute('onclick', `pbEditNode('${nd.id}')`);
+        el?.querySelector('.pb-node-edit')?.setAttribute('onclick', `event.stopPropagation();pbEditNode('${nd.id}')`);
         el?.querySelector('.pb-node-edit')?.setAttribute('data-node', nd.id);
       }
     });
@@ -2836,6 +3064,203 @@ function renderPresetPanel() {
 /* ──────────── UTILS ──────────── */
 function snap(v) { return Math.round(v / SNAP) * SNAP; }
 
+/* ──────────── FX DEBUG TESTER ──────────── */
+let testerAllTracks = false;
+
+function testerLog(msg, cls = '') {
+  const log = document.getElementById('pbTestLog');
+  if (!log) return;
+  const time = new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  log.innerHTML += `<div class="${cls}">[${time}] ${msg}</div>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+window.pbOpenFxTester = function() {
+  togglePBMenu();
+  const panel = document.getElementById('pbFxTester');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+
+  /* Populate track selector */
+  const trackSel = document.getElementById('pbTestTrack');
+  if (trackSel && trackSel.options.length === 0) {
+    for (let i = 0; i < 16; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `PAD ${i + 1} — ${TRACK_NAMES[i]}`;
+      trackSel.appendChild(opt);
+    }
+  }
+
+  /* Populate FX type selector */
+  const fxSel = document.getElementById('pbTestFxType');
+  if (fxSel && fxSel.options.length === 0) {
+    Object.entries(FX_DEFS).forEach(([key, def]) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = `${def.icon} ${def.label}`;
+      fxSel.appendChild(opt);
+    });
+  }
+
+  pbTestBuildParams();
+  testerLog('FX Tester abierto — selecciona track y FX', 'log-ok');
+};
+
+window.pbCloseFxTester = function() {
+  const panel = document.getElementById('pbFxTester');
+  if (panel) panel.classList.add('hidden');
+};
+
+window.pbTestToggleAllTracks = function() {
+  testerAllTracks = !testerAllTracks;
+  const btn = document.getElementById('pbTestAllTracksBtn');
+  if (btn) {
+    btn.textContent = testerAllTracks ? 'ALL ✓' : 'ALL';
+    btn.style.background = testerAllTracks ? 'rgba(0,229,255,0.25)' : 'rgba(255,255,255,0.08)';
+    btn.style.borderColor = testerAllTracks ? 'rgba(0,229,255,0.5)' : 'rgba(255,255,255,0.2)';
+    btn.style.color = testerAllTracks ? '#00e5ff' : '#dff7ff';
+  }
+  testerLog(testerAllTracks ? 'Modo ALL TRACKS activado' : 'Modo single track', 'log-warn');
+};
+
+window.pbTestBuildParams = function() {
+  const container = document.getElementById('pbTestParams');
+  const fxSel = document.getElementById('pbTestFxType');
+  if (!container || !fxSel) return;
+
+  const fxType = fxSel.value;
+  const def = FX_DEFS[fxType];
+  if (!def) { container.innerHTML = ''; return; }
+
+  container.innerHTML = '';
+  def.params.forEach(param => {
+    if (param.type === 'select') {
+      const row = document.createElement('div');
+      row.className = 'pb-tester-param-row';
+      row.innerHTML = `
+        <div class="pb-tester-param-label">
+          <span>${param.label.toUpperCase()}</span>
+          <span class="pb-tester-param-val" id="pbTestVal_${param.id}">—</span>
+        </div>
+        <select id="pbTestParam_${param.id}" style="height:38px;border:1.5px solid var(--pb-border);border-radius:8px;background:rgba(0,0,0,0.3);color:var(--pb-text);font-size:13px;padding:0 10px">
+          ${param.options.map((o, i) => `<option value="${i}">${o}</option>`).join('')}
+        </select>`;
+      container.appendChild(row);
+      const sel = document.getElementById(`pbTestParam_${param.id}`);
+      sel.value = param.def;
+      document.getElementById(`pbTestVal_${param.id}`).textContent = param.options[param.def];
+      sel.addEventListener('change', () => {
+        document.getElementById(`pbTestVal_${param.id}`).textContent = param.options[sel.value];
+      });
+    } else {
+      const step = param.step || 1;
+      const unit = param.unit || '';
+      const row = document.createElement('div');
+      row.className = 'pb-tester-param-row';
+      row.innerHTML = `
+        <div class="pb-tester-param-label">
+          <span>${param.label.toUpperCase()} ${unit ? '(' + unit + ')' : ''}</span>
+          <span class="pb-tester-param-val" id="pbTestVal_${param.id}">${param.def}${unit}</span>
+        </div>
+        <input type="range" class="pb-tester-param-range" id="pbTestParam_${param.id}"
+          min="${param.min}" max="${param.max}" value="${param.def}" step="${step}">`;
+      container.appendChild(row);
+      const slider = document.getElementById(`pbTestParam_${param.id}`);
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        document.getElementById(`pbTestVal_${param.id}`).textContent = `${v}${unit}`;
+      });
+    }
+  });
+};
+
+function testerGetParams() {
+  const fxSel = document.getElementById('pbTestFxType');
+  const fxType = fxSel ? fxSel.value : '';
+  const def = FX_DEFS[fxType];
+  if (!def) return {};
+
+  const params = {};
+  def.params.forEach(param => {
+    const el = document.getElementById(`pbTestParam_${param.id}`);
+    if (!el) return;
+    if (param.type === 'select') {
+      params[param.id] = parseInt(el.value, 10);
+    } else {
+      params[param.id] = parseFloat(el.value);
+    }
+  });
+  return params;
+}
+
+function testerGetTracks() {
+  if (testerAllTracks) return Array.from({length: 16}, (_, i) => i);
+  const sel = document.getElementById('pbTestTrack');
+  return sel ? [parseInt(sel.value, 10)] : [0];
+}
+
+window.pbTestSend = function() {
+  const fxSel = document.getElementById('pbTestFxType');
+  const fxType = fxSel ? fxSel.value : '';
+  const def = FX_DEFS[fxType];
+  if (!def) return;
+
+  const params = testerGetParams();
+  const tracks = testerGetTracks();
+  const fakeNode = { fxType, params };
+
+  testerLog(`━━━ SEND: ${def.label} → Track${testerAllTracks ? 's 1-16' : ' ' + (tracks[0]+1) + ' (' + TRACK_NAMES[tracks[0]] + ')'}`, 'log-cmd');
+  testerLog(`Params: ${JSON.stringify(params)}`, 'log-cmd');
+
+  tracks.forEach(track => {
+    applyFxToTrack(track, fakeNode);
+  });
+
+  testerLog(`✓ Enviado correctamente a ${tracks.length} track(s)`, 'log-ok');
+
+  /* Flash the send button */
+  const btn = document.querySelector('.pb-tester-send');
+  if (btn) {
+    btn.style.boxShadow = '0 0 30px rgba(105,240,174,0.5)';
+    setTimeout(() => { btn.style.boxShadow = ''; }, 400);
+  }
+};
+
+window.pbTestClear = function() {
+  const fxSel = document.getElementById('pbTestFxType');
+  const fxType = fxSel ? fxSel.value : '';
+  const def = FX_DEFS[fxType];
+  if (!def) return;
+
+  const tracks = testerGetTracks();
+  const fakeNode = { fxType };
+
+  testerLog(`━━━ CLEAR: ${def.label} → Track${testerAllTracks ? 's 1-16' : ' ' + (tracks[0]+1)}`, 'log-warn');
+
+  tracks.forEach(track => {
+    clearFxFromTrack(track, fakeNode);
+  });
+
+  testerLog(`✓ FX limpiado en ${tracks.length} track(s)`, 'log-ok');
+};
+
+window.pbTestClearAll = function() {
+  const tracks = testerGetTracks();
+  testerLog(`━━━ CLEAR ALL FX → Track${testerAllTracks ? 's 1-16' : ' ' + (tracks[0]+1)}`, 'log-err');
+
+  tracks.forEach(track => {
+    sendCmd('clearTrackFilter', { track });
+    sendCmd('clearTrackFX', { track });
+    sendCmd('setTrackEcho', { track, active: false });
+    sendCmd('setTrackFlanger', { track, active: false });
+    sendCmd('setTrackCompressor', { track, active: false });
+  });
+  sendCmd('setPhaserActive', { value: false });
+
+  testerLog(`✓ TODOS los FX limpiados en ${tracks.length} track(s)`, 'log-ok');
+};
+
 function updateStatus() {
   document.getElementById('pbNodeCount').textContent = nodes.length;
   document.getElementById('pbCableCount').textContent = cables.length;
@@ -2846,10 +3271,200 @@ function updateStatus() {
     const tracks = getTracksForNode(n.id);
     if (tracks.length > 0) activeFx++;
   });
+  /* Also count active POST master FX */
+  activeFx += postActiveCount();
   const fxEl = document.getElementById('pbFxActive');
   const fxStatus = document.getElementById('pbFxStatus');
   if (fxEl) fxEl.textContent = activeFx;
   if (fxStatus) fxStatus.style.color = activeFx > 0 ? '#69f0ae' : '#777';
+}
+
+/* ══════════════════════════════════════════════════════════
+   POST MASTER FX — Tab & Controls
+   ══════════════════════════════════════════════════════════ */
+
+/* --- Tab switching --- */
+window.pbSwitchTab = function(tab) {
+  const tabs = document.querySelectorAll('.pb-tab');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const canvas = document.getElementById('pbCanvas');
+  const post = document.getElementById('pbPostPanel');
+  const toolbar = document.getElementById('pbToolbar');
+  if (tab === 'post') {
+    canvas.style.display = 'none';
+    post.classList.remove('hidden');
+    toolbar.style.display = 'none';
+  } else {
+    canvas.style.display = '';
+    post.classList.add('hidden');
+    toolbar.style.display = '';
+  }
+}
+
+/* --- Module active state tracking --- */
+const postState = {
+  filter: false, distortion: false, bitcrusher: false,
+  phaser: false, flanger: false, delay: false, compressor: false
+};
+
+window.postActiveCount = function() {
+  return Object.values(postState).filter(Boolean).length;
+}
+
+window.postToggle = function(mod) {
+  postState[mod] = !postState[mod];
+  const btn = document.getElementById(postToggleId(mod));
+  const modEl = btn ? btn.closest('.post-module') : null;
+  if (btn) {
+    btn.textContent = postState[mod] ? 'ON' : 'OFF';
+    btn.classList.toggle('on', postState[mod]);
+  }
+  if (modEl) modEl.classList.toggle('active', postState[mod]);
+
+  /* Send activate/deactivate to firmware */
+  switch(mod) {
+    case 'filter':    postSendFilter(); break;
+    case 'distortion': postSendDist(); break;
+    case 'bitcrusher': postSendBit(); break;
+    case 'phaser':    sendCmd('setPhaserActive', { value: postState.phaser }); break;
+    case 'flanger':   sendCmd('setFlangerActive', { value: postState.flanger }); break;
+    case 'delay':     sendCmd('setDelayActive', { value: postState.delay }); break;
+    case 'compressor':sendCmd('setCompressorActive', { value: postState.compressor }); break;
+  }
+  updateStatus();
+}
+
+window.postToggleId = function(mod) {
+  const map = { filter:'postFilterToggle', distortion:'postDistToggle', bitcrusher:'postBitToggle',
+    phaser:'postPhaserToggle', flanger:'postFlangerToggle', delay:'postDelayToggle', compressor:'postCompToggle' };
+  return map[mod];
+}
+
+/* --- Filter --- */
+window.postSendFilter = function() {
+  const type = parseInt(document.getElementById('postFilterType').value);
+  const cutoff = parseFloat(document.getElementById('postFilterCutoff').value);
+  const resoRaw = parseFloat(document.getElementById('postFilterReso').value);
+  const reso = resoRaw / 100;
+  document.getElementById('postFilterCutoffVal').textContent = cutoff >= 1000 ? (cutoff/1000).toFixed(1)+'k' : cutoff;
+  document.getElementById('postFilterResoVal').textContent = reso.toFixed(1);
+  if (!postState.filter) { sendCmd('setFilterType', { value: 0 }); return; }
+  sendCmd('setFilterType', { value: type });
+  sendCmd('setFilterCutoff', { value: cutoff });
+  sendCmd('setFilterResonance', { value: reso });
+}
+
+/* --- Distortion --- */
+window.postSendDist = function() {
+  const amount = parseInt(document.getElementById('postDistAmount').value);
+  const mode = parseInt(document.getElementById('postDistMode').value);
+  document.getElementById('postDistAmountVal').textContent = amount;
+  if (!postState.distortion) { sendCmd('setDistortion', { value: 0 }); return; }
+  sendCmd('setDistortion', { value: amount / 100 });
+  sendCmd('setDistortionMode', { value: mode });
+}
+
+/* --- Bitcrusher --- */
+window.postSendBit = function() {
+  const bits = parseInt(document.getElementById('postBitBits').value);
+  const rate = parseInt(document.getElementById('postBitRate').value);
+  document.getElementById('postBitBitsVal').textContent = bits;
+  document.getElementById('postBitRateVal').textContent = rate >= 1000 ? (rate/1000).toFixed(1)+'k' : rate;
+  if (!postState.bitcrusher) {
+    sendCmd('setBitDepth', { value: 16 });
+    sendCmd('setSampleRate', { value: 44100 });
+    return;
+  }
+  sendCmd('setBitDepth', { value: bits });
+  sendCmd('setSampleRate', { value: rate });
+}
+
+/* --- Phaser --- */
+window.postSendPhaser = function() {
+  const rate = parseInt(document.getElementById('postPhaserRate').value);
+  const depth = parseInt(document.getElementById('postPhaserDepth').value);
+  const fb = parseInt(document.getElementById('postPhaserFb').value);
+  document.getElementById('postPhaserRateVal').textContent = rate;
+  document.getElementById('postPhaserDepthVal').textContent = depth;
+  document.getElementById('postPhaserFbVal').textContent = fb;
+  if (!postState.phaser) return;
+  sendCmd('setPhaserRate', { value: rate });
+  sendCmd('setPhaserDepth', { value: depth });
+  sendCmd('setPhaserFeedback', { value: fb });
+}
+
+/* --- Flanger --- */
+window.postSendFlanger = function() {
+  const rate = parseInt(document.getElementById('postFlangerRate').value);
+  const depth = parseInt(document.getElementById('postFlangerDepth').value);
+  const fb = parseInt(document.getElementById('postFlangerFb').value);
+  const mix = parseInt(document.getElementById('postFlangerMix').value);
+  document.getElementById('postFlangerRateVal').textContent = rate;
+  document.getElementById('postFlangerDepthVal').textContent = depth;
+  document.getElementById('postFlangerFbVal').textContent = fb;
+  document.getElementById('postFlangerMixVal').textContent = mix;
+  if (!postState.flanger) return;
+  sendCmd('setFlangerRate', { value: rate });
+  sendCmd('setFlangerDepth', { value: depth });
+  sendCmd('setFlangerFeedback', { value: fb });
+  sendCmd('setFlangerMix', { value: mix });
+}
+
+/* --- Delay --- */
+window.postSendDelay = function() {
+  const time = parseInt(document.getElementById('postDelayTime').value);
+  const fb = parseInt(document.getElementById('postDelayFb').value);
+  const mix = parseInt(document.getElementById('postDelayMix').value);
+  document.getElementById('postDelayTimeVal').textContent = time + 'ms';
+  document.getElementById('postDelayFbVal').textContent = fb;
+  document.getElementById('postDelayMixVal').textContent = mix;
+  if (!postState.delay) return;
+  sendCmd('setDelayTime', { value: time });
+  sendCmd('setDelayFeedback', { value: fb });
+  sendCmd('setDelayMix', { value: mix });
+}
+
+/* --- Compressor --- */
+window.postSendComp = function() {
+  const thresh = parseInt(document.getElementById('postCompThresh').value);
+  const ratioRaw = parseInt(document.getElementById('postCompRatio').value);
+  const ratio = ratioRaw / 10;
+  const atk = parseInt(document.getElementById('postCompAtk').value);
+  const rel = parseInt(document.getElementById('postCompRel').value);
+  const gain = parseInt(document.getElementById('postCompGain').value);
+  document.getElementById('postCompThreshVal').textContent = thresh + 'dB';
+  document.getElementById('postCompRatioVal').textContent = ratio.toFixed(1);
+  document.getElementById('postCompAtkVal').textContent = atk + 'ms';
+  document.getElementById('postCompRelVal').textContent = rel + 'ms';
+  document.getElementById('postCompGainVal').textContent = gain + 'dB';
+  if (!postState.compressor) return;
+  sendCmd('setCompressorThreshold', { value: thresh });
+  sendCmd('setCompressorRatio', { value: ratio });
+  sendCmd('setCompressorAttack', { value: atk });
+  sendCmd('setCompressorRelease', { value: rel });
+  sendCmd('setCompressorMakeupGain', { value: gain });
+}
+
+/* --- Clear All Master FX --- */
+window.postClearAll = function() {
+  /* Reset all modules */
+  Object.keys(postState).forEach(mod => {
+    postState[mod] = false;
+    const btn = document.getElementById(postToggleId(mod));
+    const modEl = btn ? btn.closest('.post-module') : null;
+    if (btn) { btn.textContent = 'OFF'; btn.classList.remove('on'); }
+    if (modEl) modEl.classList.remove('active');
+  });
+  /* Send resets to firmware */
+  sendCmd('setFilterType', { value: 0 });
+  sendCmd('setDistortion', { value: 0 });
+  sendCmd('setBitDepth', { value: 16 });
+  sendCmd('setSampleRate', { value: 44100 });
+  sendCmd('setPhaserActive', { value: false });
+  sendCmd('setFlangerActive', { value: false });
+  sendCmd('setDelayActive', { value: false });
+  sendCmd('setCompressorActive', { value: false });
+  updateStatus();
 }
 
 /* ──────────── BOOT ──────────── */

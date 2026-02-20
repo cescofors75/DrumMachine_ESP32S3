@@ -187,8 +187,8 @@ AudioEngine::AudioEngine() : i2sPort(I2S_NUM_0),
     trackComp[i].active = false;
     trackComp[i].threshold = 0.5f;
     trackComp[i].ratio = 4.0f;
-    trackComp[i].attackCoeff = expf(-1.0f / (SAMPLE_RATE * 0.010f));
-    trackComp[i].releaseCoeff = expf(-1.0f / (SAMPLE_RATE * 0.100f));
+    trackComp[i].attackCoeff = expf(-1.0f / (SAMPLE_RATE * 0.002f));   // 2ms attack (fast for drums)
+    trackComp[i].releaseCoeff = expf(-1.0f / (SAMPLE_RATE * 0.060f));  // 60ms release (punchy)
     trackComp[i].envelope = 0.0f;
     sidechain.envelope[i] = 0.0f;
     sidechain.holdSamples[i] = 0;
@@ -1501,6 +1501,8 @@ void AudioEngine::setTrackCompressor(int track, bool active, float threshold, fl
     float db = constrain(threshold, -60.0f, 0.0f);
     trackComp[track].threshold = powf(10.0f, db / 20.0f);
     trackComp[track].ratio = constrain(ratio, 1.0f, 20.0f);
+    trackComp[track].attackCoeff = expf(-1.0f / (SAMPLE_RATE * 0.002f));   // 2ms fast attack for drums
+    trackComp[track].releaseCoeff = expf(-1.0f / (SAMPLE_RATE * 0.060f));  // 60ms punchy release
     trackComp[track].envelope = 0.0f;
   }
   Serial.printf("[AudioEngine] Track %d compressor: %s (thresh:%.1fdB ratio:%.1f)\n",
@@ -1559,7 +1561,8 @@ inline float AudioEngine::processTrackFlanger(int track, float input) {
   
   // LFO devuelve [-1,+1] ya que lfo.depth=1.0; depth controla solo rango de delay
   float lfoVal = (lfoTick(f.lfo) + 1.0f) * 0.5f;  // [0, 1]
-  float delaySamplesF = lfoVal * f.depth * 180.0f + 1.0f;  // hasta ~4ms max
+  float delaySamplesF = lfoVal * f.depth * 400.0f + 1.0f;  // hasta ~9ms max (más audible)
+  if (delaySamplesF >= TRACK_FLANGER_BUF - 1) delaySamplesF = TRACK_FLANGER_BUF - 2;
   
   uint32_t delayInt = (uint32_t)delaySamplesF;
   float frac = delaySamplesF - (float)delayInt;
@@ -1572,8 +1575,9 @@ inline float AudioEngine::processTrackFlanger(int track, float input) {
   
   f.writePos = (f.writePos + 1) % TRACK_FLANGER_BUF;
   
-  // Mix: mantener volumen original completo + añadir señal flangeada
-  return input + delayed * 0.7f;
+  // Wet/dry mix: depth controls mix intensity (more depth = more wet)
+  float wetMix = 0.5f + f.depth * 0.4f;  // 0.5 to 0.9
+  return input * (1.0f - wetMix) + (input + delayed) * wetMix;
 }
 
 // --- Per-track Compressor Processing ---
@@ -1590,7 +1594,12 @@ inline float AudioEngine::processTrackCompressor(int track, float input) {
   float gain = 1.0f;
   if (c.envelope > c.threshold) {
     float excess = c.envelope / c.threshold;
-    gain = c.threshold * powf(excess, 1.0f / c.ratio - 1.0f);
+    float compGain = powf(excess, 1.0f / c.ratio - 1.0f);
+    gain = compGain;
+    // Makeup gain: compensate for compression to maintain perceived volume
+    // Higher ratio = more makeup needed
+    float makeup = 1.0f + (c.ratio - 1.0f) * 0.15f;
+    gain *= makeup;
   }
   
   return input * gain;

@@ -29,7 +29,7 @@ static constexpr int MAX_PADS = 24;  // 16 sequencer + 8 XTRA pads
 
 // Per-track live FX (SLAVE controller)
 #define TRACK_ECHO_SIZE 8820       // 200ms per-track echo at 44100Hz
-#define TRACK_FLANGER_BUF 256      // ~5.8ms per-track flanger
+#define TRACK_FLANGER_BUF 512      // ~11.6ms per-track flanger (more audible sweep)
 
 // Filter types (10 classic types)
 enum FilterType {
